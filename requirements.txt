@@ -1,0 +1,8 @@
+# Python dependencies for the Vercel serverless function in api/audit.py.
+# Only the crawl + analysis deps are needed here; the CLI-only exporters
+# (reportlab / openpyxl) are lazily imported and never called by the API,
+# so they are intentionally omitted to keep cold starts fast.
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+networkx>=3.0

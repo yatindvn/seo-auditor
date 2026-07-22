@@ -27,42 +27,55 @@ def _progress(done, total, url):
     print(f"\r[{bar}] {done}/{total}  {short_url:<70}", end="", flush=True)
 
 
-def run_audit(args) -> int:
-    print(f"Starting SEO audit of {args.url}")
-    print(f"  max_pages={args.max_pages}  max_depth={args.max_depth}  "
-          f"respect_robots={not args.ignore_robots}  concurrency={args.concurrency}\n")
+def collect_audit_data(
+    url,
+    max_pages,
+    max_depth,
+    ignore_robots=False,
+    concurrency=8,
+    timeout=15,
+    retries=2,
+    delay=0.0,
+    skip_external_links=False,
+    max_external_links=100,
+    check_near_duplicates=False,
+    psi_key=None,
+    psi_strategy="mobile",
+    progress_callback=None,
+):
+    """Run the full crawl + analysis pipeline and return the structured report dict.
 
+    Shared by the CLI (`run_audit`) and the serverless API (`api/audit.py`) so both
+    produce identical JSON without duplicating the audit logic and without writing
+    any files to disk (important for read-only serverless filesystems).
+    """
     crawler = Crawler(
-        start_url=args.url,
-        max_pages=args.max_pages,
-        max_depth=args.max_depth,
-        respect_robots=not args.ignore_robots,
-        concurrency=args.concurrency,
-        timeout=args.timeout,
-        retries=args.retries,
-        delay=args.delay,
-        include_external_link_check=not args.skip_external_links,
+        start_url=url,
+        max_pages=max_pages,
+        max_depth=max_depth,
+        respect_robots=not ignore_robots,
+        concurrency=concurrency,
+        timeout=timeout,
+        retries=retries,
+        delay=delay,
+        include_external_link_check=not skip_external_links,
     )
 
-    t0 = time.time()
-    crawler.crawl(progress_callback=_progress)
-    print(f"\nCrawled {len(crawler.results)} pages in {time.time() - t0:.1f}s")
+    crawler.crawl(progress_callback=progress_callback)
 
-    if not args.skip_external_links:
-        print("Checking external links...")
-        crawler.check_external_links(max_check=args.max_external_links)
+    if not skip_external_links:
+        crawler.check_external_links(max_check=max_external_links)
 
-    print("Running per-page checks...")
     all_page_issues = {}
     page_meta = {}
     page_data_for_dupes = []
     psi_results = {}
 
-    for url, page in crawler.results.items():
+    for page_url, page in crawler.results.items():
         issues = []
         issues += checks.check_status_and_https(page, {})
         issues += checks.check_mixed_content(page)
-        canon_issues, canonical = checks.check_canonical(page, url)
+        canon_issues, canonical = checks.check_canonical(page, page_url)
         issues += canon_issues
         issues += checks.check_indexability(page)
 
@@ -76,7 +89,7 @@ def run_audit(args) -> int:
         issues += checks.check_links(page)
         issues += checks.check_structured_data(page)
         issues += checks.check_open_graph_twitter(page)
-        issues += checks.check_url_structure(url)
+        issues += checks.check_url_structure(page_url)
 
         content_issues, content_stats = checks.check_content(page)
         issues += content_issues
@@ -91,11 +104,11 @@ def run_audit(args) -> int:
         weight = performance.analyze_page_weight(page)
         issues += performance.check_performance_proxies(page, weight)
 
-        if args.psi_key and page.status_code == 200:
-            psi_results[url] = performance.fetch_psi_metrics(url, args.psi_key, strategy=args.psi_strategy)
+        if psi_key and page.status_code == 200:
+            psi_results[page_url] = performance.fetch_psi_metrics(page_url, psi_key, strategy=psi_strategy)
 
-        all_page_issues[url] = issues
-        page_meta[url] = {
+        all_page_issues[page_url] = issues
+        page_meta[page_url] = {
             "title": title,
             "meta_description": desc,
             "h1": h1,
@@ -104,7 +117,7 @@ def run_audit(args) -> int:
             "performance": weight,
         }
         page_data_for_dupes.append({
-            "url": url,
+            "url": page_url,
             "title": title,
             "meta_description": desc,
             "h1": h1,
@@ -113,10 +126,9 @@ def run_audit(args) -> int:
             "text": content_stats["text"],
         })
 
-    print("Running site-wide analysis (link graph, duplicates, redirects)...")
     site_wide = analysis.build_link_graph_stats(crawler)
     duplicates = analysis.find_duplicates(page_data_for_dupes)
-    near_dupes = analysis.near_duplicate_content(page_data_for_dupes) if args.check_near_duplicates else []
+    near_dupes = analysis.near_duplicate_content(page_data_for_dupes) if check_near_duplicates else []
     redirects = analysis.redirect_report(crawler)
     broken_links = analysis.broken_link_report(crawler)
 
@@ -128,9 +140,7 @@ def run_audit(args) -> int:
     )
     page_rows = report.build_page_level_report(crawler, all_page_issues, page_meta)
 
-    os.makedirs(args.out, exist_ok=True)
-
-    full_data = {
+    return {
         "executive_summary": exec_summary,
         "site_wide_analysis": site_wide,
         "duplicates": duplicates,
@@ -145,6 +155,42 @@ def run_audit(args) -> int:
         "robots_txt": crawler.robots_txt_content,
         "sitemaps_found": crawler.sitemaps_found,
     }
+
+
+def run_audit(args) -> int:
+    print(f"Starting SEO audit of {args.url}")
+    print(f"  max_pages={args.max_pages}  max_depth={args.max_depth}  "
+          f"respect_robots={not args.ignore_robots}  concurrency={args.concurrency}\n")
+
+    t0 = time.time()
+    full_data = collect_audit_data(
+        url=args.url,
+        max_pages=args.max_pages,
+        max_depth=args.max_depth,
+        ignore_robots=args.ignore_robots,
+        concurrency=args.concurrency,
+        timeout=args.timeout,
+        retries=args.retries,
+        delay=args.delay,
+        skip_external_links=args.skip_external_links,
+        max_external_links=args.max_external_links,
+        check_near_duplicates=args.check_near_duplicates,
+        psi_key=args.psi_key,
+        psi_strategy=args.psi_strategy,
+        progress_callback=_progress,
+    )
+
+    exec_summary = full_data["executive_summary"]
+    page_rows = full_data["pages"]
+    recommendations = full_data["recommendations"]
+    issue_freq = full_data["issue_frequency"]
+    duplicates = full_data["duplicates"]
+    redirects = full_data["redirects"]
+    broken_links = full_data["broken_links"]
+
+    print(f"\nCrawled {exec_summary['pages_crawled']} pages in {time.time() - t0:.1f}s")
+
+    os.makedirs(args.out, exist_ok=True)
 
     json_path = os.path.join(args.out, "audit_report.json")
     report.export_json(json_path, full_data)
