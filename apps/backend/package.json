@@ -1,0 +1,12 @@
+{
+  "name": "seo-auditor-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "python -m uvicorn app.main:app --reload --port 5000",
+    "dev:backend": "python -m uvicorn app.main:app --reload --port 5000",
+    "start": "python -m uvicorn app.main:app --port 5000",
+    "build": "echo \"Python backend does not require JavaScript compilation.\"",
+    "lint": "python -m py_compile app/main.py"
+  }
+}
