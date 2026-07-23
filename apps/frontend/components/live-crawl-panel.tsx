@@ -3,41 +3,40 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAudit } from "@/lib/audit-context";
 import { ApiService } from "@/services/api";
-import { Activity, Clock, Zap, Layers, AlertCircle, CheckCircle2, Search, Pause, Play, Square, RefreshCw, Link2, ExternalLink, XCircle, ArrowDownCircle } from "lucide-react";
+import {
+  Activity, Clock, Zap, Layers, CheckCircle2, Pause, Play, Square,
+  RefreshCw, Link2, ExternalLink, XCircle, ArrowDownCircle, X,
+  Search,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function LiveCrawlPanel() {
-  const { liveCrawlMetrics, activityLog, livePageRows, isLoading, setSelectedPage } = useAudit();
-  
-  const [autoScroll, setAutoScroll] = useState(true);
+
+// ─── Activity Drawer ───────────────────────────────────────────────────────────
+function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { activityLog, livePageRows, isLoading, setSelectedPage } = useAudit();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = 0; // The list is newest-first, so scroll to top
+    if (autoScroll && scrollRef.current && open) {
+      scrollRef.current.scrollTop = 0;
     }
-  }, [activityLog, autoScroll]);
+  }, [activityLog, autoScroll, open]);
 
-  if (!isLoading && !liveCrawlMetrics) {
-    return null;
-  }
+  // Prevent body scroll when drawer is open
+  useEffect(() => {
+    if (open) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
 
-  const speed = liveCrawlMetrics?.speed_pages_per_sec || 0;
-  const pagesCrawled = liveCrawlMetrics?.pages_crawled || livePageRows.length;
-  const queueRemaining = liveCrawlMetrics?.queue_remaining || 0;
-  const elapsed = liveCrawlMetrics?.elapsed_seconds || 0;
-  const eta = liveCrawlMetrics?.eta_seconds || 0;
-  const currentUrl = liveCrawlMetrics?.current_url || "Crawling site pages…";
-  
   const filteredActivity = activityLog.filter(act => {
-    if (searchQuery && !act.message.toLowerCase().includes(searchQuery.toLowerCase()) && !act.url?.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
+    if (searchQuery && !act.message.toLowerCase().includes(searchQuery.toLowerCase()) && !act.url?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (filterType !== "all") {
-      if (filterType === "link" && !['internal_link', 'external_link'].includes(act.type)) return false;
-      if (filterType === "error" && !['broken_link', 'timeout'].includes(act.type)) return false;
+      if (filterType === "link" && !["internal_link", "external_link"].includes(act.type)) return false;
+      if (filterType === "error" && !["broken_link", "timeout"].includes(act.type)) return false;
       if (filterType === "page" && act.type !== "page_crawled") return false;
       if (filterType === "redirect" && act.type !== "redirect") return false;
     }
@@ -46,222 +45,255 @@ export function LiveCrawlPanel() {
 
   const getIconForType = (type: string) => {
     switch (type) {
-      case 'internal_link': return <Link2 className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />;
-      case 'external_link': return <ExternalLink className="h-3.5 w-3.5 text-purple-500 shrink-0 mt-0.5" />;
-      case 'broken_link': return <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />;
-      case 'timeout': return <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />;
-      case 'redirect': return <RefreshCw className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />;
-      case 'page_crawled': return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />;
+      case "internal_link": return <Link2 className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />;
+      case "external_link": return <ExternalLink className="h-3.5 w-3.5 text-purple-500 shrink-0 mt-0.5" />;
+      case "broken_link": return <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />;
+      case "timeout": return <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />;
+      case "redirect": return <RefreshCw className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />;
+      case "page_crawled": return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />;
       default: return <Activity className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />;
     }
   };
 
+  if (!open) return null;
+
   return (
-    <div className="space-y-6 rounded-2xl border border-primary/20 bg-card/80 p-6 shadow-glass backdrop-blur-md">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-3 w-3">
-              {isLoading && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-              <span className={`relative inline-flex rounded-full h-3 w-3 ${isLoading ? 'bg-emerald-500' : 'bg-muted-foreground'}`}></span>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-[60] bg-background/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      {/* Drawer panel */}
+      <div className="fixed right-0 top-0 bottom-0 z-[70] w-full max-w-[680px] bg-card border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5">
+              {isLoading && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isLoading ? "bg-emerald-500" : "bg-muted-foreground"}`} />
             </span>
-            <h3 className="text-lg font-bold tracking-tight text-foreground">Live Crawl Monitor</h3>
+            <h2 className="text-sm font-bold tracking-tight text-foreground">Live Crawl Monitor</h2>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${isLoading ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-muted text-muted-foreground border-border"}`}>
+              {isLoading ? "In Progress" : "Completed"}
+            </span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground truncate max-w-xl">
-            Active Target: <span className="font-semibold text-primary">{currentUrl}</span>
-          </p>
+          <button onClick={onClose} className="rounded-md p-1.5 hover:bg-muted transition-colors">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          {isLoading && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => ApiService.pauseAudit()} className="h-8 gap-1 text-xs">
-                <Pause className="h-3.5 w-3.5" /> Pause
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => ApiService.resumeAudit()} className="h-8 gap-1 text-xs">
-                <Play className="h-3.5 w-3.5" /> Resume
-              </Button>
-              <Button variant="destructive" size="sm" onClick={() => ApiService.stopAudit()} className="h-8 gap-1 text-xs bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/50">
-                <Square className="h-3.5 w-3.5" /> Stop
-              </Button>
-            </>
-          )}
-          <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="h-8 gap-1 text-xs">
-            <RefreshCw className="h-3.5 w-3.5" /> Recrawl
-          </Button>
-          <span className={`ml-2 rounded-full px-3 py-1 text-xs font-semibold border ${isLoading ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}>
-            {isLoading ? "In Progress" : "Completed"}
-          </span>
-        </div>
-      </div>
 
-      {/* Live Metrics Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Layers className="h-3.5 w-3.5 text-blue-500" />
-            <span>Crawled</span>
+        {/* Tabs */}
+        <div className="flex border-b border-border shrink-0">
+          <button className="px-5 py-2.5 text-xs font-semibold text-foreground border-b-2 border-primary">Activity Feed</button>
+          <button className="px-5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors" onClick={() => {}}>Crawled Pages ({livePageRows.length})</button>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-2 px-5 py-2.5 border-b border-border/60 shrink-0">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search events..."
+              className="h-7 w-full text-xs bg-muted/40 border border-border rounded-md pl-8 pr-3 focus:outline-none focus:ring-1 focus:ring-primary"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
           </div>
-          <p className="mt-2 text-xl font-bold text-foreground">{pagesCrawled}</p>
+          <select
+            className="h-7 text-xs bg-muted/40 border border-border rounded-md px-2 focus:outline-none"
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+          >
+            <option value="all">All Events</option>
+            <option value="page">Pages</option>
+            <option value="link">Links</option>
+            <option value="redirect">Redirects</option>
+            <option value="error">Errors</option>
+          </select>
+          <button
+            onClick={() => setAutoScroll(!autoScroll)}
+            title={autoScroll ? "Pause auto-scroll" : "Resume auto-scroll"}
+            className={`h-7 w-7 flex items-center justify-center rounded-md border transition-colors ${autoScroll ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground"}`}
+          >
+            <ArrowDownCircle className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Search className="h-3.5 w-3.5 text-amber-500" />
-            <span>Queue</span>
-          </div>
-          <p className="mt-2 text-xl font-bold text-foreground">{queueRemaining}</p>
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Zap className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Speed</span>
-          </div>
-          <p className="mt-2 text-xl font-bold text-foreground">{speed} p/s</p>
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Elapsed</span>
-          </div>
-          <p className="mt-2 text-xl font-bold text-foreground">{elapsed}s</p>
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Activity className="h-3.5 w-3.5 text-purple-500" />
-            <span>ETA</span>
-          </div>
-          <p className="mt-2 text-xl font-bold text-foreground">{eta}s</p>
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Status</span>
-          </div>
-          <p className={`mt-2 text-sm font-semibold ${isLoading ? 'text-emerald-500' : 'text-muted-foreground'}`}>
-            {isLoading ? "Running" : "Done"}
-          </p>
-        </div>
-      </div>
-
-      {/* Live Progress Bar */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between text-xs font-semibold text-muted-foreground">
-          <span>{liveCrawlMetrics?.stage || "Scanning BFS Nodes..."}</span>
-          <span>{liveCrawlMetrics?.progress || (isLoading ? 5 : 100)}%</span>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-300"
-            style={{ width: `${liveCrawlMetrics?.progress || (isLoading ? 5 : 100)}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Grid: Activity Feed & Live Crawled Table */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Activity Feed */}
-        <div className="rounded-xl border border-border/60 bg-muted/20 p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Live Activity Feed
-            </h4>
-            <div className="flex items-center gap-2">
-              <input 
-                type="text" 
-                placeholder="Search..." 
-                className="h-7 text-xs bg-background border border-border rounded px-2 w-24 focus:outline-none focus:ring-1 focus:ring-primary"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <select 
-                className="h-7 text-xs bg-background border border-border rounded px-1 focus:outline-none"
-                value={filterType}
-                onChange={e => setFilterType(e.target.value)}
-              >
-                <option value="all">All</option>
-                <option value="page">Pages</option>
-                <option value="link">Links</option>
-                <option value="redirect">Redirects</option>
-                <option value="error">Errors</option>
-              </select>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setAutoScroll(!autoScroll)} title={autoScroll ? "Pause Scroll" : "Resume Scroll"}>
-                <ArrowDownCircle className={`h-4 w-4 ${autoScroll ? 'text-primary' : 'text-muted-foreground'}`} />
-              </Button>
+        {/* Activity list */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-1.5">
+          {filteredActivity.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground py-16">
+              {isLoading ? "Listening for real-time events…" : "No events recorded."}
             </div>
-          </div>
-          <div ref={scrollRef} className="h-64 space-y-2 overflow-y-auto pr-2 text-xs flex-1">
-            {filteredActivity.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                Listening for real-time events…
-              </div>
-            ) : (
-              filteredActivity.map((act) => (
-                <div
-                  key={act.id}
-                  className="flex items-start gap-2 rounded-lg border border-border/40 bg-card/60 p-2 text-foreground"
-                >
-                  {getIconForType(act.type)}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{act.message}</p>
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(act.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
+          ) : (
+            filteredActivity.map(act => (
+              <div
+                key={act.id}
+                className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-card/60 px-3 py-2 text-xs text-foreground"
+              >
+                {getIconForType(act.type)}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{act.message}</p>
+                  {act.url && <p className="truncate text-[10px] text-muted-foreground font-mono mt-0.5">{act.url}</p>}
                 </div>
-              ))
-            )}
-          </div>
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {new Date(act.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            ))
+          )}
         </div>
 
-        {/* Live Crawled Pages Table */}
-        <div className="rounded-xl border border-border/60 bg-muted/20 p-4 flex flex-col">
-          <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Live Crawled Pages
-          </h4>
-          <div className="h-64 overflow-y-auto text-xs flex-1">
-            <table className="w-full text-left">
-              <thead className="sticky top-0 bg-muted/20 backdrop-blur">
-                <tr className="border-b border-border/60 text-muted-foreground">
-                  <th className="pb-2 font-semibold pl-2">URL</th>
-                  <th className="pb-2 font-semibold">Status</th>
-                  <th className="pb-2 font-semibold">Depth</th>
-                  <th className="pb-2 font-semibold text-right pr-2">Time (ms)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {livePageRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-muted-foreground">
-                      No pages streamed yet
-                    </td>
-                  </tr>
-                ) : (
-                  livePageRows.map((row, idx) => (
-                    <tr 
-                      key={idx} 
-                      className="hover:bg-muted/40 cursor-pointer transition-colors"
-                      onClick={() => setSelectedPage({ url: row.url } as any)}
-                    >
-                      <td className="py-2 pl-2 max-w-[200px] truncate font-mono text-[11px] text-primary">{row.url}</td>
-                      <td className="py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${row.status === 200 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                          {row.status || 200}
-                        </span>
-                      </td>
-                      <td className="py-2 text-muted-foreground">{row.depth || 0}</td>
-                      <td className="py-2 pr-2 text-right text-muted-foreground">{row.response_time || 0}ms</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        {/* Footer actions */}
+        {isLoading && (
+          <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
+            <Button variant="outline" size="sm" onClick={() => ApiService.pauseAudit()} className="h-8 gap-1.5 text-xs flex-1">
+              <Pause className="h-3.5 w-3.5" /> Pause
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => ApiService.resumeAudit()} className="h-8 gap-1.5 text-xs flex-1">
+              <Play className="h-3.5 w-3.5" /> Resume
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => ApiService.stopAudit()} className="h-8 gap-1.5 text-xs flex-1 text-rose-500 border-rose-500/40 hover:bg-rose-500/10">
+              <Square className="h-3.5 w-3.5" /> Stop
+            </Button>
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }
+
+// ─── Compact Crawl Bar ─────────────────────────────────────────────────────────
+export function CompactCrawlBar() {
+  const { liveCrawlMetrics, activityLog, isLoading } = useAudit();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  if (!isLoading && !liveCrawlMetrics) return null;
+
+  const progress = liveCrawlMetrics?.progress ?? (isLoading ? 5 : 100);
+  const pagesCrawled = liveCrawlMetrics?.pages_crawled ?? 0;
+  const queueRemaining = liveCrawlMetrics?.queue_remaining ?? 0;
+  const speed = liveCrawlMetrics?.speed_pages_per_sec ?? 0;
+  const elapsed = liveCrawlMetrics?.elapsed_seconds ?? 0;
+  const eta = liveCrawlMetrics?.eta_seconds ?? 0;
+  const currentUrl = liveCrawlMetrics?.current_url ?? "";
+  const stage = liveCrawlMetrics?.stage ?? (isLoading ? "Initialising…" : "Complete");
+  const unreadCount = activityLog.length;
+
+  return (
+    <>
+      <div className="rounded-xl border border-primary/20 bg-card/80 backdrop-blur-md shadow-sm px-4 py-3">
+        {/* Top row: status + metrics + actions */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Pulse + stage label */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="relative flex h-2.5 w-2.5">
+              {isLoading && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isLoading ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+            </span>
+            <span className="text-xs font-semibold text-foreground">{stage}</span>
+          </div>
+
+          {/* Current URL */}
+          {currentUrl && (
+            <span className="text-xs text-muted-foreground font-mono truncate max-w-[220px] hidden sm:block">
+              {currentUrl.replace(/^https?:\/\//, "")}
+            </span>
+          )}
+
+          {/* Divider */}
+          <div className="flex-1" />
+
+          {/* Metrics chips */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 flex-wrap">
+            <span className="flex items-center gap-1">
+              <Layers className="h-3.5 w-3.5 text-blue-500" />
+              <strong className="text-foreground">{pagesCrawled}</strong> crawled
+            </span>
+            <span className="flex items-center gap-1">
+              <Search className="h-3.5 w-3.5 text-amber-500" />
+              <strong className="text-foreground">{queueRemaining}</strong> queued
+            </span>
+            <span className="flex items-center gap-1">
+              <Zap className="h-3.5 w-3.5 text-emerald-500" />
+              <strong className="text-foreground">{speed}</strong> p/s
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5 text-indigo-500" />
+              <strong className="text-foreground">{elapsed}s</strong>
+            </span>
+            {isLoading && eta > 0 && (
+              <span className="text-muted-foreground">ETA <strong className="text-foreground">{eta}s</strong></span>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isLoading && (
+              <>
+                <button
+                  onClick={() => ApiService.pauseAudit()}
+                  title="Pause"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+                >
+                  <Pause className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                <button
+                  onClick={() => ApiService.stopAudit()}
+                  title="Stop"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-rose-500/40 hover:bg-rose-500/10 transition-colors"
+                >
+                  <Square className="h-3.5 w-3.5 text-rose-500" />
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              title="Recrawl"
+              className="h-7 w-7 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button
+              onClick={() => setDrawerOpen(true)}
+              title="View activity feed"
+              className="relative h-7 flex items-center gap-1.5 rounded-md border border-border hover:bg-muted px-2.5 transition-colors text-xs text-muted-foreground"
+            >
+              <Activity className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Activity</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground px-1">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mt-2.5 space-y-1">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${isLoading ? "bg-gradient-to-r from-blue-500 to-emerald-500" : "bg-emerald-500"}`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>{progress}%</span>
+            {isLoading && <span className="text-primary font-medium">Live</span>}
+          </div>
+        </div>
+      </div>
+
+      <ActivityDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+    </>
+  );
+}
+
+// ─── Legacy export alias (keeps dashboard import working) ──────────────────────
+export function LiveCrawlPanel() {
+  return <CompactCrawlBar />;
+}
+

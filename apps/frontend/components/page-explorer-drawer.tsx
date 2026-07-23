@@ -20,9 +20,9 @@ export function PageExplorerDrawer() {
   // Pass/Fail logic
   const isStatusPass = p.status_code === 200;
   const isTimePass = (p.response_time_ms || 0) < 500;
-  const isTitlePass = p.title && p.title.length >= 30 && p.title.length <= 60;
-  const isDescPass = p.meta_description && p.meta_description.length >= 120 && p.meta_description.length <= 160;
-  const isH1Pass = p.h1 && p.h1.length > 0;
+  const isTitlePass = !!(p.title && p.title.length >= 30 && p.title.length <= 60);
+  const isDescPass = !!(p.meta_description && p.meta_description.length >= 120 && p.meta_description.length <= 160);
+  const isH1Pass = !!(p.h1 && p.h1.length > 0);
   const isAltPass = (p.missing_alt_count || 0) === 0;
   
   let securityScore = 0;
@@ -52,7 +52,7 @@ export function PageExplorerDrawer() {
           <div className="min-w-0 pr-4 flex-1">
             <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-2">
               Page Inspection Drawer
-              {p.issues_count > 0 && <span className="bg-rose-500/10 text-rose-500 px-1.5 py-0.5 rounded text-[9px]">{p.issues_count} Issues</span>}
+              {(p.critical_issues + p.warning_issues + p.info_issues) > 0 && <span className="bg-rose-500/10 text-rose-500 px-1.5 py-0.5 rounded text-[9px]">{p.critical_issues + p.warning_issues + p.info_issues} Issues</span>}
             </span>
             <h3 className="text-lg font-bold text-foreground truncate font-mono mt-1" title={p.url}>
               {p.url}
@@ -126,7 +126,7 @@ export function PageExplorerDrawer() {
               <div className={`rounded-xl border p-4 ${isTitlePass ? 'border-border/60' : 'border-amber-500/30 bg-amber-500/5'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-muted-foreground uppercase">Title Tag</span>
-                  <BadgeIcon pass={isTitlePass} warn={p.title?.length > 0} />
+                  <BadgeIcon pass={isTitlePass} warn={(p.title?.length ?? 0) > 0} />
                 </div>
                 <p className="font-medium text-foreground">{p.title || "Missing Title"}</p>
                 <p className="text-[10px] text-muted-foreground mt-2">Length: {p.title?.length || 0} chars (Optimal: 30-60)</p>
@@ -135,7 +135,7 @@ export function PageExplorerDrawer() {
               <div className={`rounded-xl border p-4 ${isDescPass ? 'border-border/60' : 'border-amber-500/30 bg-amber-500/5'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-muted-foreground uppercase">Meta Description</span>
-                  <BadgeIcon pass={isDescPass} warn={p.meta_description?.length > 0} />
+                  <BadgeIcon pass={isDescPass} warn={(p.meta_description?.length ?? 0) > 0} />
                 </div>
                 <p className="text-muted-foreground">{p.meta_description || "Missing Meta Description"}</p>
                 <p className="text-[10px] text-muted-foreground mt-2">Length: {p.meta_description?.length || 0} chars (Optimal: 120-160)</p>

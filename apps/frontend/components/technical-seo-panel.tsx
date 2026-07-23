@@ -13,7 +13,7 @@ interface TechnicalSeoPanelProps {
 export function TechnicalSeoPanel({ es, pages }: TechnicalSeoPanelProps) {
   const robotsFound = es.robots_txt_found;
   const sitemaps = es.sitemaps_found || [];
-  const sitemapUrls = es.sitemap_urls || [];
+  const sitemapUrls: string[] = es.sitemap_urls || [];
   
   const crawledUrls = new Set(pages.map(p => p.url));
   const sitemapUrlSet = new Set(sitemapUrls);
@@ -27,7 +27,7 @@ export function TechnicalSeoPanel({ es, pages }: TechnicalSeoPanelProps) {
     else missingFromSitemap++;
   });
   
-  sitemapUrlSet.forEach(url => {
+  (sitemapUrlSet as Set<string>).forEach((url: string) => {
     if (!crawledUrls.has(url)) extraInSitemap++;
   });
   
@@ -53,7 +53,7 @@ export function TechnicalSeoPanel({ es, pages }: TechnicalSeoPanelProps) {
             {robotsFound && (
               <div className="rounded-lg bg-muted/40 p-3 max-h-48 overflow-y-auto">
                 <pre className="text-[10px] font-mono text-muted-foreground whitespace-pre-wrap">
-                  {es.robots_txt_content || "No content visible."}
+                  {(es.robots_txt_content as string | null | undefined) || "No content visible."}
                 </pre>
               </div>
             )}

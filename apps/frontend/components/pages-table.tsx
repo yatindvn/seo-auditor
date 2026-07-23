@@ -180,7 +180,7 @@ export function PagesTable({ pages }: PagesTableProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${statusStyle.bg} ${statusStyle.text}`}>
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${statusStyle.className}`}>
                         {page.status_code || "ERR"}
                       </span>
                     </TableCell>

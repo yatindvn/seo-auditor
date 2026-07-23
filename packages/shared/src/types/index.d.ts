@@ -30,6 +30,8 @@ export interface ExecutiveSummary {
     robots_txt_found: boolean;
     sitemaps_found: string[];
     sitemap_url_count: number;
+    robots_txt_content?: string | null;
+    sitemap_urls?: string[];
 }
 export interface PageItem {
     url: string;

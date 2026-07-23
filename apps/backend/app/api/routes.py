@@ -14,7 +14,7 @@ router = APIRouter()
 active_sessions: Dict[str, Any] = {}
 
 @router.post("/audit")
-def execute_audit(params: AuditRequestParams, background_tasks: BackgroundTasks):
+async def execute_audit(params: AuditRequestParams, background_tasks: BackgroundTasks):
     url = params.url.strip()
     session_id = f"sess_{int(time.time() * 1000)}"
     active_sessions[session_id] = {}
@@ -77,6 +77,10 @@ def execute_audit(params: AuditRequestParams, background_tasks: BackgroundTasks)
             active_sessions[session_id] = data
             asyncio.run_coroutine_threadsafe(ws_manager.broadcast("crawl:complete", {"status": "success", "session_id": session_id}), loop)
         except Exception as exc:
+            import traceback
+            with open("error_log.txt", "a") as f:
+                f.write(traceback.format_exc() + "\n")
+            traceback.print_exc()
             asyncio.run_coroutine_threadsafe(ws_manager.broadcast("crawl:error", {"error": str(exc), "session_id": session_id}), loop)
 
     background_tasks.add_task(background_task)

@@ -9,13 +9,14 @@ import { useKeyboardShortcuts, useCountUp } from "@/hooks/use-ux";
 import { HealthGauge } from "@/components/health-gauge";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { LiveCrawlPanel } from "@/components/live-crawl-panel";
+import { FloatingCrawlWidget } from "@/components/floating-crawl-widget";
 import { PageExplorerDrawer } from "@/components/page-explorer-drawer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import {
   Globe, AlertTriangle, AlertCircle, Link2, Copy, ArrowLeft, Clock,
-  CheckCircle2, Wifi, Info, Download, LayoutDashboard, Search as SearchIcon, EyeOff, MoveUp, MoveDown, Columns
+  CheckCircle2, Wifi, Info, Download, LayoutDashboard, Search as SearchIcon, EyeOff, MoveUp, MoveDown, Columns, Activity
 } from "lucide-react";
 
 // Lazy Load Heavy Components for Performance
@@ -247,6 +248,13 @@ export default function DashboardPage() {
           <ArrowLeft className="h-4 w-4" /> New audit
         </Button>
         <div className="flex items-center gap-2">
+          {/* Live Crawl navigation link — visible only while crawling */}
+          {isLoading && (
+            <Button variant="outline" size="sm" onClick={() => router.push("/live-crawl")} className="gap-1.5 text-xs text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10">
+              <Activity className="h-3.5 w-3.5" /> Live Crawl
+            </Button>
+          )}
+
           {isEditMode ? (
             <>
               <Button variant="outline" size="sm" onClick={resetLayout} className="text-rose-500">Reset</Button>
@@ -309,6 +317,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Floating crawl progress pill ─── */}
+      <FloatingCrawlWidget />
     </div>
   );
 }

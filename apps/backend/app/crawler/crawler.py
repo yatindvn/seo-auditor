@@ -105,6 +105,7 @@ class Crawler:
         self.link_graph: Dict[str, Set[str]] = {}  # url -> set(linked urls, internal only)
         self.inbound_links: Dict[str, Set[str]] = {}  # url -> set(referrers)
         self.external_links_checked: Dict[str, int] = {}  # external url -> status (best effort)
+        self.external_links: Set[str] = set()
         self.broken_links: List[Dict] = []
         self.robots_txt_content: Optional[str] = None
         self.robots_parser: Optional[robotparser.RobotFileParser] = None
@@ -326,7 +327,7 @@ class Crawler:
     # ------------------------------------------------------------ ext links
     def check_external_links(self, max_check: int = 100):
         """Best-effort HEAD (fallback GET) check of a sample of external links."""
-        targets = list(self.external_links_checked.keys())[:max_check]
+        targets = list(self.external_links)[:max_check]
 
         def head(u):
             try:
