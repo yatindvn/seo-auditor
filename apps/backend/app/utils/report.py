@@ -128,8 +128,10 @@ def build_executive_summary(crawler, all_page_issues, site_wide, duplicates, red
         "duplicate_content_groups": len(duplicates.get("duplicate_content", {})),
         "top_recommendations": recommendations[:10],
         "robots_txt_found": crawler.robots_txt_content is not None,
+        "robots_txt_content": crawler.robots_txt_content,
         "sitemaps_found": crawler.sitemaps_found,
         "sitemap_url_count": len(crawler.sitemap_urls),
+        "sitemap_urls": list(crawler.sitemap_urls),
     }
 
 

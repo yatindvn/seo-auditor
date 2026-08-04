@@ -12,8 +12,11 @@ import { Button } from "@/components/ui/button";
 
 
 // ─── Activity Drawer ───────────────────────────────────────────────────────────
+type DrawerTab = "activity" | "pages";
+
 function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { activityLog, livePageRows, isLoading, setSelectedPage } = useAudit();
+  const [activeTab, setActiveTab] = useState<DrawerTab>("activity");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [autoScroll, setAutoScroll] = useState(true);
@@ -85,64 +88,98 @@ function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void 
 
         {/* Tabs */}
         <div className="flex border-b border-border shrink-0">
-          <button className="px-5 py-2.5 text-xs font-semibold text-foreground border-b-2 border-primary">Activity Feed</button>
-          <button className="px-5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors" onClick={() => {}}>Crawled Pages ({livePageRows.length})</button>
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center gap-2 px-5 py-2.5 border-b border-border/60 shrink-0">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search events..."
-              className="h-7 w-full text-xs bg-muted/40 border border-border rounded-md pl-8 pr-3 focus:outline-none focus:ring-1 focus:ring-primary"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <select
-            className="h-7 text-xs bg-muted/40 border border-border rounded-md px-2 focus:outline-none"
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-          >
-            <option value="all">All Events</option>
-            <option value="page">Pages</option>
-            <option value="link">Links</option>
-            <option value="redirect">Redirects</option>
-            <option value="error">Errors</option>
-          </select>
           <button
-            onClick={() => setAutoScroll(!autoScroll)}
-            title={autoScroll ? "Pause auto-scroll" : "Resume auto-scroll"}
-            className={`h-7 w-7 flex items-center justify-center rounded-md border transition-colors ${autoScroll ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground"}`}
+            className={`px-5 py-2.5 text-xs font-semibold transition-colors ${activeTab === "activity" ? "text-foreground border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setActiveTab("activity")}
           >
-            <ArrowDownCircle className="h-3.5 w-3.5" />
+            Activity Feed
+          </button>
+          <button
+            className={`px-5 py-2.5 text-xs font-semibold transition-colors ${activeTab === "pages" ? "text-foreground border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setActiveTab("pages")}
+          >
+            Crawled Pages ({livePageRows.length})
           </button>
         </div>
 
-        {/* Activity list */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-1.5">
-          {filteredActivity.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground py-16">
-              {isLoading ? "Listening for real-time events…" : "No events recorded."}
+        {/* Controls */}
+        {activeTab === "activity" && (
+          <div className="flex items-center gap-2 px-5 py-2.5 border-b border-border/60 shrink-0">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search events..."
+                className="h-7 w-full text-xs bg-muted/40 border border-border rounded-md pl-8 pr-3 focus:outline-none focus:ring-1 focus:ring-primary"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
             </div>
-          ) : (
-            filteredActivity.map(act => (
-              <div
-                key={act.id}
-                className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-card/60 px-3 py-2 text-xs text-foreground"
-              >
-                {getIconForType(act.type)}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{act.message}</p>
-                  {act.url && <p className="truncate text-[10px] text-muted-foreground font-mono mt-0.5">{act.url}</p>}
-                </div>
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  {new Date(act.timestamp).toLocaleTimeString()}
-                </span>
+            <select
+              className="h-7 text-xs bg-muted/40 border border-border rounded-md px-2 focus:outline-none"
+              value={filterType}
+              onChange={e => setFilterType(e.target.value)}
+            >
+              <option value="all">All Events</option>
+              <option value="page">Pages</option>
+              <option value="link">Links</option>
+              <option value="redirect">Redirects</option>
+              <option value="error">Errors</option>
+            </select>
+            <button
+              onClick={() => setAutoScroll(!autoScroll)}
+              title={autoScroll ? "Pause auto-scroll" : "Resume auto-scroll"}
+              className={`h-7 w-7 flex items-center justify-center rounded-md border transition-colors ${autoScroll ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-muted/40 text-muted-foreground"}`}
+            >
+              <ArrowDownCircle className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Activity list / Crawled pages list */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-1.5">
+          {activeTab === "activity" ? (
+            filteredActivity.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground py-16">
+                {isLoading ? "Listening for real-time events…" : "No events recorded."}
               </div>
-            ))
+            ) : (
+              filteredActivity.map(act => (
+                <div
+                  key={act.id}
+                  className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-card/60 px-3 py-2 text-xs text-foreground"
+                >
+                  {getIconForType(act.type)}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{act.message}</p>
+                    {act.url && <p className="truncate text-[10px] text-muted-foreground font-mono mt-0.5">{act.url}</p>}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {new Date(act.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))
+            )
+          ) : (
+            livePageRows.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground py-16">
+                {isLoading ? "No pages crawled yet…" : "No pages found."}
+              </div>
+            ) : (
+              livePageRows.map((row, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedPage({ url: row.url } as any)}
+                  className="flex w-full items-center gap-2.5 rounded-lg border border-border/40 bg-card/60 px-3 py-2 text-xs text-foreground text-left hover:bg-muted/30 transition-colors"
+                >
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${row.status === 200 ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                    {row.status ?? 200}
+                  </span>
+                  <span className="truncate font-mono flex-1 min-w-0">{row.url}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{row.response_time ?? 0}ms</span>
+                </button>
+              ))
+            )
           )}
         </div>
 
