@@ -5,6 +5,7 @@ out/
 build/
 dist/
 next-env.d.ts
+*.tsbuildinfo
 
 # Package manager logs & caches
 npm-debug.log*
