@@ -50,6 +50,25 @@ export interface ExecutiveSummary {
   sitemap_urls?: string[];
 }
 
+export interface KeywordRanking {
+  keyword: string;
+  position: number | null;
+  note?: string | null;
+  checked_at?: string;
+}
+
+export interface SuggestedKeyword {
+  phrase: string;
+  reason: string;
+  competitor_examples?: string[] | null;
+}
+
+export interface KeywordAnalysis {
+  top_keywords: { phrase: string; score: number | null; found_in: string[] }[];
+  rankings: KeywordRanking[];
+  suggested_keywords: SuggestedKeyword[];
+}
+
 export interface PageItem {
   url: string;
   status_code: number | null;
@@ -86,6 +105,7 @@ export interface PageItem {
   last_modified?: string | null;
   security_headers?: Record<string, string | boolean>;
   seo_score?: number;
+  keyword_analysis?: KeywordAnalysis;
 }
 
 export interface Duplicates {
@@ -167,6 +187,11 @@ export interface AuditRequestParams {
   max_pages?: number;
   max_depth?: number;
   ignore_robots?: boolean;
+  enable_keyword_analysis?: boolean;
+  enable_keyword_suggestions?: boolean;
+  enable_rank_check?: boolean;
+  enable_competitor_gap?: boolean;
+  target_keywords?: string[];
 }
 
 export interface CrawlPage {

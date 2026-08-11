@@ -50,6 +50,7 @@ seo_audit_output/
 
 # ─── Editor / OS ─────────────────────────────────────────────
 .agents/
+.claude/worktrees/
 .idea/
 .vscode/*
 !.vscode/extensions.json
