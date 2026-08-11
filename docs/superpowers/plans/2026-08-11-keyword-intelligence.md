@@ -1019,8 +1019,10 @@ Insert:
 ```python
         keyword_data = (
             [{"phrase": k, "score": None, "found_in": []} for k in target_keywords]
-            if target_keywords else
-            keyword_extraction.extract_keywords(page_meta[page_url], content_stats)
+            if target_keywords else (
+                keyword_extraction.extract_keywords(page_meta[page_url], content_stats)
+                if enable_keyword_analysis else []
+            )
         )
         rank_data = (
             rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], config)
@@ -1042,6 +1044,8 @@ Insert:
 ```
 
 (This is still inside the `for page_url, page in crawler.results.items():` loop, before `page_data_for_dupes.append({...})`.)
+
+> Note: `enable_keyword_analysis` is the master switch for the whole feature — when `False`, extraction is skipped too (empty `top_keywords`), not just suggestions. `target_keywords`, when explicitly supplied, still works as a manual override even with `enable_keyword_analysis=False`, since it's an independent user-supplied seed rather than auto-analysis. (Corrected post-review — the original sketch only gated `suggestions` by this flag; see ledger.)
 
 - [ ] **Step 6: Wire the new request params through `routes.py`**
 
@@ -1240,8 +1244,10 @@ Replace with:
         _kw_config = _keyword_intel_config()
         keyword_data = (
             [{"phrase": k, "score": None, "found_in": []} for k in target_keywords]
-            if target_keywords else
-            keyword_extraction.extract_keywords(page_meta[page_url], content_stats)
+            if target_keywords else (
+                keyword_extraction.extract_keywords(page_meta[page_url], content_stats)
+                if enable_keyword_analysis else []
+            )
         )
         rank_data = (
             rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], _kw_config)
