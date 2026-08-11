@@ -34,6 +34,7 @@ const DeadEndPagesPanel = dynamic(() => import("@/components/dead-end-pages-pane
 const HubAnalysisPanel = dynamic(() => import("@/components/hub-analysis-panel").then(m => m.HubAnalysisPanel));
 const CrawlDepthPanel = dynamic(() => import("@/components/crawl-depth-panel").then(m => m.CrawlDepthPanel));
 const TechnicalSeoPanel = dynamic(() => import("@/components/technical-seo-panel").then(m => m.TechnicalSeoPanel));
+const KeywordPanel = dynamic(() => import("@/components/keyword-panel").then(m => m.KeywordPanel));
 const LinkAnalysisPanel = dynamic(() => import("@/components/link-analysis-panel").then(m => m.LinkAnalysisPanel));
 const RedirectAnalysisPanel = dynamic(() => import("@/components/redirect-analysis-panel").then(m => m.RedirectAnalysisPanel));
 const PerformancePanel = dynamic(() => import("@/components/performance-panel").then(m => m.PerformancePanel));
@@ -74,6 +75,7 @@ const DEFAULT_LAYOUT = [
   { id: "issues-grid", width: "full", visible: true },
   { id: "broken-links", width: "full", visible: true },
   { id: "tech-seo", width: "full", visible: true },
+  { id: "keywords", width: "full", visible: true },
   { id: "links", width: "full", visible: true },
   { id: "redirects", width: "full", visible: true },
   { id: "performance", width: "full", visible: true },
@@ -219,6 +221,7 @@ export default function DashboardPage() {
     ),
     "broken-links": <BrokenLinksTable brokenLinks={broken_links} />,
     "tech-seo": <Card><CardContent className="pt-6"><TechnicalSeoPanel es={es} pages={pages} /></CardContent></Card>,
+    "keywords": <Card><CardContent className="pt-6"><KeywordPanel pages={pages} /></CardContent></Card>,
     "links": <LinkAnalysisPanel pages={pages} es={es} />,
     "redirects": <RedirectAnalysisPanel pages={pages} es={es} />,
     "performance": <PerformancePanel pages={pages} />,
