@@ -1047,6 +1047,8 @@ Insert:
 
 > Note: `enable_keyword_analysis` is the master switch for the whole feature — when `False`, extraction is skipped too (empty `top_keywords`), not just suggestions. `target_keywords`, when explicitly supplied, still works as a manual override even with `enable_keyword_analysis=False`, since it's an independent user-supplied seed rather than auto-analysis. (Corrected post-review — the original sketch only gated `suggestions` by this flag; see ledger.)
 
+> Note: `enable_keyword_analysis` was later found (final whole-branch review) to still be gating the `suggest_keywords(...)` call above, contradicting its own documented "pure on-page extraction, no external calls" behavior — `suggest_keywords` unconditionally calls the Google Autocomplete endpoint, so with `enable_keyword_analysis` defaulting `True`, every audit made up to 3 external HTTP calls per page with no opt-out. Fixed by adding a new `enable_keyword_suggestions: bool = False` flag that now exclusively gates the `suggest_keywords(...)` call; `enable_keyword_analysis` continues to gate extraction only. `enable_competitor_gap` remains meaningful only when `enable_keyword_suggestions=True`. Also added in the same fix wave: `exc_info`-level logging in `rank_checker._get_cse_results` and debug-level logging in `keyword_suggestions._autocomplete_suggestions`; `script`/`style`/`noscript` stripping in `_extract_competitor_meta` (previously pulled n-grams out of inline JS/CSS); nulling `crawler.event_callback` around the suggestions call so competitor-page fetches never leak into the live activity feed; and `cli.py` argparse flags for all 5 keyword-intelligence params, which previously had no CLI surface at all. (Corrected post-review — final whole-branch review, fix wave dated 2026-08-11; see `.superpowers/sdd/2026-08-11-keyword-intelligence/final-review-fix-report.md`.)
+
 - [ ] **Step 6: Wire the new request params through `routes.py`**
 
 In `apps/backend/app/api/routes.py`, find the `run_full_audit(...)` call inside `background_task()`:
@@ -1890,7 +1892,7 @@ git commit -m "docs: document keyword intelligence request params, env vars, and
 - [ ] **Step 1: Full backend suite**
 
 Run: `cd apps/backend && python -m pytest tests/ -q`
-Expected: `20 passed` (7 pre-existing + 13 new: 3 extraction + 6 rank_checker + 3 suggestions + 1 report passthrough)
+Expected: `26 passed` (24 passed as of the pre-fix-wave final review + 2 new in the 2026-08-11 final-review fix wave — see `.superpowers/sdd/2026-08-11-keyword-intelligence/final-review-fix-report.md` — proving `suggest_keywords` is not called under default params, and that it is called when `enable_keyword_suggestions=True`).
 
 - [ ] **Step 2: Full frontend suite + typecheck**
 
