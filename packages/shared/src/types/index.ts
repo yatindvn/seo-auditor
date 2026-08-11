@@ -187,6 +187,10 @@ export interface AuditRequestParams {
   max_pages?: number;
   max_depth?: number;
   ignore_robots?: boolean;
+  enable_keyword_analysis?: boolean;
+  enable_rank_check?: boolean;
+  enable_competitor_gap?: boolean;
+  target_keywords?: string[] | null;
 }
 
 export interface CrawlPage {
