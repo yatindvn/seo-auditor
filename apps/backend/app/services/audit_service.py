@@ -29,6 +29,26 @@ def get_crawler(session_id: str) -> Optional[Any]:
     return active_crawlers.get(session_id)
 
 
+def _resolve_keyword_data(
+    target_keywords: Optional[List[str]],
+    enable_keyword_analysis: bool,
+    page_meta_entry: Dict[str, Any],
+    content_stats: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Decide what `keyword_data` should be for a page.
+
+    `target_keywords` is an explicit manual override and always wins,
+    regardless of `enable_keyword_analysis`. Otherwise, `enable_keyword_analysis`
+    is the master switch for the whole feature: when False, extraction is
+    skipped and an empty list is returned.
+    """
+    if target_keywords:
+        return [{"phrase": k, "score": None, "found_in": []} for k in target_keywords]
+    if not enable_keyword_analysis:
+        return []
+    return keyword_extraction.extract_keywords(page_meta_entry, content_stats)
+
+
 def run_full_audit(
     url: str,
     session_id: str,
@@ -192,10 +212,8 @@ def _build_audit_result(
             "structured_data": structured_data,
             "security_headers": security_headers,
         }
-        keyword_data = (
-            [{"phrase": k, "score": None, "found_in": []} for k in target_keywords]
-            if target_keywords else
-            keyword_extraction.extract_keywords(page_meta[page_url], content_stats)
+        keyword_data = _resolve_keyword_data(
+            target_keywords, enable_keyword_analysis, page_meta[page_url], content_stats
         )
         rank_data = (
             rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], config)
