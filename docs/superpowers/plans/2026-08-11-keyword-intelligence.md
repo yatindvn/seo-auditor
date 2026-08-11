@@ -856,7 +856,7 @@ Expected: `3 passed`
 - [ ] **Step 5: Run full backend suite**
 
 Run: `cd apps/backend && python -m pytest tests/ -q`
-Expected: `20 passed` (17 from before + 3 new)
+Expected: `19 passed` (16 from before + 3 new)
 
 - [ ] **Step 6: Commit**
 
@@ -1083,7 +1083,7 @@ Expected: `ok`
 - [ ] **Step 8: Run full backend suite**
 
 Run: `cd apps/backend && python -m pytest tests/ -q`
-Expected: `21 passed` (20 from before + 1 new `test_report.py` test)
+Expected: `20 passed` (19 from before + 1 new `test_report.py` test)
 
 - [ ] **Step 9: Commit**
 
@@ -1299,7 +1299,7 @@ Expected: `keyword_extraction.py` and `keyword_suggestions.py` diffs show only t
 - [ ] **Step 11: Run full backend suite (confirms zero regression — this task adds no new tests)**
 
 Run: `cd apps/backend && python -m pytest tests/ -q`
-Expected: `21 passed` (unchanged from Task 5 — this task only touches the mirrored tree, which has no dedicated test suite per spec §9)
+Expected: `20 passed` (unchanged from Task 5 — this task only touches the mirrored tree, which has no dedicated test suite per spec §9)
 
 - [ ] **Step 12: Commit**
 
@@ -1884,7 +1884,7 @@ git commit -m "docs: document keyword intelligence request params, env vars, and
 - [ ] **Step 1: Full backend suite**
 
 Run: `cd apps/backend && python -m pytest tests/ -q`
-Expected: `21 passed` (7 pre-existing + 14 new: 3 extraction + 7 rank_checker + 3 suggestions + 1 report passthrough)
+Expected: `20 passed` (7 pre-existing + 13 new: 3 extraction + 6 rank_checker + 3 suggestions + 1 report passthrough)
 
 - [ ] **Step 2: Full frontend suite + typecheck**
 
