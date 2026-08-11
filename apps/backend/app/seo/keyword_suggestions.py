@@ -99,7 +99,7 @@ def suggest_keywords(
     page_url: str,
     enable_competitor_gap: bool = False,
 ) -> List[Dict]:
-    current_phrases = {k["phrase"] for k in seed_keywords}
+    current_phrases = {k["phrase"].lower() for k in seed_keywords}
     suggestions: List[Dict] = []
     seen = set()
 
