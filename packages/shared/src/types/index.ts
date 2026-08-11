@@ -190,7 +190,7 @@ export interface AuditRequestParams {
   enable_keyword_analysis?: boolean;
   enable_rank_check?: boolean;
   enable_competitor_gap?: boolean;
-  target_keywords?: string[] | null;
+  target_keywords?: string[];
 }
 
 export interface CrawlPage {
