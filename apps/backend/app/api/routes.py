@@ -68,6 +68,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                 max_depth=params.max_depth or 1,
                 ignore_robots=params.ignore_robots or False,
                 enable_keyword_analysis=params.enable_keyword_analysis if params.enable_keyword_analysis is not None else True,
+                enable_keyword_suggestions=params.enable_keyword_suggestions or False,
                 enable_rank_check=params.enable_rank_check or False,
                 enable_competitor_gap=params.enable_competitor_gap or False,
                 target_keywords=params.target_keywords,

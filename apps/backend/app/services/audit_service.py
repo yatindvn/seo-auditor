@@ -58,6 +58,7 @@ def run_full_audit(
     progress_callback=None,
     event_callback=None,
     enable_keyword_analysis: bool = True,
+    enable_keyword_suggestions: bool = False,
     enable_rank_check: bool = False,
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
@@ -76,7 +77,8 @@ def run_full_audit(
     try:
         return _build_audit_result(
             url, crawler, progress_callback, event_callback,
-            enable_keyword_analysis, enable_rank_check, enable_competitor_gap, target_keywords,
+            enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
+            enable_competitor_gap, target_keywords,
         )
     finally:
         unregister_crawler(session_id)
@@ -88,6 +90,7 @@ def _build_audit_result(
     progress_callback,
     event_callback,
     enable_keyword_analysis: bool = True,
+    enable_keyword_suggestions: bool = False,
     enable_rank_check: bool = False,
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
@@ -219,14 +222,26 @@ def _build_audit_result(
             rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], config)
             if enable_rank_check else []
         )
-        suggestions = (
-            keyword_suggestions.suggest_keywords(
-                keyword_data, page_meta[page_url], rank_data, config,
-                fetch_page=crawler._fetch, page_url=page_url,
-                enable_competitor_gap=enable_competitor_gap,
+        # Competitor-gap fetches (via `crawler._fetch`) reuse the crawler's own
+        # HTTP machinery, but that crawler instance still has its
+        # `event_callback` wired up from `crawler.crawl()` above. Left as-is,
+        # a 404/timeout/redirect on a *competitor's* URL would be broadcast to
+        # the live activity feed as if it happened on the audited site. Null
+        # the callback out for the duration of the suggestions call so only
+        # audit-target crawl events ever reach the feed.
+        saved_event_callback = crawler.event_callback
+        crawler.event_callback = None
+        try:
+            suggestions = (
+                keyword_suggestions.suggest_keywords(
+                    keyword_data, rank_data, config,
+                    fetch_page=crawler._fetch, page_url=page_url,
+                    enable_competitor_gap=enable_competitor_gap,
+                )
+                if enable_keyword_suggestions else []
             )
-            if enable_keyword_analysis else []
-        )
+        finally:
+            crawler.event_callback = saved_event_callback
         page_meta[page_url]["keyword_analysis"] = {
             "top_keywords": keyword_data,
             "rankings": rank_data,

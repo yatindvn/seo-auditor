@@ -8,6 +8,7 @@ class AuditRequestParams(BaseModel):
     max_depth: Optional[int] = Field(default=1, ge=0, le=15)
     ignore_robots: Optional[bool] = False
     enable_keyword_analysis: Optional[bool] = True
+    enable_keyword_suggestions: Optional[bool] = False
     enable_rank_check: Optional[bool] = False
     enable_competitor_gap: Optional[bool] = False
     target_keywords: Optional[List[str]] = None
