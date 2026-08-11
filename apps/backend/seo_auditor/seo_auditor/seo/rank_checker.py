@@ -6,6 +6,7 @@ counter so a multi-page crawl doesn't blow through the quota on day one.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
@@ -14,6 +15,8 @@ from urllib.parse import urlparse
 import requests
 
 CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1"
+
+logger = logging.getLogger("seo_auditor")
 
 _NOTES = {
     "not_configured": "ranking check unavailable — Google CSE not configured",
@@ -111,7 +114,8 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
         resp.raise_for_status()
         data = resp.json()
         urls = [item["link"] for item in data.get("items", []) if "link" in item]
-    except Exception:
+    except Exception as exc:
+        logger.error("CSE lookup failed for keyword %r: %s", keyword, exc, exc_info=exc)
         return None, "error"
 
     _state.record_query()

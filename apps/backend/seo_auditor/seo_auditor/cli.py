@@ -73,6 +73,7 @@ def collect_audit_data(
     psi_strategy="mobile",
     progress_callback=None,
     enable_keyword_analysis=True,
+    enable_keyword_suggestions=False,
     enable_rank_check=False,
     enable_competitor_gap=False,
     target_keywords=None,
@@ -231,14 +232,25 @@ def collect_audit_data(
             rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], _kw_config)
             if enable_rank_check else []
         )
-        suggestions = (
-            keyword_suggestions.suggest_keywords(
-                keyword_data, page_meta[page_url], rank_data, _kw_config,
-                fetch_page=crawler._fetch, page_url=page_url,
-                enable_competitor_gap=enable_competitor_gap,
+        # Competitor-gap fetches (via `crawler._fetch`) reuse the crawler's own
+        # HTTP machinery. If this tree's crawler ever grows an event_callback
+        # (it doesn't today — see crawler.py), a 404/timeout/redirect on a
+        # *competitor's* URL must never be broadcast as an audit-target event.
+        # Null it out defensively for the duration of the call, mirroring the
+        # app tree's fix, so the two trees stay behaviorally identical.
+        saved_event_callback = getattr(crawler, "event_callback", None)
+        crawler.event_callback = None
+        try:
+            suggestions = (
+                keyword_suggestions.suggest_keywords(
+                    keyword_data, rank_data, _kw_config,
+                    fetch_page=crawler._fetch, page_url=page_url,
+                    enable_competitor_gap=enable_competitor_gap,
+                )
+                if enable_keyword_suggestions else []
             )
-            if enable_keyword_analysis else []
-        )
+        finally:
+            crawler.event_callback = saved_event_callback
         page_meta[page_url]["keyword_analysis"] = {
             "top_keywords": keyword_data,
             "rankings": rank_data,
@@ -318,7 +330,15 @@ def collect_audit_data(
     }
 
 
+def _parse_target_keywords(raw):
+    if not raw:
+        return None
+    keywords = [k.strip() for k in raw.split(",") if k.strip()]
+    return keywords or None
+
+
 def run_audit(args) -> int:
+    target_keywords = _parse_target_keywords(getattr(args, "target_keywords", None))
     if getattr(args, "json", False):
         import json
         full_data = collect_audit_data(
@@ -336,6 +356,11 @@ def run_audit(args) -> int:
             psi_key=args.psi_key,
             psi_strategy=args.psi_strategy,
             progress_callback=None,
+            enable_keyword_analysis=args.enable_keyword_analysis,
+            enable_keyword_suggestions=args.enable_keyword_suggestions,
+            enable_rank_check=args.enable_rank_check,
+            enable_competitor_gap=args.enable_competitor_gap,
+            target_keywords=target_keywords,
         )
         print(json.dumps(full_data))
         return 0
@@ -360,6 +385,11 @@ def run_audit(args) -> int:
         psi_key=args.psi_key,
         psi_strategy=args.psi_strategy,
         progress_callback=_progress,
+        enable_keyword_analysis=args.enable_keyword_analysis,
+        enable_keyword_suggestions=args.enable_keyword_suggestions,
+        enable_rank_check=args.enable_rank_check,
+        enable_competitor_gap=args.enable_competitor_gap,
+        target_keywords=target_keywords,
     )
 
     exec_summary = full_data["executive_summary"]
@@ -439,6 +469,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--check-near-duplicates", action="store_true", help="Run near-duplicate content detection (O(n^2), slower)")
     p.add_argument("--psi-key", help="Google PageSpeed Insights API key for real Core Web Vitals data")
     p.add_argument("--psi-strategy", choices=["mobile", "desktop"], default="mobile", help="PSI strategy (default: mobile)")
+    p.add_argument("--no-keyword-analysis", dest="enable_keyword_analysis", action="store_false", default=True,
+                    help="Disable on-page keyword extraction (pure local computation, no external calls; enabled by default)")
+    p.add_argument("--enable-keyword-suggestions", action="store_true", default=False,
+                    help="Enable keyword suggestions via Google Autocomplete — an external, uncached network call "
+                         "per seed keyword per page (up to 3 per page). Off by default.")
+    p.add_argument("--enable-rank-check", action="store_true", default=False,
+                    help="Check live Google rank for each page's top keywords via the Google Custom Search API "
+                         "(costs quota, requires GOOGLE_CSE_API_KEY/GOOGLE_CSE_CX). Off by default.")
+    p.add_argument("--enable-competitor-gap", action="store_true", default=False,
+                    help="Fetch top-ranking competitor pages and diff their keywords against the current page's. "
+                         "Only meaningful when --enable-keyword-suggestions is also set. Off by default.")
+    p.add_argument("--target-keywords", default=None,
+                    help="Comma-separated list of keywords to use instead of automatic extraction, "
+                         "e.g. --target-keywords 'espresso machine,pour over'")
     p.add_argument("--json", action="store_true", help="Output raw audit JSON result to stdout")
     p.add_argument("--out", default="./seo_audit_output", help="Output directory for reports (default: ./seo_audit_output)")
     return p

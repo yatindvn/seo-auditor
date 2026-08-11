@@ -9,6 +9,7 @@ never breaks the audit — it just means fewer suggestions.
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, Dict, List, Optional, Tuple
 
 import requests
@@ -19,6 +20,8 @@ from . import keyword_extraction, rank_checker
 AUTOCOMPLETE_ENDPOINT = "https://suggestqueries.google.com/complete/search"
 MAX_SUGGESTIONS = 10
 MAX_COMPETITORS = 3
+
+logger = logging.getLogger("seo_auditor")
 
 
 def _autocomplete_suggestions(seed: str) -> List[str]:
@@ -31,7 +34,10 @@ def _autocomplete_suggestions(seed: str) -> List[str]:
         resp.raise_for_status()
         data = resp.json()
         return [s for s in data[1] if isinstance(s, str) and s.lower() != seed.lower()]
-    except Exception:
+    except Exception as exc:
+        # Autocomplete is an unofficial, undocumented endpoint — failures here
+        # are expected/normal, not actionable, so this is debug-level only.
+        logger.debug("Autocomplete lookup failed for %r: %s", seed, exc)
         return []
 
 
@@ -40,6 +46,8 @@ def _extract_competitor_meta(page) -> Tuple[Dict, Dict]:
     _, h1 = checks.check_headings(page)
     _, meta_description = checks.check_meta_description(page)
     soup = checks._soup(page.html)
+    for tag in (soup(["script", "style", "noscript"]) if soup else []):
+        tag.decompose()
     text = soup.get_text(" ", strip=True) if soup else ""
     page_meta = {"title": title, "h1": h1, "meta_description": meta_description, "heading_hierarchy": []}
     content_stats = {"word_count": len(text.split()), "text": text[:20000]}
@@ -92,7 +100,6 @@ def _competitor_gap(
 
 def suggest_keywords(
     seed_keywords: List[Dict],
-    page_meta: Dict,
     rank_results: List[Dict],
     config,
     fetch_page: Callable,
