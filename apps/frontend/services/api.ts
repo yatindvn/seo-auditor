@@ -100,16 +100,16 @@ export class ApiService {
     return res.json();
   }
 
-  public static async pauseAudit(): Promise<void> {
-    await fetch(`${API_BASE_URL}/api/audit/pause`, { method: "POST" });
+  public static async pauseAudit(sessionId: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/api/audit/pause?session_id=${sessionId}`, { method: "POST" });
   }
 
-  public static async resumeAudit(): Promise<void> {
-    await fetch(`${API_BASE_URL}/api/audit/resume`, { method: "POST" });
+  public static async resumeAudit(sessionId: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/api/audit/resume?session_id=${sessionId}`, { method: "POST" });
   }
 
-  public static async stopAudit(): Promise<void> {
-    await fetch(`${API_BASE_URL}/api/audit/stop`, { method: "POST" });
+  public static async stopAudit(sessionId: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/api/audit/stop?session_id=${sessionId}`, { method: "POST" });
   }
 
   public static createWebSocketClient(

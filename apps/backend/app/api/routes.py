@@ -1,3 +1,4 @@
+import logging
 import time
 import asyncio
 from typing import Dict, Any, List
@@ -10,8 +11,14 @@ from fastapi.responses import Response
 from app.websocket.ws_manager import ws_manager
 
 router = APIRouter()
+logger = logging.getLogger("seo_auditor")
 
 active_sessions: Dict[str, Any] = {}
+
+
+def log_crawl_failure(session_id: str, exc: Exception) -> None:
+    """Log a crawl failure with its traceback instead of writing to a plain file."""
+    logger.error("Crawl failed for session %s: %s", session_id, exc, exc_info=exc)
 
 @router.post("/audit")
 async def execute_audit(params: AuditRequestParams, background_tasks: BackgroundTasks):
@@ -56,6 +63,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
             
             data = run_full_audit(
                 url=url,
+                session_id=session_id,
                 max_pages=params.max_pages or 8,
                 max_depth=params.max_depth or 1,
                 ignore_robots=params.ignore_robots or False,
@@ -77,10 +85,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
             active_sessions[session_id] = data
             asyncio.run_coroutine_threadsafe(ws_manager.broadcast("crawl:complete", {"status": "success", "session_id": session_id}), loop)
         except Exception as exc:
-            import traceback
-            with open("error_log.txt", "a") as f:
-                f.write(traceback.format_exc() + "\n")
-            traceback.print_exc()
+            log_crawl_failure(session_id, exc)
             asyncio.run_coroutine_threadsafe(ws_manager.broadcast("crawl:error", {"error": str(exc), "session_id": session_id}), loop)
 
     background_tasks.add_task(background_task)
@@ -95,25 +100,28 @@ def get_latest_audit(session_id: str = Query(...)):
 
 
 @router.post("/audit/pause")
-def pause_audit():
-    if audit_service.current_crawler:
-        audit_service.current_crawler.is_paused = True
+def pause_audit(session_id: str = Query(...)):
+    crawler = audit_service.get_crawler(session_id)
+    if crawler:
+        crawler.is_paused = True
         return {"status": "paused"}
     return {"status": "not_running"}
 
 
 @router.post("/audit/resume")
-def resume_audit():
-    if audit_service.current_crawler:
-        audit_service.current_crawler.is_paused = False
+def resume_audit(session_id: str = Query(...)):
+    crawler = audit_service.get_crawler(session_id)
+    if crawler:
+        crawler.is_paused = False
         return {"status": "resumed"}
     return {"status": "not_running"}
 
 
 @router.post("/audit/stop")
-def stop_audit():
-    if audit_service.current_crawler:
-        audit_service.current_crawler.is_stopped = True
+def stop_audit(session_id: str = Query(...)):
+    crawler = audit_service.get_crawler(session_id)
+    if crawler:
+        crawler.is_stopped = True
         return {"status": "stopped"}
     return {"status": "not_running"}
 

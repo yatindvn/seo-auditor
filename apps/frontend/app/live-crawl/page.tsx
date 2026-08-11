@@ -4,41 +4,24 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAudit } from "@/lib/audit-context";
 import { ApiService } from "@/services/api";
+import { formatCrawlTime, matchesActivityFilter, ActivityFilterType } from "@/lib/activity-feed";
+import { getActivityIcon } from "@/components/activity-icon";
 import {
-  Activity, Clock, Zap, Layers, CheckCircle2, Pause, Play, Square,
-  RefreshCw, Link2, ExternalLink, XCircle, ArrowLeft, Search,
+  Activity, Clock, Zap, Layers, Pause, Play, Square,
+  RefreshCw, XCircle, ArrowLeft, Search,
   ArrowDownCircle, Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-function formatTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
 type ActiveTab = "activity" | "pages";
-
-function getIconForType(type: string) {
-  switch (type) {
-    case "internal_link": return <Link2 className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />;
-    case "external_link": return <ExternalLink className="h-3.5 w-3.5 text-purple-500 shrink-0 mt-0.5" />;
-    case "broken_link": return <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />;
-    case "timeout": return <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />;
-    case "redirect": return <RefreshCw className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />;
-    case "page_crawled": return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />;
-    default: return <Activity className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />;
-  }
-}
 
 export default function LiveCrawlPage() {
   const router = useRouter();
-  const { liveCrawlMetrics, activityLog, livePageRows, isLoading, setSelectedPage } = useAudit();
+  const { liveCrawlMetrics, activityLog, livePageRows, isLoading, setSelectedPage, activeSessionId } = useAudit();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("activity");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("all");
+  const [filterType, setFilterType] = useState<ActivityFilterType>("all");
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pageSearch, setPageSearch] = useState("");
@@ -58,16 +41,7 @@ export default function LiveCrawlPage() {
   const currentUrl = liveCrawlMetrics?.current_url ?? "—";
   const stage = liveCrawlMetrics?.stage ?? (isLoading ? "Initialising…" : "Completed");
 
-  const filteredActivity = activityLog.filter(act => {
-    if (searchQuery && !act.message.toLowerCase().includes(searchQuery.toLowerCase()) && !act.url?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (filterType !== "all") {
-      if (filterType === "link" && !["internal_link", "external_link"].includes(act.type)) return false;
-      if (filterType === "error" && !["broken_link", "timeout"].includes(act.type)) return false;
-      if (filterType === "page" && act.type !== "page_crawled") return false;
-      if (filterType === "redirect" && act.type !== "redirect") return false;
-    }
-    return true;
-  });
+  const filteredActivity = activityLog.filter(act => matchesActivityFilter(act, searchQuery, filterType));
 
   const filteredPages = livePageRows.filter(row =>
     !pageSearch || row.url.toLowerCase().includes(pageSearch.toLowerCase())
@@ -98,15 +72,15 @@ export default function LiveCrawlPage() {
             </div>
           </div>
 
-          {isLoading && (
+          {isLoading && activeSessionId && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => ApiService.pauseAudit()} className="h-8 gap-1.5 text-xs">
+              <Button variant="outline" size="sm" onClick={() => ApiService.pauseAudit(activeSessionId)} className="h-8 gap-1.5 text-xs">
                 <Pause className="h-3.5 w-3.5" /> Pause
               </Button>
-              <Button variant="outline" size="sm" onClick={() => ApiService.resumeAudit()} className="h-8 gap-1.5 text-xs">
+              <Button variant="outline" size="sm" onClick={() => ApiService.resumeAudit(activeSessionId)} className="h-8 gap-1.5 text-xs">
                 <Play className="h-3.5 w-3.5" /> Resume
               </Button>
-              <Button variant="outline" size="sm" onClick={() => ApiService.stopAudit()} className="h-8 gap-1.5 text-xs text-rose-500 border-rose-500/40 hover:bg-rose-500/10">
+              <Button variant="outline" size="sm" onClick={() => ApiService.stopAudit(activeSessionId)} className="h-8 gap-1.5 text-xs text-rose-500 border-rose-500/40 hover:bg-rose-500/10">
                 <Square className="h-3.5 w-3.5" /> Stop
               </Button>
               <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="h-8 gap-1.5 text-xs">
@@ -132,8 +106,8 @@ export default function LiveCrawlPage() {
             { icon: Layers, label: "Pages Crawled", value: String(pagesCrawled), color: "text-blue-500" },
             { icon: Search, label: "Queue Remaining", value: String(queueRemaining), color: "text-amber-500" },
             { icon: Zap, label: "Speed (p/s)", value: String(speed), color: "text-emerald-500" },
-            { icon: Clock, label: "Elapsed", value: formatTime(elapsed), color: "text-indigo-500" },
-            { icon: Clock, label: "ETA", value: isLoading && eta > 0 ? formatTime(eta) : "—", color: "text-purple-500" },
+            { icon: Clock, label: "Elapsed", value: formatCrawlTime(elapsed), color: "text-indigo-500" },
+            { icon: Clock, label: "ETA", value: isLoading && eta > 0 ? formatCrawlTime(eta) : "—", color: "text-purple-500" },
             { icon: XCircle, label: "Errors", value: String(errorCount), color: "text-rose-500" },
             { icon: RefreshCw, label: "Redirects", value: String(redirectCount), color: "text-orange-500" },
           ].map(({ icon: Icon, label, value, color }) => (
@@ -195,7 +169,7 @@ export default function LiveCrawlPage() {
                 <select
                   className="h-8 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none"
                   value={filterType}
-                  onChange={e => setFilterType(e.target.value)}
+                  onChange={e => setFilterType(e.target.value as ActivityFilterType)}
                 >
                   <option value="all">All Events</option>
                   <option value="page">Pages Only</option>
@@ -228,7 +202,7 @@ export default function LiveCrawlPage() {
                       key={act.id}
                       className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-card/60 px-3 py-2 text-xs text-foreground hover:bg-muted/30 transition-colors"
                     >
-                      {getIconForType(act.type)}
+                      {getActivityIcon(act.type)}
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{act.message}</p>
                         {act.url && <p className="truncate text-[10px] text-muted-foreground font-mono mt-0.5">{act.url}</p>}

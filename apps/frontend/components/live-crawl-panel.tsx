@@ -3,9 +3,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAudit } from "@/lib/audit-context";
 import { ApiService } from "@/services/api";
+import { matchesActivityFilter, ActivityFilterType } from "@/lib/activity-feed";
+import { getActivityIcon } from "@/components/activity-icon";
 import {
-  Activity, Clock, Zap, Layers, CheckCircle2, Pause, Play, Square,
-  RefreshCw, Link2, ExternalLink, XCircle, ArrowDownCircle, X,
+  Activity, Clock, Zap, Layers, Pause, Play, Square,
+  RefreshCw, ArrowDownCircle, X,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +17,10 @@ import { Button } from "@/components/ui/button";
 type DrawerTab = "activity" | "pages";
 
 function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { activityLog, livePageRows, isLoading, setSelectedPage } = useAudit();
+  const { activityLog, livePageRows, isLoading, setSelectedPage, activeSessionId } = useAudit();
   const [activeTab, setActiveTab] = useState<DrawerTab>("activity");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("all");
+  const [filterType, setFilterType] = useState<ActivityFilterType>("all");
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -35,28 +37,7 @@ function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void 
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  const filteredActivity = activityLog.filter(act => {
-    if (searchQuery && !act.message.toLowerCase().includes(searchQuery.toLowerCase()) && !act.url?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (filterType !== "all") {
-      if (filterType === "link" && !["internal_link", "external_link"].includes(act.type)) return false;
-      if (filterType === "error" && !["broken_link", "timeout"].includes(act.type)) return false;
-      if (filterType === "page" && act.type !== "page_crawled") return false;
-      if (filterType === "redirect" && act.type !== "redirect") return false;
-    }
-    return true;
-  });
-
-  const getIconForType = (type: string) => {
-    switch (type) {
-      case "internal_link": return <Link2 className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />;
-      case "external_link": return <ExternalLink className="h-3.5 w-3.5 text-purple-500 shrink-0 mt-0.5" />;
-      case "broken_link": return <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />;
-      case "timeout": return <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />;
-      case "redirect": return <RefreshCw className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />;
-      case "page_crawled": return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />;
-      default: return <Activity className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />;
-    }
-  };
+  const filteredActivity = activityLog.filter(act => matchesActivityFilter(act, searchQuery, filterType));
 
   if (!open) return null;
 
@@ -118,7 +99,7 @@ function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void 
             <select
               className="h-7 text-xs bg-muted/40 border border-border rounded-md px-2 focus:outline-none"
               value={filterType}
-              onChange={e => setFilterType(e.target.value)}
+              onChange={e => setFilterType(e.target.value as ActivityFilterType)}
             >
               <option value="all">All Events</option>
               <option value="page">Pages</option>
@@ -149,7 +130,7 @@ function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void 
                   key={act.id}
                   className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-card/60 px-3 py-2 text-xs text-foreground"
                 >
-                  {getIconForType(act.type)}
+                  {getActivityIcon(act.type)}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{act.message}</p>
                     {act.url && <p className="truncate text-[10px] text-muted-foreground font-mono mt-0.5">{act.url}</p>}
@@ -184,15 +165,15 @@ function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void 
         </div>
 
         {/* Footer actions */}
-        {isLoading && (
+        {isLoading && activeSessionId && (
           <div className="flex items-center gap-2 px-5 py-3 border-t border-border shrink-0">
-            <Button variant="outline" size="sm" onClick={() => ApiService.pauseAudit()} className="h-8 gap-1.5 text-xs flex-1">
+            <Button variant="outline" size="sm" onClick={() => ApiService.pauseAudit(activeSessionId)} className="h-8 gap-1.5 text-xs flex-1">
               <Pause className="h-3.5 w-3.5" /> Pause
             </Button>
-            <Button variant="outline" size="sm" onClick={() => ApiService.resumeAudit()} className="h-8 gap-1.5 text-xs flex-1">
+            <Button variant="outline" size="sm" onClick={() => ApiService.resumeAudit(activeSessionId)} className="h-8 gap-1.5 text-xs flex-1">
               <Play className="h-3.5 w-3.5" /> Resume
             </Button>
-            <Button variant="outline" size="sm" onClick={() => ApiService.stopAudit()} className="h-8 gap-1.5 text-xs flex-1 text-rose-500 border-rose-500/40 hover:bg-rose-500/10">
+            <Button variant="outline" size="sm" onClick={() => ApiService.stopAudit(activeSessionId)} className="h-8 gap-1.5 text-xs flex-1 text-rose-500 border-rose-500/40 hover:bg-rose-500/10">
               <Square className="h-3.5 w-3.5" /> Stop
             </Button>
           </div>
@@ -204,7 +185,7 @@ function ActivityDrawer({ open, onClose }: { open: boolean; onClose: () => void 
 
 // ─── Compact Crawl Bar ─────────────────────────────────────────────────────────
 export function CompactCrawlBar() {
-  const { liveCrawlMetrics, activityLog, isLoading } = useAudit();
+  const { liveCrawlMetrics, activityLog, isLoading, activeSessionId } = useAudit();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (!isLoading && !liveCrawlMetrics) return null;
@@ -268,17 +249,17 @@ export function CompactCrawlBar() {
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {isLoading && (
+            {isLoading && activeSessionId && (
               <>
                 <button
-                  onClick={() => ApiService.pauseAudit()}
+                  onClick={() => ApiService.pauseAudit(activeSessionId)}
                   title="Pause"
                   className="h-7 w-7 flex items-center justify-center rounded-md border border-border hover:bg-muted transition-colors"
                 >
                   <Pause className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
                 <button
-                  onClick={() => ApiService.stopAudit()}
+                  onClick={() => ApiService.stopAudit(activeSessionId)}
                   title="Stop"
                   className="h-7 w-7 flex items-center justify-center rounded-md border border-rose-500/40 hover:bg-rose-500/10 transition-colors"
                 >

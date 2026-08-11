@@ -2,14 +2,8 @@
 
 import React from "react";
 import { useAudit } from "@/lib/audit-context";
+import { formatCrawlTime } from "@/lib/activity-feed";
 import { Layers, Clock } from "lucide-react";
-
-function formatTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 export function FloatingCrawlWidget() {
   const { liveCrawlMetrics, isLoading } = useAudit();
@@ -66,7 +60,7 @@ export function FloatingCrawlWidget() {
         {eta > 0 && (
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3 text-indigo-500" />
-            ETA {formatTime(eta)}
+            ETA {formatCrawlTime(eta)}
           </span>
         )}
       </div>

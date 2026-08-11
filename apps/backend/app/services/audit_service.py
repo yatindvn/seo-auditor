@@ -1,6 +1,6 @@
 import time
 import asyncio
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 from app.crawler.crawler import Crawler
 from app.auditor import checks
 from app.analysis import analysis
@@ -10,17 +10,32 @@ from app.models.session_model import session_store
 from app.websocket.ws_manager import ws_manager
 
 
-current_crawler: Crawler | None = None
+# Crawlers currently running, keyed by session_id — each pause/resume/stop
+# request must only ever affect the crawl that session actually started.
+active_crawlers: Dict[str, Any] = {}
+
+
+def register_crawler(session_id: str, crawler: Any) -> None:
+    active_crawlers[session_id] = crawler
+
+
+def unregister_crawler(session_id: str) -> None:
+    active_crawlers.pop(session_id, None)
+
+
+def get_crawler(session_id: str) -> Optional[Any]:
+    return active_crawlers.get(session_id)
+
 
 def run_full_audit(
     url: str,
+    session_id: str,
     max_pages: int = 15,
     max_depth: int = 2,
     ignore_robots: bool = False,
     progress_callback=None,
     event_callback=None,
 ) -> Dict[str, Any]:
-    global current_crawler
     crawler = Crawler(
         start_url=url,
         max_pages=max_pages,
@@ -31,8 +46,14 @@ def run_full_audit(
         retries=1,
     )
 
-    current_crawler = crawler
+    register_crawler(session_id, crawler)
+    try:
+        return _build_audit_result(url, crawler, progress_callback, event_callback)
+    finally:
+        unregister_crawler(session_id)
 
+
+def _build_audit_result(url: str, crawler: Crawler, progress_callback, event_callback) -> Dict[str, Any]:
     crawler.crawl(progress_callback=progress_callback, event_callback=event_callback)
     crawler.check_external_links(max_check=25)
 
@@ -233,5 +254,4 @@ def run_full_audit(
         "auditResult": result_data,
     })
 
-    current_crawler = None
     return result_data
