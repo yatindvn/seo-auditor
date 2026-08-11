@@ -8,6 +8,10 @@ flowchart TD
     WsServer["WebSocket Server"]
     AuditService["Audit Service"]
     PythonEngine["Python seo_auditor Engine"]
+    RankChecker["RankChecker (app/seo/rank_checker.py)"]
+    KeywordSuggestions["KeywordSuggestions (app/seo/keyword_suggestions.py)"]
+    GoogleCSE["Google Custom Search API (external)"]
+    GoogleAutocomplete["Google Autocomplete (external, unofficial)"]
     SharedPkg["@seo-auditor/shared Package"]
 
     Client --> ApiService
@@ -15,6 +19,11 @@ flowchart TD
     ApiService -->|WebSocket ws://| WsServer
     Backend --> AuditService
     AuditService --> PythonEngine
+    PythonEngine --> RankChecker
+    PythonEngine --> KeywordSuggestions
+    RankChecker -->|HTTPS, quota + cache limited| GoogleCSE
+    KeywordSuggestions -->|HTTPS, best-effort| GoogleAutocomplete
+    KeywordSuggestions -.->|reuses cached results| RankChecker
     AuditService -->|Real-time events| WsServer
     Client -.-> SharedPkg
     Backend -.-> SharedPkg
@@ -29,6 +38,7 @@ flowchart TD
 2. **Backend App (`apps/backend`)**:
    - Express REST API server + `ws` WebSocket server.
    - Invokes Python `seo_auditor` engine asynchronously for high-performance BFS crawling and SEO scoring.
+   - `RankChecker` and `KeywordSuggestions` are the only components that call external services beyond the crawl target itself: the official Google Custom Search JSON API (100 free queries/day, cached and quota-limited) and the unofficial Google Autocomplete endpoint (best-effort, failures are swallowed). Both are off/optional by default and the audit succeeds identically without them configured.
 
 3. **Shared Package (`packages/shared`)**:
    - Single source of truth for TypeScript types, request DTOs, severity constants, and URL validators.
