@@ -1,6 +1,6 @@
 import time
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from app.crawler.crawler import Crawler
 from app.auditor import checks
 from app.analysis import analysis
@@ -8,6 +8,8 @@ from app.ai import ai_suggestions
 from app.utils import performance, report
 from app.models.session_model import session_store
 from app.websocket.ws_manager import ws_manager
+from app.config import config
+from app.seo import keyword_extraction, rank_checker, keyword_suggestions
 
 
 # Crawlers currently running, keyed by session_id — each pause/resume/stop
@@ -35,6 +37,10 @@ def run_full_audit(
     ignore_robots: bool = False,
     progress_callback=None,
     event_callback=None,
+    enable_keyword_analysis: bool = True,
+    enable_rank_check: bool = False,
+    enable_competitor_gap: bool = False,
+    target_keywords: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -48,12 +54,24 @@ def run_full_audit(
 
     register_crawler(session_id, crawler)
     try:
-        return _build_audit_result(url, crawler, progress_callback, event_callback)
+        return _build_audit_result(
+            url, crawler, progress_callback, event_callback,
+            enable_keyword_analysis, enable_rank_check, enable_competitor_gap, target_keywords,
+        )
     finally:
         unregister_crawler(session_id)
 
 
-def _build_audit_result(url: str, crawler: Crawler, progress_callback, event_callback) -> Dict[str, Any]:
+def _build_audit_result(
+    url: str,
+    crawler: Crawler,
+    progress_callback,
+    event_callback,
+    enable_keyword_analysis: bool = True,
+    enable_rank_check: bool = False,
+    enable_competitor_gap: bool = False,
+    target_keywords: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     crawler.crawl(progress_callback=progress_callback, event_callback=event_callback)
     crawler.check_external_links(max_check=25)
 
@@ -173,6 +191,28 @@ def _build_audit_result(url: str, crawler: Crawler, progress_callback, event_cal
             "missing_alt_count": missing_alt_count,
             "structured_data": structured_data,
             "security_headers": security_headers,
+        }
+        keyword_data = (
+            [{"phrase": k, "score": None, "found_in": []} for k in target_keywords]
+            if target_keywords else
+            keyword_extraction.extract_keywords(page_meta[page_url], content_stats)
+        )
+        rank_data = (
+            rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], config)
+            if enable_rank_check else []
+        )
+        suggestions = (
+            keyword_suggestions.suggest_keywords(
+                keyword_data, page_meta[page_url], rank_data, config,
+                fetch_page=crawler._fetch, page_url=page_url,
+                enable_competitor_gap=enable_competitor_gap,
+            )
+            if enable_keyword_analysis else []
+        )
+        page_meta[page_url]["keyword_analysis"] = {
+            "top_keywords": keyword_data,
+            "rankings": rank_data,
+            "suggested_keywords": suggestions,
         }
         page_data_for_dupes.append({
             "url": page_url,

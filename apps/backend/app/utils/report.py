@@ -181,5 +181,6 @@ def build_page_level_report(crawler, all_page_issues, page_meta: Dict[str, Dict]
             "last_modified": result.headers.get("Last-Modified") if result.headers else None,
             "security_headers": meta.get("security_headers", {}),
             "seo_score": seo_score,
+            "keyword_analysis": meta.get("keyword_analysis"),
         })
     return rows
