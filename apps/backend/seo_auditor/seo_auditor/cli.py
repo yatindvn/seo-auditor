@@ -14,9 +14,11 @@ import argparse
 import os
 import sys
 import time
+from types import SimpleNamespace
 
 from . import checks, analysis, ai_suggestions, report, performance
 from .crawler import Crawler
+from .seo import keyword_extraction, rank_checker, keyword_suggestions
 
 
 def _progress(done, total, url):
@@ -25,6 +27,34 @@ def _progress(done, total, url):
     bar = "#" * filled + "-" * (bar_len - filled)
     short_url = url if len(url) < 70 else url[:67] + "..."
     print(f"\r[{bar}] {done}/{total}  {short_url:<70}", end="", flush=True)
+
+
+def _keyword_intel_config():
+    """Reads the same 5 env vars as apps/backend/app/config/config.py — this
+    tree has no dedicated config module, so this small helper keeps the two
+    trees behaviorally identical without adding one."""
+    return SimpleNamespace(
+        GOOGLE_CSE_API_KEY=os.getenv("GOOGLE_CSE_API_KEY", ""),
+        GOOGLE_CSE_CX=os.getenv("GOOGLE_CSE_CX", ""),
+        GOOGLE_CSE_DAILY_QUOTA=int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100")),
+        GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE=int(os.getenv("GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE", "3")),
+        GOOGLE_CSE_CACHE_TTL_HOURS=int(os.getenv("GOOGLE_CSE_CACHE_TTL_HOURS", "24")),
+    )
+
+
+def _resolve_keyword_data(target_keywords, enable_keyword_analysis, page_meta_entry, content_stats):
+    """Decide what `keyword_data` should be for a page.
+
+    `target_keywords` is an explicit manual override and always wins,
+    regardless of `enable_keyword_analysis`. Otherwise, `enable_keyword_analysis`
+    is the master switch for the whole feature: when False, extraction is
+    skipped and an empty list is returned.
+    """
+    if target_keywords:
+        return [{"phrase": k, "score": None, "found_in": []} for k in target_keywords]
+    if not enable_keyword_analysis:
+        return []
+    return keyword_extraction.extract_keywords(page_meta_entry, content_stats)
 
 
 def collect_audit_data(
@@ -42,6 +72,10 @@ def collect_audit_data(
     psi_key=None,
     psi_strategy="mobile",
     progress_callback=None,
+    enable_keyword_analysis=True,
+    enable_rank_check=False,
+    enable_competitor_gap=False,
+    target_keywords=None,
 ):
     """Run the full crawl + analysis pipeline and return the structured report dict.
 
@@ -188,6 +222,29 @@ def collect_audit_data(
             "structured_data": structured_data,
             "security_headers": security_headers,
         }
+
+        _kw_config = _keyword_intel_config()
+        keyword_data = _resolve_keyword_data(
+            target_keywords, enable_keyword_analysis, page_meta[page_url], content_stats
+        )
+        rank_data = (
+            rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], _kw_config)
+            if enable_rank_check else []
+        )
+        suggestions = (
+            keyword_suggestions.suggest_keywords(
+                keyword_data, page_meta[page_url], rank_data, _kw_config,
+                fetch_page=crawler._fetch, page_url=page_url,
+                enable_competitor_gap=enable_competitor_gap,
+            )
+            if enable_keyword_analysis else []
+        )
+        page_meta[page_url]["keyword_analysis"] = {
+            "top_keywords": keyword_data,
+            "rankings": rank_data,
+            "suggested_keywords": suggestions,
+        }
+
         page_data_for_dupes.append({
             "url": page_url,
             "title": title,
