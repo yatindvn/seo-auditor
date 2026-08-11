@@ -38,7 +38,7 @@ def test_suggest_keywords_uses_autocomplete_related_searches():
         ),
     ):
         result = keyword_suggestions.suggest_keywords(
-            seed_keywords, {}, [], FAKE_CONFIG,
+            seed_keywords, [], FAKE_CONFIG,
             fetch_page=lambda u: None, page_url="https://example.com/page",
         )
 
@@ -53,7 +53,7 @@ def test_suggest_keywords_autocomplete_failure_returns_empty_list():
 
     with patch("app.seo.keyword_suggestions.requests.get", side_effect=TimeoutError("boom")):
         result = keyword_suggestions.suggest_keywords(
-            seed_keywords, {}, [], FAKE_CONFIG,
+            seed_keywords, [], FAKE_CONFIG,
             fetch_page=lambda u: None, page_url="https://example.com/page",
         )
 
@@ -77,7 +77,7 @@ def test_suggest_keywords_competitor_gap_finds_phrases_missing_on_current_page()
 
     with patch("app.seo.keyword_suggestions.requests.get", side_effect=TimeoutError("autocomplete down")):
         result = keyword_suggestions.suggest_keywords(
-            seed_keywords, {}, rank_results, FAKE_CONFIG,
+            seed_keywords, rank_results, FAKE_CONFIG,
             fetch_page=fake_fetch, page_url="https://example.com/page",
             enable_competitor_gap=True,
         )
@@ -106,7 +106,7 @@ def test_suggest_keywords_dedup_against_current_phrases_is_case_insensitive():
         ),
     ):
         result = keyword_suggestions.suggest_keywords(
-            seed_keywords, {}, [], FAKE_CONFIG,
+            seed_keywords, [], FAKE_CONFIG,
             fetch_page=lambda u: None, page_url="https://example.com/page",
         )
 
