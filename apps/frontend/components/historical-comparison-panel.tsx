@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useAudit } from "@/lib/audit-context";
 import { ApiService } from "@/services/api";
 import { History, TrendingUp, TrendingDown, Trash2, FolderOpen, Scale, ArrowRight } from "lucide-react";
@@ -11,7 +11,11 @@ export function HistoricalComparisonPanel() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [comparingSession, setComparingSession] = useState<any | null>(null);
 
-  const loadHistory = async () => {
+  // setHistoryComparison is a raw useState setter from the provider, so its
+  // identity is stable and this callback is never rebuilt. That is what keeps it
+  // safe to list in the effect below: an unmemoized loadHistory would be a new
+  // function every render, and the effect would refetch in a loop.
+  const loadHistory = useCallback(async () => {
     try {
       const res = await ApiService.getHistory();
       if (res?.sessions) setSessions(res.sessions);
@@ -19,11 +23,11 @@ export function HistoricalComparisonPanel() {
     } catch {
       // Ignore fetch error
     }
-  };
+  }, [setHistoryComparison]);
 
   useEffect(() => {
     loadHistory();
-  }, [auditData]);
+  }, [auditData, loadHistory]);
 
   const handleDelete = async (id: string) => {
     try {
