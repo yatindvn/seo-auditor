@@ -159,9 +159,21 @@ beyond `max_depth` or blocked by robots.txt.
 
 ### 6. Configuration
 
-Scaffold `apps/backend/.env` from `.env.example` with **empty** values for
-`GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_CX`. The user pastes their own values in. `.env` and
-`.env.*` are already gitignored (`!.env.example` excepted), so no secret can be
+**Nothing currently loads a `.env` file into the Python backend.** `app/config/config.py`
+calls bare `os.getenv`, and the repo's only `dotenv` call lives in
+`apps/backend/src/server.ts` — the retired Express server. Scaffolding `.env` alone would
+therefore change nothing: credentials pasted into it would never be read, and every rank
+check would still report "not configured".
+
+So configuration is two parts:
+
+1. Add `python-dotenv` to `requirements.txt` and load `apps/backend/.env` at the top of
+   `config.py`, with `override=False` so an explicitly exported environment variable
+   still wins.
+2. Scaffold `apps/backend/.env` from `.env.example` with **empty** values for
+   `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_CX`, for the user to fill in.
+
+`.env` and `.env.*` are already gitignored (`!.env.example` excepted), so no secret can be
 committed. No key value is ever written by tooling or read into logs.
 
 ### Error handling
