@@ -1,4 +1,14 @@
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# The live backend is the Python app; apps/backend/src/server.ts (which called
+# dotenv.config()) is the retired Express server. Without this, GOOGLE_CSE_*
+# values pasted into apps/backend/.env are never read and every rank check
+# reports "not configured".
+# override=False so a real exported environment variable still wins.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 PORT = int(os.getenv("PORT", "5000"))
 HOST = os.getenv("HOST", "0.0.0.0")
