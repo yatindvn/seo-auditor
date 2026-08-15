@@ -110,23 +110,45 @@ def suggest_keywords(
     suggestions: List[Dict] = []
     seen = set()
 
-    for seed in seed_keywords[:3]:
-        for phrase in _autocomplete_suggestions(seed["phrase"]):
+    # Only "not_ranked" is evidence of underperformance. "skipped" means the check
+    # never ran (no credentials, quota exhausted, or request error) — seeding from
+    # it would invent replacements for keywords nobody measured.
+    underperforming = [r["keyword"] for r in rank_results if r.get("status") == "not_ranked"]
+    # Non-empty rank_results means rank checking ran for this page — seed only
+    # from what genuinely didn't rank, even if that list is empty (all "ranked"
+    # or "skipped"). Only fall back to seed keywords when rank checking never
+    # ran at all (empty rank_results), preserving pre-rank-checking behaviour.
+    has_rank_data = bool(rank_results)
+
+    if has_rank_data:
+        seed_phrases = [(kw, kw) for kw in underperforming[:3]]
+    else:
+        seed_phrases = [(s["phrase"], None) for s in seed_keywords[:3]]
+
+    for seed_phrase, replaces in seed_phrases:
+        for phrase in _autocomplete_suggestions(seed_phrase):
             key = phrase.lower()
             if key in seen or key in current_phrases:
                 continue
             seen.add(key)
-            suggestions.append({"phrase": phrase, "reason": "related search", "competitor_examples": None})
+            suggestions.append({
+                "phrase": phrase,
+                "reason": "related search",
+                "competitor_examples": None,
+                "replaces": replaces,
+            })
 
     if enable_competitor_gap and seed_keywords:
         page_domain = rank_checker._domain(page_url)
+        gap_seed = underperforming[0] if underperforming else seed_keywords[0]["phrase"]
         for gap in _competitor_gap(
-            seed_keywords[0]["phrase"], page_domain, current_phrases, rank_results, config, fetch_page
+            gap_seed, page_domain, current_phrases, rank_results, config, fetch_page
         ):
             key = gap["phrase"].lower()
             if key in seen or key in current_phrases:
                 continue
             seen.add(key)
+            gap["replaces"] = gap_seed if underperforming else None
             suggestions.append(gap)
 
     return suggestions[:MAX_SUGGESTIONS]

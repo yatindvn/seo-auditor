@@ -113,3 +113,72 @@ def test_suggest_keywords_dedup_against_current_phrases_is_case_insensitive():
     phrases = {r["phrase"] for r in result}
     assert "milk frother" not in phrases
     assert "single origin" in phrases
+
+
+from unittest.mock import patch
+
+from app.seo import keyword_suggestions
+
+
+FAKE_CONFIG_S = SimpleNamespace(
+    GOOGLE_CSE_API_KEY="k", GOOGLE_CSE_CX="cx",
+    GOOGLE_CSE_DAILY_QUOTA=100, GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE=3,
+    GOOGLE_CSE_CACHE_TTL_HOURS=24,
+)
+
+
+def _rank(keyword, status, position=None):
+    return {"keyword": keyword, "position": position, "status": status,
+            "note": None, "checked_at": "", "top_urls": []}
+
+
+def test_suggestions_seed_from_not_ranked_keyword():
+    seeds = [{"phrase": "espresso machine", "score": None, "found_in": []}]
+    ranks = [_rank("espresso machine", "not_ranked")]
+
+    with patch.object(keyword_suggestions, "_autocomplete_suggestions", return_value=["espresso machine reviews"]):
+        out = keyword_suggestions.suggest_keywords(
+            seeds, ranks, FAKE_CONFIG_S, fetch_page=lambda u: None, page_url="https://example.com/"
+        )
+
+    assert [s["phrase"] for s in out] == ["espresso machine reviews"]
+    assert out[0]["replaces"] == "espresso machine"
+
+
+def test_skipped_status_produces_no_suggestions():
+    """Not configured / quota reached / request error mean nothing was measured."""
+    seeds = [{"phrase": "espresso machine", "score": None, "found_in": []}]
+    ranks = [_rank("espresso machine", "skipped")]
+
+    with patch.object(keyword_suggestions, "_autocomplete_suggestions", return_value=["anything"]) as mock_ac:
+        out = keyword_suggestions.suggest_keywords(
+            seeds, ranks, FAKE_CONFIG_S, fetch_page=lambda u: None, page_url="https://example.com/"
+        )
+
+    assert out == []
+    mock_ac.assert_not_called()
+
+
+def test_ranked_keyword_produces_no_suggestions():
+    seeds = [{"phrase": "espresso machine", "score": None, "found_in": []}]
+    ranks = [_rank("espresso machine", "ranked", position=3)]
+
+    with patch.object(keyword_suggestions, "_autocomplete_suggestions", return_value=["anything"]):
+        out = keyword_suggestions.suggest_keywords(
+            seeds, ranks, FAKE_CONFIG_S, fetch_page=lambda u: None, page_url="https://example.com/"
+        )
+
+    assert out == []
+
+
+def test_no_rank_data_falls_back_to_seed_keywords():
+    """Backward compatibility: suggestions still work with rank checking off."""
+    seeds = [{"phrase": "espresso machine", "score": None, "found_in": []}]
+
+    with patch.object(keyword_suggestions, "_autocomplete_suggestions", return_value=["espresso grinder"]):
+        out = keyword_suggestions.suggest_keywords(
+            seeds, [], FAKE_CONFIG_S, fetch_page=lambda u: None, page_url="https://example.com/"
+        )
+
+    assert [s["phrase"] for s in out] == ["espresso grinder"]
+    assert out[0]["replaces"] is None
