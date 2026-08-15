@@ -20,6 +20,11 @@ def test_rank_target_rejects_more_than_ten_keywords():
         RankTarget(url="https://example.com/", keywords=[f"kw{i}" for i in range(11)])
 
 
+def test_rank_target_accepts_exactly_ten_keywords():
+    t = RankTarget(url="https://example.com/", keywords=[f"kw{i}" for i in range(10)])
+    assert len(t.keywords) == 10
+
+
 def test_audit_params_default_rank_targets_to_none():
     params = AuditRequestParams(url="https://example.com")
     assert params.rank_targets is None
