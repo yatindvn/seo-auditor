@@ -104,3 +104,54 @@ def test_check_rankings_without_credentials_skips_cleanly():
     mock_get.assert_not_called()
     assert result[0]["position"] is None
     assert result[0]["note"] == "ranking check unavailable — Google CSE not configured"
+
+
+def test_status_is_ranked_when_position_found():
+    items = [{"link": "https://example.com/page"}]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)):
+        result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "ranked"
+    assert result[0]["position"] == 1
+
+
+def test_status_is_not_ranked_when_absent_from_top_10():
+    items = [{"link": f"https://competitor{i}.com/"} for i in range(10)]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)):
+        result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "not_ranked"
+    assert result[0]["position"] is None
+
+
+def test_status_is_skipped_when_not_configured():
+    unconfigured = SimpleNamespace(
+        GOOGLE_CSE_API_KEY="", GOOGLE_CSE_CX="",
+        GOOGLE_CSE_DAILY_QUOTA=100, GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE=3,
+        GOOGLE_CSE_CACHE_TTL_HOURS=24,
+    )
+    result = rank_checker.check_rankings("https://example.com/page", ["espresso"], unconfigured)
+
+    assert result[0]["status"] == "skipped"
+    assert result[0]["position"] is None
+
+
+def test_status_is_skipped_when_quota_reached():
+    exhausted = SimpleNamespace(
+        GOOGLE_CSE_API_KEY="k", GOOGLE_CSE_CX="cx",
+        GOOGLE_CSE_DAILY_QUOTA=0, GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE=3,
+        GOOGLE_CSE_CACHE_TTL_HOURS=24,
+    )
+    result = rank_checker.check_rankings("https://example.com/page", ["espresso"], exhausted)
+
+    assert result[0]["status"] == "skipped"
+
+
+def test_status_is_skipped_on_request_error():
+    with patch("app.seo.rank_checker.requests.get", side_effect=RuntimeError("boom")):
+        result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "skipped"
+    assert result[0]["note"] == "ranking check failed — Google CSE request error"

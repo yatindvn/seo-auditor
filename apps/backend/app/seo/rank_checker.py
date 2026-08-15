@@ -142,6 +142,7 @@ def check_rankings(
             results.append({
                 "keyword": kw,
                 "position": None,
+                "status": "skipped",
                 "note": _NOTES[skip_reason],
                 "checked_at": checked_at,
                 "top_urls": [],
@@ -157,6 +158,7 @@ def check_rankings(
         results.append({
             "keyword": kw,
             "position": position,
+            "status": "ranked" if position else "not_ranked",
             "note": None if position else "not found in top 10",
             "checked_at": checked_at,
             "top_urls": urls,
