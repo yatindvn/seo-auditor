@@ -49,6 +49,23 @@ def _resolve_keyword_data(
     return keyword_extraction.extract_keywords(page_meta_entry, content_stats)
 
 
+def _match_rank_target(page_url: str, rank_targets: Optional[List[Any]]) -> Optional[List[str]]:
+    """Return the nominated keywords for `page_url`, or None if not nominated.
+
+    Both sides are normalised with rank_checker._normalize_url, which strips
+    scheme, leading www., query string, fragment, and trailing slash — so a user
+    typing "example.com/services" matches the crawled
+    "https://www.example.com/services/".
+    """
+    if not rank_targets:
+        return None
+    normalized_page = rank_checker._normalize_url(page_url)
+    for target in rank_targets:
+        if rank_checker._normalize_url(target.url) == normalized_page:
+            return list(target.keywords)
+    return None
+
+
 def run_full_audit(
     url: str,
     session_id: str,
@@ -62,6 +79,7 @@ def run_full_audit(
     enable_rank_check: bool = False,
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
+    rank_targets: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -78,7 +96,7 @@ def run_full_audit(
         return _build_audit_result(
             url, crawler, progress_callback, event_callback,
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
-            enable_competitor_gap, target_keywords,
+            enable_competitor_gap, target_keywords, rank_targets=rank_targets,
         )
     finally:
         unregister_crawler(session_id)
@@ -94,6 +112,7 @@ def _build_audit_result(
     enable_rank_check: bool = False,
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
+    rank_targets: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
     crawler.crawl(progress_callback=progress_callback, event_callback=event_callback)
     crawler.check_external_links(max_check=25)
@@ -218,9 +237,15 @@ def _build_audit_result(
         keyword_data = _resolve_keyword_data(
             target_keywords, enable_keyword_analysis, page_meta[page_url], content_stats
         )
+        # Rank checks fire only on pages the user nominated. With enable_rank_check
+        # on but nothing nominated, spend is zero rather than one query per keyword
+        # per crawled page — which would exhaust the 100/day free tier in one audit.
+        nominated_keywords = _match_rank_target(page_url, rank_targets)
         rank_data = (
-            rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], config)
-            if enable_rank_check else []
+            rank_checker.check_rankings(
+                page_url, nominated_keywords, config, max_keywords=len(nominated_keywords)
+            )
+            if enable_rank_check and nominated_keywords else []
         )
         # Competitor-gap fetches (via `crawler._fetch`) reuse the crawler's own
         # HTTP machinery, but that crawler instance still has its
@@ -308,6 +333,9 @@ def _build_audit_result(
         "recommendations": recommendations,
         "issue_frequency": issue_freq,
         "pages": page_rows,
+        "rank_targets": [
+            {"url": t.url, "keywords": list(t.keywords)} for t in (rank_targets or [])
+        ],
         "architecture": {
             "nodes": arch_nodes,
             "links": arch_links,
