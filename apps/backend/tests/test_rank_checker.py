@@ -155,3 +155,27 @@ def test_status_is_skipped_on_request_error():
 
     assert result[0]["status"] == "skipped"
     assert result[0]["note"] == "ranking check failed — Google CSE request error"
+
+
+def test_config_cap_applies_when_max_keywords_not_given():
+    items = [{"link": "https://other.com/"}]
+    keywords = ["one", "two", "three", "four", "five"]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)) as mock_get:
+        result = rank_checker.check_rankings("https://example.com/page", keywords, FAKE_CONFIG)
+
+    assert len(result) == 3
+    assert mock_get.call_count == 3
+
+
+def test_max_keywords_overrides_config_cap():
+    items = [{"link": "https://other.com/"}]
+    keywords = ["one", "two", "three", "four", "five"]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)) as mock_get:
+        result = rank_checker.check_rankings(
+            "https://example.com/page", keywords, FAKE_CONFIG, max_keywords=5
+        )
+
+    assert len(result) == 5
+    assert mock_get.call_count == 5

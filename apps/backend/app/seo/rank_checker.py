@@ -124,7 +124,11 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
 
 
 def check_rankings(
-    page_url: str, keywords: List[str], config, deep_rank_check: bool = False
+    page_url: str,
+    keywords: List[str],
+    config,
+    deep_rank_check: bool = False,
+    max_keywords: Optional[int] = None,
 ) -> List[Dict]:
     # `deep_rank_check` is reserved for future page-2+ pagination support
     # (each extra page is another quota-consuming query) — accepted here so
@@ -132,7 +136,11 @@ def check_rankings(
     # has no effect yet: only the first page of CSE results is ever checked.
     target_domain = _domain(page_url)
     norm_page = _normalize_url(page_url)
-    capped = keywords[: config.GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE]
+    # The config cap guards *automatic* extraction from spending quota. Keywords a
+    # user nominated explicitly must not be silently dropped, so callers with an
+    # explicit list pass their own bound.
+    limit = max_keywords if max_keywords is not None else config.GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE
+    capped = keywords[:limit]
 
     results = []
     for kw in capped:
