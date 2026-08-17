@@ -9,14 +9,18 @@ def _target(url, keywords):
     return SimpleNamespace(url=url, keywords=keywords)
 
 
-def test_unnominated_page_spends_no_queries():
+def test_unnominated_page_returns_none():
+    # `_match_rank_target` never calls `check_rankings` itself — that
+    # wiring lives at the `_build_audit_result` call site and is covered by
+    # the integration tests below (patching `check_rankings` here and
+    # asserting it was never called would be vacuous: this function simply
+    # has no path that could call it). What this unit test actually proves
+    # is `_match_rank_target`'s own contract: an unmatched URL returns None.
     targets = [SimpleNamespace(url="https://example.com/a", keywords=["alpha"])]
 
-    with patch("app.seo.rank_checker.check_rankings") as mock_check:
-        keywords = audit_service._match_rank_target("https://example.com/zzz", targets)
+    keywords = audit_service._match_rank_target("https://example.com/zzz", targets)
 
     assert keywords is None
-    mock_check.assert_not_called()
 
 
 def test_nominated_page_returns_exactly_its_keywords():
