@@ -115,7 +115,16 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
         data = resp.json()
         urls = [item["link"] for item in data.get("items", []) if "link" in item]
     except Exception as exc:
-        logger.error("CSE lookup failed for keyword %r: %s", keyword, exc, exc_info=exc)
+        # Never log `exc` (or exc_info) directly here: requests.raise_for_status()
+        # embeds the full request URL — including the `key=<API key>` query
+        # param — in its exception message, and that message is the exception's
+        # str(). Log only the exception type and, when present, the HTTP status
+        # code, neither of which can contain the credential.
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.error(
+            "CSE lookup failed for keyword %r: %s (status_code=%s)",
+            keyword, type(exc).__name__, status_code,
+        )
         return None, "error"
 
     _state.record_query()

@@ -1,7 +1,9 @@
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from app.seo import rank_checker
 
@@ -179,3 +181,32 @@ def test_max_keywords_overrides_config_cap():
 
     assert len(result) == 5
     assert mock_get.call_count == 5
+
+
+def test_cse_failure_never_logs_the_api_key(caplog):
+    """requests.raise_for_status() embeds the full request URL — including
+    `key=<API key>` — in the exception's string. If the except-block in
+    _get_cse_results ever logs that exception's message (or exc_info) again,
+    the credential leaks into the application log. Simulate a real 401 whose
+    message contains a fake key and assert the fake key cannot appear
+    anywhere in what got logged."""
+    fake_key = "AIzaFAKESECRETKEY"
+    error = requests.exceptions.HTTPError(
+        "401 Client Error: Unauthorized for url: "
+        f"https://www.googleapis.com/customsearch/v1?key={fake_key}&cx=cx123&q=espresso"
+    )
+    bad_response = MagicMock()
+    bad_response.raise_for_status.side_effect = error
+
+    with patch("app.seo.rank_checker.requests.get", return_value=bad_response):
+        with caplog.at_level(logging.ERROR, logger="seo_auditor"):
+            result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "skipped"
+
+    # A log record must actually have been emitted for this failure (otherwise
+    # the absence assertion below would be vacuously true).
+    assert len(caplog.records) > 0
+    logged_text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "CSE lookup failed" in logged_text
+    assert fake_key not in logged_text
