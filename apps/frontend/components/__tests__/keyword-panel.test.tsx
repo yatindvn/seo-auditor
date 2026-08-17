@@ -29,7 +29,7 @@ describe("KeywordPanel", () => {
         url: "https://example.com/espresso",
         keyword_analysis: {
           top_keywords: [{ phrase: "espresso machine", score: 5, found_in: ["title", "h1"] }],
-          rankings: [{ keyword: "espresso machine", position: 3, checked_at: "2026-01-01T00:00:00Z" }],
+          rankings: [{ keyword: "espresso machine", position: 3, status: "ranked", checked_at: "2026-01-01T00:00:00Z" }],
           suggested_keywords: [{ phrase: "manual pour over kettle", reason: "related search" }],
         },
       }),
@@ -52,6 +52,7 @@ describe("KeywordPanel", () => {
             {
               keyword: "espresso machine",
               position: null,
+              status: "skipped",
               note: "ranking check unavailable — Google CSE not configured",
             },
           ],
@@ -71,5 +72,52 @@ describe("KeywordPanel", () => {
     render(<KeywordPanel pages={[makePage()]} />);
 
     expect(screen.getByText("No keyword data available for this audit.")).toBeInTheDocument();
+  });
+
+  it("shows the position for a ranked keyword", () => {
+    const pages = [{
+      url: "https://example.com/a",
+      keyword_analysis: {
+        top_keywords: [{ phrase: "cloud", score: null, found_in: ["title"] }],
+        rankings: [{ keyword: "cloud", position: 3, status: "ranked" as const, note: null }],
+        suggested_keywords: [],
+      },
+    }] as any;
+
+    render(<KeywordPanel pages={pages} />);
+    expect(screen.getByText("#3")).toBeInTheDocument();
+  });
+
+  it("shows a skipped banner without claiming the keyword ranks badly", () => {
+    const pages = [{
+      url: "https://example.com/a",
+      keyword_analysis: {
+        top_keywords: [{ phrase: "cloud", score: null, found_in: ["title"] }],
+        rankings: [{
+          keyword: "cloud", position: null, status: "skipped" as const,
+          note: "ranking check unavailable — Google CSE not configured",
+        }],
+        suggested_keywords: [],
+      },
+    }] as any;
+
+    render(<KeywordPanel pages={pages} />);
+    expect(screen.getByText(/not configured/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not ranking in top 10/i)).not.toBeInTheDocument();
+  });
+
+  it("labels a suggestion with the keyword it replaces", () => {
+    const pages = [{
+      url: "https://example.com/a",
+      keyword_analysis: {
+        top_keywords: [{ phrase: "cloud", score: null, found_in: ["title"] }],
+        rankings: [{ keyword: "cloud", position: null, status: "not_ranked" as const, note: "not found in top 10" }],
+        suggested_keywords: [{ phrase: "cloud migration", reason: "related search", replaces: "cloud" }],
+      },
+    }] as any;
+
+    render(<KeywordPanel pages={pages} />);
+    expect(screen.getByText(/instead of/i)).toBeInTheDocument();
+    expect(screen.getByText("cloud migration")).toBeInTheDocument();
   });
 });

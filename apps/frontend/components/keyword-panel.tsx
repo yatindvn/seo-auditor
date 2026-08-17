@@ -4,25 +4,21 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, TrendingUp, Lightbulb, AlertTriangle } from "lucide-react";
 import { PageItem } from "@/lib/types";
+import type { RankTarget } from "@seo-auditor/shared";
 
 interface KeywordPanelProps {
   pages: PageItem[];
+  rankTargets?: RankTarget[];
 }
 
-const SKIPPED_NOTES = [
-  "ranking check unavailable — Google CSE not configured",
-  "ranking check skipped — daily Google CSE quota reached",
-];
-
-export function KeywordPanel({ pages }: KeywordPanelProps) {
+export function KeywordPanel({ pages, rankTargets }: KeywordPanelProps) {
   const pagesWithKeywords = pages.filter(
     p => p.keyword_analysis && p.keyword_analysis.top_keywords.length > 0
   );
 
   const skippedNote = pagesWithKeywords
     .flatMap(p => p.keyword_analysis?.rankings || [])
-    .map(r => r.note)
-    .find(note => note && SKIPPED_NOTES.includes(note));
+    .find(r => r.status === "skipped")?.note;
 
   if (pagesWithKeywords.length === 0) {
     return (
@@ -48,6 +44,18 @@ export function KeywordPanel({ pages }: KeywordPanelProps) {
           {skippedNote}
         </div>
       )}
+      {(() => {
+        const crawled = new Set(pages.map(p => p.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")));
+        const missed = (rankTargets || [])
+          .map(t => t.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))
+          .filter(u => !crawled.has(u));
+        if (missed.length === 0) return null;
+        return (
+          <div className="rounded-lg border border-border/50 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+            Not reached by this crawl (try a higher max depth, or check robots.txt): {missed.join(", ")}
+          </div>
+        );
+      })()}
       {pagesWithKeywords.map(page => (
         <Card key={page.url}>
           <CardHeader className="pb-3">
@@ -80,8 +88,14 @@ export function KeywordPanel({ pages }: KeywordPanelProps) {
                   {page.keyword_analysis!.rankings.map(r => (
                     <li key={r.keyword} className="flex justify-between border-b border-border/30 pb-1">
                       <span>{r.keyword}</span>
-                      <span className={r.position ? "font-semibold text-emerald-500" : "text-muted-foreground"}>
-                        {r.position ? `#${r.position}` : r.note || "not ranking in top 10"}
+                      <span className={
+                        r.status === "ranked" ? "font-semibold text-emerald-500"
+                        : r.status === "not_ranked" ? "text-amber-600"
+                        : "text-muted-foreground italic"
+                      }>
+                        {r.status === "ranked" ? `#${r.position}`
+                          : r.status === "not_ranked" ? "not in top 10"
+                          : "not checked"}
                       </span>
                     </li>
                   ))}
@@ -99,6 +113,11 @@ export function KeywordPanel({ pages }: KeywordPanelProps) {
                     <li key={s.phrase} className="rounded-md bg-muted/20 px-2 py-1.5">
                       <span className="font-medium">{s.phrase}</span>
                       <span className="text-muted-foreground text-xs block">{s.reason}</span>
+                      {s.replaces && (
+                        <span className="text-[11px] text-amber-600 block">
+                          instead of <span className="font-medium">{s.replaces}</span>
+                        </span>
+                      )}
                       {s.competitor_examples && s.competitor_examples.length > 0 && (
                         <span className="text-[10px] text-muted-foreground/70 block truncate">
                           e.g. {s.competitor_examples.join(", ")}
