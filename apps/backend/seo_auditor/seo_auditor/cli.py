@@ -14,6 +14,7 @@ import argparse
 import os
 import sys
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 from . import checks, analysis, ai_suggestions, report, performance
@@ -29,10 +30,30 @@ def _progress(done, total, url):
     print(f"\r[{bar}] {done}/{total}  {short_url:<70}", end="", flush=True)
 
 
+def _load_backend_dotenv():
+    """Load apps/backend/.env, the same file app/config/config.py reads.
+
+    Without this the CLI silently ignored credentials pasted into that file, so
+    every rank check reported "not configured" no matter what the user had set up
+    — the exact trap the app tree had before python-dotenv was added there.
+
+    Guarded: python-dotenv is declared in this package's requirements, but an
+    older installed copy may predate that, and a missing optional dependency
+    must not take down the whole CLI. override=False so a genuinely exported
+    environment variable still wins over the file.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
+
+
 def _keyword_intel_config():
     """Reads the same 5 env vars as apps/backend/app/config/config.py — this
     tree has no dedicated config module, so this small helper keeps the two
     trees behaviorally identical without adding one."""
+    _load_backend_dotenv()
     return SimpleNamespace(
         GOOGLE_CSE_API_KEY=os.getenv("GOOGLE_CSE_API_KEY", ""),
         GOOGLE_CSE_CX=os.getenv("GOOGLE_CSE_CX", ""),

@@ -49,6 +49,23 @@ def _resolve_keyword_data(
     return keyword_extraction.extract_keywords(page_meta_entry, content_stats)
 
 
+def _match_rank_target(page_url: str, rank_targets: Optional[List[Any]]) -> Optional[List[str]]:
+    """Return the nominated keywords for `page_url`, or None if not nominated.
+
+    Both sides are normalised with rank_checker._normalize_url, which strips
+    scheme, leading www., query string, fragment, and trailing slash — so a user
+    typing "example.com/services" matches the crawled
+    "https://www.example.com/services/".
+    """
+    if not rank_targets:
+        return None
+    normalized_page = rank_checker._normalize_url(page_url)
+    for target in rank_targets:
+        if rank_checker._normalize_url(target.url) == normalized_page:
+            return list(target.keywords)
+    return None
+
+
 def run_full_audit(
     url: str,
     session_id: str,
@@ -62,6 +79,7 @@ def run_full_audit(
     enable_rank_check: bool = False,
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
+    rank_targets: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -78,7 +96,7 @@ def run_full_audit(
         return _build_audit_result(
             url, crawler, progress_callback, event_callback,
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
-            enable_competitor_gap, target_keywords,
+            enable_competitor_gap, target_keywords, rank_targets=rank_targets,
         )
     finally:
         unregister_crawler(session_id)
@@ -94,7 +112,12 @@ def _build_audit_result(
     enable_rank_check: bool = False,
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
+    rank_targets: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
+    # Monotonic, not time.time(): this is a duration, and monotonic cannot be
+    # skewed by an NTP correction or a manual clock change mid-audit.
+    started_at = time.monotonic()
+
     crawler.crawl(progress_callback=progress_callback, event_callback=event_callback)
     crawler.check_external_links(max_check=25)
 
@@ -218,9 +241,15 @@ def _build_audit_result(
         keyword_data = _resolve_keyword_data(
             target_keywords, enable_keyword_analysis, page_meta[page_url], content_stats
         )
+        # Rank checks fire only on pages the user nominated. With enable_rank_check
+        # on but nothing nominated, spend is zero rather than one query per keyword
+        # per crawled page — which would exhaust the 100/day free tier in one audit.
+        nominated_keywords = _match_rank_target(page_url, rank_targets)
         rank_data = (
-            rank_checker.check_rankings(page_url, [k["phrase"] for k in keyword_data], config)
-            if enable_rank_check else []
+            rank_checker.check_rankings(
+                page_url, nominated_keywords, config, max_keywords=len(nominated_keywords)
+            )
+            if enable_rank_check and nominated_keywords else []
         )
         # Competitor-gap fetches (via `crawler._fetch`) reuse the crawler's own
         # HTTP machinery, but that crawler instance still has its
@@ -229,6 +258,19 @@ def _build_audit_result(
         # the live activity feed as if it happened on the audited site. Null
         # the callback out for the duration of the suggestions call so only
         # audit-target crawl events ever reach the feed.
+        # When rank_targets were supplied at all, suggestions are scoped to
+        # nominated pages only — generating them for every other crawled page
+        # would fire up to 3 synchronous Google Autocomplete requests each
+        # (5s timeout apiece) from the no-rank-data fallback, and would offer
+        # ungrounded suggestions on pages the user never asked about while the
+        # one page they did nominate correctly shows none pre-credentials.
+        # When rank_targets is None/empty, `enable_keyword_suggestions` keeps
+        # its original site-wide behaviour: it is a documented standalone API
+        # capability (docs/api.md) independent of rank tracking, and direct
+        # API callers who never send rank_targets must not silently regress.
+        suggestions_allowed = (
+            not rank_targets or nominated_keywords is not None
+        )
         saved_event_callback = crawler.event_callback
         crawler.event_callback = None
         try:
@@ -238,7 +280,7 @@ def _build_audit_result(
                     fetch_page=crawler._fetch, page_url=page_url,
                     enable_competitor_gap=enable_competitor_gap,
                 )
-                if enable_keyword_suggestions else []
+                if enable_keyword_suggestions and suggestions_allowed else []
             )
         finally:
             crawler.event_callback = saved_event_callback
@@ -308,6 +350,9 @@ def _build_audit_result(
         "recommendations": recommendations,
         "issue_frequency": issue_freq,
         "pages": page_rows,
+        "rank_targets": [
+            {"url": t.url, "keywords": list(t.keywords)} for t in (rank_targets or [])
+        ],
         "architecture": {
             "nodes": arch_nodes,
             "links": arch_links,
@@ -316,7 +361,7 @@ def _build_audit_result(
         "robots_txt": crawler.robots_txt_content,
         "sitemaps_found": crawler.sitemaps_found,
         "sitemap_urls": list(crawler.sitemap_urls),
-        "elapsed_seconds": round(time.time(), 1),
+        "elapsed_seconds": round(time.monotonic() - started_at, 1),
         "note": "Audit executed directly via native Python engine.",
     }
 

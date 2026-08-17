@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.crawler.crawler import PageResult
@@ -81,6 +82,72 @@ def test_build_audit_result_enable_keyword_suggestions_true_calls_suggest_keywor
         )
 
     mock_suggest.assert_called_once()
+
+
+def test_build_audit_result_rank_targets_nominated_page_calls_suggest_keywords():
+    """Owner's decision (final-review finding): when rank_targets were
+    supplied, suggestions are scoped to pages that matched a rank target."""
+    crawler = FakeCrawler()
+    targets = [SimpleNamespace(url="https://example.com/", keywords=["espresso machine"])]
+
+    with patch.object(audit_service.keyword_suggestions, "suggest_keywords", return_value=[]) as mock_suggest:
+        audit_service._build_audit_result(
+            "https://example.com/", crawler, progress_callback=None, event_callback=None,
+            enable_keyword_suggestions=True, rank_targets=targets,
+        )
+
+    mock_suggest.assert_called_once()
+
+
+def test_build_audit_result_rank_targets_unnominated_page_never_calls_suggest_keywords():
+    """The start form sets enable_keyword_suggestions site-wide as soon as one
+    rank row is filled in. Without this gate, every un-nominated page would
+    fire up to 3 synchronous Google Autocomplete requests each (5s timeout
+    apiece) from the no-rank-data fallback -- ~300 requests at the form's
+    100-page default -- and would show ungrounded suggestions everywhere
+    except the one page the user actually nominated."""
+    crawler = FakeCrawler()
+    targets = [SimpleNamespace(url="https://example.com/some-other-page", keywords=["alpha"])]
+
+    with patch.object(audit_service.keyword_suggestions, "suggest_keywords") as mock_suggest:
+        audit_service._build_audit_result(
+            "https://example.com/", crawler, progress_callback=None, event_callback=None,
+            enable_keyword_suggestions=True, rank_targets=targets,
+        )
+
+    mock_suggest.assert_not_called()
+
+
+def test_build_audit_result_rank_targets_empty_preserves_site_wide_suggestions():
+    """rank_targets=[] is falsy, same as omitting it: enable_keyword_suggestions
+    alone must still fire suggestions on every page. enable_keyword_suggestions
+    is a documented standalone API capability (docs/api.md) independent of
+    rank tracking, so direct API callers who never send rank_targets must not
+    silently regress."""
+    crawler = FakeCrawler()
+
+    with patch.object(audit_service.keyword_suggestions, "suggest_keywords", return_value=[]) as mock_suggest:
+        audit_service._build_audit_result(
+            "https://example.com/", crawler, progress_callback=None, event_callback=None,
+            enable_keyword_suggestions=True, rank_targets=[],
+        )
+
+    mock_suggest.assert_called_once()
+
+
+def test_build_audit_result_enable_keyword_suggestions_false_never_calls_even_when_nominated():
+    """enable_keyword_suggestions remains the master switch: a matching
+    nomination alone must not be enough to fire suggestions."""
+    crawler = FakeCrawler()
+    targets = [SimpleNamespace(url="https://example.com/", keywords=["espresso machine"])]
+
+    with patch.object(audit_service.keyword_suggestions, "suggest_keywords") as mock_suggest:
+        audit_service._build_audit_result(
+            "https://example.com/", crawler, progress_callback=None, event_callback=None,
+            enable_keyword_suggestions=False, rank_targets=targets,
+        )
+
+    mock_suggest.assert_not_called()
 
 
 def test_get_crawler_returns_none_for_unknown_session():

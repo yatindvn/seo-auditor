@@ -50,9 +50,13 @@ export interface ExecutiveSummary {
   sitemap_urls?: string[];
 }
 
+export type RankStatus = "ranked" | "not_ranked" | "skipped";
+
 export interface KeywordRanking {
   keyword: string;
   position: number | null;
+  /** "skipped" means the check never ran — not that the page ranks badly. */
+  status: RankStatus;
   note?: string | null;
   checked_at?: string;
 }
@@ -61,6 +65,13 @@ export interface SuggestedKeyword {
   phrase: string;
   reason: string;
   competitor_examples?: string[] | null;
+  /** The underperforming keyword this is offered as a replacement for. */
+  replaces?: string | null;
+}
+
+export interface RankTarget {
+  url: string;
+  keywords: string[];
 }
 
 export interface KeywordAnalysis {
@@ -180,6 +191,7 @@ export interface AuditResponse {
   architecture?: SiteArchitecture;
   elapsed_seconds: number;
   note: string;
+  rank_targets?: RankTarget[];
 }
 
 export interface AuditRequestParams {
@@ -191,6 +203,7 @@ export interface AuditRequestParams {
   enable_keyword_suggestions?: boolean;
   enable_rank_check?: boolean;
   enable_competitor_gap?: boolean;
+  rank_targets?: RankTarget[];
   target_keywords?: string[];
 }
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAudit } from "@/lib/audit-context";
 import { ApiService } from "@/services/api";
+import { buildRankTargets, countQueries, RankTargetRow } from "@/lib/rank-targets";
 import {
   ChevronDown,
   Globe,
@@ -87,6 +88,7 @@ export default function LandingPage() {
   const [ignoreRobots, setIgnoreRobots] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
+  const [rankRows, setRankRows] = useState<RankTargetRow[]>([{ url: "", keywords: "" }]);
   
   const [isLoading, setIsLoading] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -128,6 +130,8 @@ export default function LandingPage() {
     return { pages, timeStr, usage, complexity };
   }, [maxPages, maxDepth]);
 
+  const rankQueryCount = useMemo(() => countQueries(rankRows), [rankRows]);
+
   const validateUrl = (value: string): boolean => {
     if (!value.trim()) {
       setUrlError("Please enter a URL to audit.");
@@ -145,13 +149,19 @@ export default function LandingPage() {
     setError(null);
 
     try {
+      const rankTargets = buildRankTargets(rankRows);
       const data = await ApiService.runAudit({
         url: url.trim(),
         max_pages: Math.min(Math.max(maxPages, 1), 5000),
         max_depth: Math.min(Math.max(maxDepth, 0), 15),
         ignore_robots: ignoreRobots,
+        ...(rankTargets.length > 0 && {
+          rank_targets: rankTargets,
+          enable_rank_check: true,
+          enable_keyword_suggestions: true,
+        }),
       });
-      
+
       startNewAudit(data.session_id);
       router.push("/dashboard");
     } catch (err: any) {
@@ -322,6 +332,57 @@ export default function LandingPage() {
                     <p className="text-xs text-muted-foreground">Force crawl paths blocked by robots.txt (for staging environments)</p>
                   </div>
                 </label>
+
+                <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">Keyword rank tracking</p>
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      className={`text-xs ${rankQueryCount > 100 ? "text-rose-500 font-semibold" : "text-muted-foreground"}`}
+                    >
+                      will use {rankQueryCount} of your 100 daily queries
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Only the pages you list here are rank-checked. Requires Google CSE credentials in apps/backend/.env.
+                  </p>
+                  {rankRows.map((row, i) => (
+                    <div key={i} className="flex gap-2">
+                      <Input
+                        placeholder="https://example.com/services"
+                        aria-label={`Rank-tracked page URL ${i + 1}`}
+                        value={row.url}
+                        onChange={e => setRankRows(rows => rows.map((r, j) => j === i ? { ...r, url: e.target.value } : r))}
+                        disabled={isLoading}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder="keyword one, keyword two"
+                        aria-label={`Keywords for page ${i + 1}, comma-separated`}
+                        value={row.keywords}
+                        onChange={e => setRankRows(rows => rows.map((r, j) => j === i ? { ...r, keywords: e.target.value } : r))}
+                        disabled={isLoading}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        aria-label={`Remove rank-tracked page ${i + 1}`}
+                        onClick={() => setRankRows(rows => rows.length > 1 ? rows.filter((_, j) => j !== i) : rows)}
+                        disabled={isLoading}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    onClick={() => setRankRows(rows => [...rows, { url: "", keywords: "" }])}
+                    disabled={isLoading}
+                  >
+                    Add page
+                  </Button>
+                </div>
               </div>
             </CollapsibleContent>
           </Collapsible>

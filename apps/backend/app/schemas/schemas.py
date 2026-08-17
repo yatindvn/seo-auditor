@@ -2,6 +2,17 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
+class RankTarget(BaseModel):
+    """One user-nominated page and the keywords to rank-check on it.
+
+    Nomination is what bounds quota spend: the free Google CSE tier allows 100
+    queries/day and one query is one keyword on one page, so checking every
+    crawled page would exhaust a day in a single audit of any real site.
+    """
+    url: str
+    keywords: List[str] = Field(min_length=1, max_length=10)
+
+
 class AuditRequestParams(BaseModel):
     url: str
     max_pages: Optional[int] = Field(default=8, ge=1, le=5000)
@@ -12,6 +23,7 @@ class AuditRequestParams(BaseModel):
     enable_rank_check: Optional[bool] = False
     enable_competitor_gap: Optional[bool] = False
     target_keywords: Optional[List[str]] = None
+    rank_targets: Optional[List[RankTarget]] = None
 
 
 class HealthScore(BaseModel):

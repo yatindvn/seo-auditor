@@ -115,7 +115,16 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
         data = resp.json()
         urls = [item["link"] for item in data.get("items", []) if "link" in item]
     except Exception as exc:
-        logger.error("CSE lookup failed for keyword %r: %s", keyword, exc, exc_info=exc)
+        # Never log `exc` (or exc_info) directly here: requests.raise_for_status()
+        # embeds the full request URL — including the `key=<API key>` query
+        # param — in its exception message, and that message is the exception's
+        # str(). Log only the exception type and, when present, the HTTP status
+        # code, neither of which can contain the credential.
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.error(
+            "CSE lookup failed for keyword %r: %s (status_code=%s)",
+            keyword, type(exc).__name__, status_code,
+        )
         return None, "error"
 
     _state.record_query()
@@ -124,7 +133,11 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
 
 
 def check_rankings(
-    page_url: str, keywords: List[str], config, deep_rank_check: bool = False
+    page_url: str,
+    keywords: List[str],
+    config,
+    deep_rank_check: bool = False,
+    max_keywords: Optional[int] = None,
 ) -> List[Dict]:
     # `deep_rank_check` is reserved for future page-2+ pagination support
     # (each extra page is another quota-consuming query) — accepted here so
@@ -132,7 +145,11 @@ def check_rankings(
     # has no effect yet: only the first page of CSE results is ever checked.
     target_domain = _domain(page_url)
     norm_page = _normalize_url(page_url)
-    capped = keywords[: config.GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE]
+    # The config cap guards *automatic* extraction from spending quota. Keywords a
+    # user nominated explicitly must not be silently dropped, so callers with an
+    # explicit list pass their own bound.
+    limit = max_keywords if max_keywords is not None else config.GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE
+    capped = keywords[:limit]
 
     results = []
     for kw in capped:
@@ -142,6 +159,7 @@ def check_rankings(
             results.append({
                 "keyword": kw,
                 "position": None,
+                "status": "skipped",
                 "note": _NOTES[skip_reason],
                 "checked_at": checked_at,
                 "top_urls": [],
@@ -157,6 +175,7 @@ def check_rankings(
         results.append({
             "keyword": kw,
             "position": position,
+            "status": "ranked" if position else "not_ranked",
             "note": None if position else "not found in top 10",
             "checked_at": checked_at,
             "top_urls": urls,

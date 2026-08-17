@@ -1,7 +1,9 @@
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from app.seo import rank_checker
 
@@ -104,3 +106,107 @@ def test_check_rankings_without_credentials_skips_cleanly():
     mock_get.assert_not_called()
     assert result[0]["position"] is None
     assert result[0]["note"] == "ranking check unavailable — Google CSE not configured"
+
+
+def test_status_is_ranked_when_position_found():
+    items = [{"link": "https://example.com/page"}]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)):
+        result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "ranked"
+    assert result[0]["position"] == 1
+
+
+def test_status_is_not_ranked_when_absent_from_top_10():
+    items = [{"link": f"https://competitor{i}.com/"} for i in range(10)]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)):
+        result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "not_ranked"
+    assert result[0]["position"] is None
+
+
+def test_status_is_skipped_when_not_configured():
+    unconfigured = SimpleNamespace(
+        GOOGLE_CSE_API_KEY="", GOOGLE_CSE_CX="",
+        GOOGLE_CSE_DAILY_QUOTA=100, GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE=3,
+        GOOGLE_CSE_CACHE_TTL_HOURS=24,
+    )
+    result = rank_checker.check_rankings("https://example.com/page", ["espresso"], unconfigured)
+
+    assert result[0]["status"] == "skipped"
+    assert result[0]["position"] is None
+
+
+def test_status_is_skipped_when_quota_reached():
+    exhausted = SimpleNamespace(
+        GOOGLE_CSE_API_KEY="k", GOOGLE_CSE_CX="cx",
+        GOOGLE_CSE_DAILY_QUOTA=0, GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE=3,
+        GOOGLE_CSE_CACHE_TTL_HOURS=24,
+    )
+    result = rank_checker.check_rankings("https://example.com/page", ["espresso"], exhausted)
+
+    assert result[0]["status"] == "skipped"
+
+
+def test_status_is_skipped_on_request_error():
+    with patch("app.seo.rank_checker.requests.get", side_effect=RuntimeError("boom")):
+        result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "skipped"
+    assert result[0]["note"] == "ranking check failed — Google CSE request error"
+
+
+def test_config_cap_applies_when_max_keywords_not_given():
+    items = [{"link": "https://other.com/"}]
+    keywords = ["one", "two", "three", "four", "five"]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)) as mock_get:
+        result = rank_checker.check_rankings("https://example.com/page", keywords, FAKE_CONFIG)
+
+    assert len(result) == 3
+    assert mock_get.call_count == 3
+
+
+def test_max_keywords_overrides_config_cap():
+    items = [{"link": "https://other.com/"}]
+    keywords = ["one", "two", "three", "four", "five"]
+
+    with patch("app.seo.rank_checker.requests.get", return_value=_canned_response(items)) as mock_get:
+        result = rank_checker.check_rankings(
+            "https://example.com/page", keywords, FAKE_CONFIG, max_keywords=5
+        )
+
+    assert len(result) == 5
+    assert mock_get.call_count == 5
+
+
+def test_cse_failure_never_logs_the_api_key(caplog):
+    """requests.raise_for_status() embeds the full request URL — including
+    `key=<API key>` — in the exception's string. If the except-block in
+    _get_cse_results ever logs that exception's message (or exc_info) again,
+    the credential leaks into the application log. Simulate a real 401 whose
+    message contains a fake key and assert the fake key cannot appear
+    anywhere in what got logged."""
+    fake_key = "AIzaFAKESECRETKEY"
+    error = requests.exceptions.HTTPError(
+        "401 Client Error: Unauthorized for url: "
+        f"https://www.googleapis.com/customsearch/v1?key={fake_key}&cx=cx123&q=espresso"
+    )
+    bad_response = MagicMock()
+    bad_response.raise_for_status.side_effect = error
+
+    with patch("app.seo.rank_checker.requests.get", return_value=bad_response):
+        with caplog.at_level(logging.ERROR, logger="seo_auditor"):
+            result = rank_checker.check_rankings("https://example.com/page", ["espresso"], FAKE_CONFIG)
+
+    assert result[0]["status"] == "skipped"
+
+    # A log record must actually have been emitted for this failure (otherwise
+    # the absence assertion below would be vacuously true).
+    assert len(caplog.records) > 0
+    logged_text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "CSE lookup failed" in logged_text
+    assert fake_key not in logged_text
