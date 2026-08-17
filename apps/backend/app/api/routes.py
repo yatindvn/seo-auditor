@@ -72,6 +72,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                 enable_rank_check=params.enable_rank_check or False,
                 enable_competitor_gap=params.enable_competitor_gap or False,
                 target_keywords=params.target_keywords,
+                rank_targets=params.rank_targets,
                 event_callback=event_callback,
                 progress_callback=lambda count, total, current_url: asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast("crawl:progress", {
