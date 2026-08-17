@@ -11,6 +11,24 @@ interface KeywordPanelProps {
   rankTargets?: RankTarget[];
 }
 
+/**
+ * Mirrors apps/backend/app/seo/rank_checker.py's _normalize_url exactly:
+ * strip fragment, then query string, then scheme, then a leading "www.",
+ * then any trailing slash. The frontend and backend are answering the same
+ * "was this URL reached?" question about the same URLs, so they must agree —
+ * otherwise a page the backend successfully rank-checked (e.g. crawled with a
+ * tracking query string the user's nominated URL doesn't have) gets reported
+ * here as never reached by the crawl.
+ */
+function normalizeUrl(url: string): string {
+  return url
+    .split("#")[0]
+    .split("?")[0]
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/$/, "");
+}
+
 export function KeywordPanel({ pages, rankTargets }: KeywordPanelProps) {
   const pagesWithKeywords = pages.filter(
     p => p.keyword_analysis && p.keyword_analysis.top_keywords.length > 0
@@ -45,9 +63,9 @@ export function KeywordPanel({ pages, rankTargets }: KeywordPanelProps) {
         </div>
       )}
       {(() => {
-        const crawled = new Set(pages.map(p => p.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")));
+        const crawled = new Set(pages.map(p => normalizeUrl(p.url)));
         const missed = (rankTargets || [])
-          .map(t => t.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))
+          .map(t => normalizeUrl(t.url))
           .filter(u => !crawled.has(u));
         if (missed.length === 0) return null;
         return (

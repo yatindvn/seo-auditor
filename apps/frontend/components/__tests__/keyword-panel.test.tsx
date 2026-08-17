@@ -120,4 +120,56 @@ describe("KeywordPanel", () => {
     expect(screen.getByText(/instead of/i)).toBeInTheDocument();
     expect(screen.getByText("cloud migration")).toBeInTheDocument();
   });
+
+  describe("not-reached list", () => {
+    const crawledPage = (url: string) =>
+      makePage({
+        url,
+        keyword_analysis: {
+          top_keywords: [{ phrase: "cloud", score: null, found_in: ["title"] }],
+          rankings: [],
+          suggested_keywords: [],
+        },
+      });
+
+    it("does not list a nominated URL that was crawled under a query string", () => {
+      // Crawled page kept its query string (crawler.normalize_url preserves query
+      // strings when deduping); the user's nominated URL has none. The backend's
+      // rank_checker._normalize_url strips the query on both sides before matching,
+      // so this page WAS rank-checked and must not be reported as unreached.
+      const pages = [crawledPage("https://example.com/services?ref=nav")];
+      const rankTargets = [{ url: "https://example.com/services", keywords: ["services"] }];
+
+      render(<KeywordPanel pages={pages} rankTargets={rankTargets} />);
+
+      expect(screen.queryByText(/Not reached by this crawl/i)).not.toBeInTheDocument();
+    });
+
+    it("does not list a nominated URL differing only by scheme, www, or trailing slash", () => {
+      const pages = [crawledPage("http://www.example.com/about/")];
+      const rankTargets = [{ url: "https://example.com/about", keywords: ["about"] }];
+
+      render(<KeywordPanel pages={pages} rankTargets={rankTargets} />);
+
+      expect(screen.queryByText(/Not reached by this crawl/i)).not.toBeInTheDocument();
+    });
+
+    it("lists a genuinely uncrawled nominated URL", () => {
+      const pages = [crawledPage("https://example.com/")];
+      const rankTargets = [{ url: "https://example.com/pricing", keywords: ["pricing"] }];
+
+      render(<KeywordPanel pages={pages} rankTargets={rankTargets} />);
+
+      expect(screen.getByText(/Not reached by this crawl/i)).toBeInTheDocument();
+      expect(screen.getByText(/example\.com\/pricing/)).toBeInTheDocument();
+    });
+
+    it("renders no not-reached element when rankTargets is omitted", () => {
+      const pages = [crawledPage("https://example.com/")];
+
+      render(<KeywordPanel pages={pages} />);
+
+      expect(screen.queryByText(/Not reached by this crawl/i)).not.toBeInTheDocument();
+    });
+  });
 });
