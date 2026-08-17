@@ -114,6 +114,10 @@ def _build_audit_result(
     target_keywords: Optional[List[str]] = None,
     rank_targets: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
+    # Monotonic, not time.time(): this is a duration, and monotonic cannot be
+    # skewed by an NTP correction or a manual clock change mid-audit.
+    started_at = time.monotonic()
+
     crawler.crawl(progress_callback=progress_callback, event_callback=event_callback)
     crawler.check_external_links(max_check=25)
 
@@ -357,7 +361,7 @@ def _build_audit_result(
         "robots_txt": crawler.robots_txt_content,
         "sitemaps_found": crawler.sitemaps_found,
         "sitemap_urls": list(crawler.sitemap_urls),
-        "elapsed_seconds": round(time.time(), 1),
+        "elapsed_seconds": round(time.monotonic() - started_at, 1),
         "note": "Audit executed directly via native Python engine.",
     }
 
