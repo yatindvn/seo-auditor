@@ -21,7 +21,7 @@
 | `GOOGLE_CSE_API_KEY` | Google Custom Search JSON API key, used for live rank checking | `""` |
 | `GOOGLE_CSE_CX` | Google Programmable Search Engine ID (the "cx" parameter) | `""` |
 | `GOOGLE_CSE_DAILY_QUOTA` | Max Google CSE queries per UTC day before rank checks start returning "quota reached" | `100` |
-| `GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE` | Max keywords ranked per page per audit (caps quota spend) | `3` |
+| `GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE` | Max *automatically extracted* keywords ranked per page (caps quota spend from extraction only — a user's explicit `rank_targets` keywords are never dropped by this cap) | `3` |
 | `GOOGLE_CSE_CACHE_TTL_HOURS` | How long a (keyword, domain) rank result is cached before re-querying | `24` |
 
 ### Getting a free Google CSE API key + CX
