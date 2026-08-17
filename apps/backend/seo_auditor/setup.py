@@ -11,6 +11,7 @@ setup(
         "openpyxl>=3.1",
         "reportlab>=4.0",
         "networkx>=3.0",
+        "python-dotenv>=1.0.0",
     ],
     entry_points={
         "console_scripts": [
