@@ -254,6 +254,19 @@ def _build_audit_result(
         # the live activity feed as if it happened on the audited site. Null
         # the callback out for the duration of the suggestions call so only
         # audit-target crawl events ever reach the feed.
+        # When rank_targets were supplied at all, suggestions are scoped to
+        # nominated pages only — generating them for every other crawled page
+        # would fire up to 3 synchronous Google Autocomplete requests each
+        # (5s timeout apiece) from the no-rank-data fallback, and would offer
+        # ungrounded suggestions on pages the user never asked about while the
+        # one page they did nominate correctly shows none pre-credentials.
+        # When rank_targets is None/empty, `enable_keyword_suggestions` keeps
+        # its original site-wide behaviour: it is a documented standalone API
+        # capability (docs/api.md) independent of rank tracking, and direct
+        # API callers who never send rank_targets must not silently regress.
+        suggestions_allowed = (
+            not rank_targets or nominated_keywords is not None
+        )
         saved_event_callback = crawler.event_callback
         crawler.event_callback = None
         try:
@@ -263,7 +276,7 @@ def _build_audit_result(
                     fetch_page=crawler._fetch, page_url=page_url,
                     enable_competitor_gap=enable_competitor_gap,
                 )
-                if enable_keyword_suggestions else []
+                if enable_keyword_suggestions and suggestions_allowed else []
             )
         finally:
             crawler.event_callback = saved_event_callback
