@@ -139,16 +139,29 @@ def suggest_keywords(
             })
 
     if enable_competitor_gap and seed_keywords:
-        page_domain = rank_checker._domain(page_url)
-        gap_seed = underperforming[0] if underperforming else seed_keywords[0]["phrase"]
-        for gap in _competitor_gap(
-            gap_seed, page_domain, current_phrases, rank_results, config, fetch_page
-        ):
-            key = gap["phrase"].lower()
-            if key in seen or key in current_phrases:
-                continue
-            seen.add(key)
-            gap["replaces"] = gap_seed if underperforming else None
-            suggestions.append(gap)
+        # Same rule as the primary loop above: once rank checking has run for
+        # this page (has_rank_data), only a genuinely-unranked keyword may
+        # seed a competitor-gap query. Falling back to a plain seed keyword
+        # here would fire a live competitor fetch from a keyword nobody
+        # measured — e.g. every result "skipped" from a transient request
+        # error, which (unlike not_configured/quota_reached) has no other
+        # backstop inside _competitor_gap. Only fall back to seed_keywords
+        # when rank checking never ran at all (empty rank_results).
+        if has_rank_data:
+            gap_seed = underperforming[0] if underperforming else None
+        else:
+            gap_seed = seed_keywords[0]["phrase"]
+
+        if gap_seed is not None:
+            page_domain = rank_checker._domain(page_url)
+            for gap in _competitor_gap(
+                gap_seed, page_domain, current_phrases, rank_results, config, fetch_page
+            ):
+                key = gap["phrase"].lower()
+                if key in seen or key in current_phrases:
+                    continue
+                seen.add(key)
+                gap["replaces"] = gap_seed if underperforming else None
+                suggestions.append(gap)
 
     return suggestions[:MAX_SUGGESTIONS]
