@@ -203,7 +203,21 @@ def export_report(fmt: str, session_id: str = Query(...)):
     if session_id not in active_sessions or not active_sessions[session_id]:
         raise HTTPException(status_code=404, detail="No audit session found")
         
-    from seo_auditor.report import export_json, export_csv, export_excel, export_pdf_summary, export_html_report
+    # The report writers live in the CLI package, which resolves under two
+    # different names depending on how it is on the path:
+    #   - installed (`pip install -e apps/backend/seo_auditor`), or with that
+    #     directory itself on sys.path (how pytest.ini sets it up) -> seo_auditor.report
+    #   - running the server from apps/backend (how scripts/dev.js starts uvicorn),
+    #     where the outer seo_auditor/ directory is the package *root* holding
+    #     setup.py and shadows the inner package -> seo_auditor.seo_auditor.report
+    # Only the first name was tried before, so every export request raised
+    # ModuleNotFoundError unless someone had separately run that pip install --
+    # an undeclared step documented nowhere. ModuleNotFoundError specifically, so
+    # a genuinely broken report module still surfaces instead of being retried.
+    try:
+        from seo_auditor.report import export_json, export_csv, export_excel, export_pdf_summary, export_html_report
+    except ModuleNotFoundError:
+        from seo_auditor.seo_auditor.report import export_json, export_csv, export_excel, export_pdf_summary, export_html_report
     
     result = active_sessions[session_id]
     if fmt == "json":
