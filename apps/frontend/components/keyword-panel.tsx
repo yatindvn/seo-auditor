@@ -30,8 +30,15 @@ function normalizeUrl(url: string): string {
 }
 
 export function KeywordPanel({ pages, rankTargets }: KeywordPanelProps) {
+  // A page can have rankings with zero extracted top_keywords: rank checks run
+  // from the user's nominated keywords independently of extraction, and
+  // keyword_extraction.extract_keywords legitimately returns [] for thin pages
+  // (image galleries, near-empty landing pages). Excluding those pages here
+  // would silently swallow rank results that quota was already spent on.
   const pagesWithKeywords = pages.filter(
-    p => p.keyword_analysis && p.keyword_analysis.top_keywords.length > 0
+    p =>
+      p.keyword_analysis &&
+      (p.keyword_analysis.top_keywords.length > 0 || p.keyword_analysis.rankings.length > 0)
   );
 
   const skippedNote = pagesWithKeywords
@@ -83,19 +90,25 @@ export function KeywordPanel({ pages, rankTargets }: KeywordPanelProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                Top Keywords
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {page.keyword_analysis!.top_keywords.map(kw => (
-                  <span key={kw.phrase} className="rounded-md bg-muted/40 px-2 py-1 text-xs">
-                    {kw.phrase}
-                    <span className="text-muted-foreground ml-1">({kw.found_in.join(", ")})</span>
-                  </span>
-                ))}
+            {page.keyword_analysis!.top_keywords.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  Top Keywords
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {page.keyword_analysis!.top_keywords.map(kw => (
+                    <span key={kw.phrase} className="rounded-md bg-muted/40 px-2 py-1 text-xs">
+                      {kw.phrase}
+                      <span className="text-muted-foreground ml-1">({kw.found_in.join(", ")})</span>
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                No keywords could be extracted from this page.
+              </p>
+            )}
 
             {page.keyword_analysis!.rankings.length > 0 && (
               <div>

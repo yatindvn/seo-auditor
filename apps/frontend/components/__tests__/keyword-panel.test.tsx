@@ -103,7 +103,33 @@ describe("KeywordPanel", () => {
 
     render(<KeywordPanel pages={pages} />);
     expect(screen.getByText(/not configured/i)).toBeInTheDocument();
-    expect(screen.queryByText(/not ranking in top 10/i)).not.toBeInTheDocument();
+    // The component's own vocabulary for a skipped ranking is "not checked"
+    // (see the ternary in the Rankings list) — a skipped row must render that,
+    // not the "not in top 10" wording reserved for status === "not_ranked".
+    expect(screen.getByText("not checked")).toBeInTheDocument();
+    expect(screen.queryByText("not in top 10")).not.toBeInTheDocument();
+  });
+
+  it("renders a page with rankings but zero extracted keywords, instead of hiding it", () => {
+    // keyword_extraction.extract_keywords legitimately returns [] for thin
+    // pages (image galleries, near-empty landing pages). Rank checks run from
+    // the user's nominated keywords independently of extraction, so a page
+    // can have rankings with an empty top_keywords array. Quota was spent on
+    // this query — the result must still render, not be silently dropped.
+    const pages = [{
+      url: "https://example.com/gallery",
+      keyword_analysis: {
+        top_keywords: [],
+        rankings: [{ keyword: "photo gallery", position: 4, status: "ranked" as const, note: null }],
+        suggested_keywords: [],
+      },
+    }] as any;
+
+    render(<KeywordPanel pages={pages} />);
+
+    expect(screen.getByText("https://example.com/gallery")).toBeInTheDocument();
+    expect(screen.getByText("photo gallery")).toBeInTheDocument();
+    expect(screen.getByText("#4")).toBeInTheDocument();
   });
 
   it("labels a suggestion with the keyword it replaces", () => {
