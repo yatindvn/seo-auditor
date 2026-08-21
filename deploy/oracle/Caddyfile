@@ -1,0 +1,19 @@
+# BACKEND_DOMAIN must be a real DNS name -- Let's Encrypt will not issue for a
+# bare IP. With no domain of your own, nip.io resolves any name of the form
+# <ip>.nip.io to that IP, and works with HTTP-01 validation:
+#     BACKEND_DOMAIN=203.0.113.10.nip.io
+{$BACKEND_DOMAIN} {
+	encode gzip
+
+	# reverse_proxy handles the WebSocket upgrade on /ws with no extra config in
+	# Caddy 2; it forwards Connection/Upgrade headers automatically.
+	reverse_proxy backend:8000 {
+		# A crawl streams progress for minutes. The default 2-minute stream
+		# timeout would sever the socket mid-audit and the dashboard would
+		# stall with no error.
+		transport http {
+			read_timeout 30m
+			write_timeout 30m
+		}
+	}
+}

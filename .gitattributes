@@ -1,0 +1,11 @@
+# Default: let git normalise text in the repo, checkout native in the worktree.
+* text=auto
+
+# These are consumed by Linux only. A CRLF here is not cosmetic: bash fails a
+# CRLF shebang with "/usr/bin/env: 'bash\r': No such file or directory", and
+# Docker/Caddy misparse trailing CRs. Pin LF regardless of the committer's OS.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+Caddyfile       text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
