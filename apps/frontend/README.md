@@ -1,77 +1,69 @@
-# SEO Auditor — Next.js Frontend + Python Serverless Backend
+# SEO Auditor — Next.js Frontend
 
-The Next.js (App Router, TypeScript, Tailwind CSS) frontend for the SEO Auditor,
-plus a Vercel Python serverless function that runs the crawl.
+The Next.js (App Router, TypeScript, Tailwind CSS) dashboard for the SEO Auditor.
 
 ## Architecture
 
-- **Frontend** — Next.js app (`app/`, `components/`, `lib/`). The audit form POSTs to `/api/audit`.
-- **Backend** — `api/audit.py`, a **Vercel Python serverless function**. It imports the
-  `seo_auditor` package (in `seo_auditor/seo_auditor/`), runs the crawl + analysis
-  in-memory via `collect_audit_data()`, and returns the full JSON report. No files are
-  written to disk (serverless filesystems are read-only outside `/tmp`).
-- The classic CLI (`python -m seo_auditor.cli ...`) still works and shares the exact same
-  audit logic.
+- **Frontend** — this package. `app/`, `components/`, `lib/`, `services/`.
+- **Backend** — a separate FastAPI service in `apps/backend`, run as a persistent
+  process. It is *not* serverless and cannot be: a crawl runs for minutes, live
+  progress is streamed over a WebSocket, and session state, the crawler registry
+  and the rank cache all live in process memory.
+- **Shared types** — `packages/shared`, describing the JSON the backend emits.
 
-`/api/audit` is served by the Python function on Vercel — there is intentionally **no**
-Next.js `app/api/audit` route (that would conflict, and the old version shell-executed
-Python, which cannot run on Vercel's Node runtime).
+The dashboard talks to the backend directly over REST and a WebSocket
+(`services/api.ts`). The two routes under `app/api/` are thin extras, not the
+backend: `/api/health` answers a liveness probe, and `/api/audit` proxies to the
+backend when `NEXT_PUBLIC_API_URL` is set.
 
 ## Local development
 
-Because the backend is a Python serverless function, use the Vercel CLI locally so both
-the Next.js frontend and the Python function run together:
+From the **repository root**, which starts the frontend and the Python backend
+together:
 
 ```bash
 npm install
-pip install -r requirements.txt          # crawl deps for the Python function
-npm i -g vercel                           # one-time
-vercel dev                                # runs frontend + /api/audit together
+python -m pip install -r apps/backend/requirements.txt
+npm run dev
 ```
 
-Open the printed URL (usually http://localhost:3000).
+- Frontend: http://localhost:3000
+- Backend: http://localhost:5000
 
-> `npm run dev` alone runs only the Next.js frontend — the `/api/audit` Python function
-> will not be available, so audits will fail. Use `vercel dev` to exercise the full stack.
+Running `npm run dev` inside this directory starts only the frontend; audits then
+fail, because nothing is serving the API on port 5000.
 
-## Deploying to Vercel
+## Environment variables
 
-1. **Push this repo to GitHub** (already at `github.com/yatindvn/seo-auditor`).
-2. In [vercel.com](https://vercel.com) → **Add New… → Project** → import the repo.
-3. Vercel auto-detects **Next.js** and builds `api/audit.py` with the **Python** runtime
-   (driven by `vercel.json` + the root `requirements.txt`). Leave the defaults.
-4. Click **Deploy**. The frontend serves at your domain; audits hit `/api/audit`.
+Not needed locally — the defaults in `services/api.ts` point at
+`http://127.0.0.1:5000` and `ws://localhost:5000/ws`. Required for any deployment
+where the backend is on another host:
 
-No environment variables are required. `SEO_AUDITOR_API_URL` is optional (see below).
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | `https://api.example.com` | Backend base URL |
+| `NEXT_PUBLIC_WS_URL` | `wss://api.example.com/ws` | **`wss://`, not `ws://`** |
 
-### `vercel.json`
+An HTTPS page cannot open a plaintext WebSocket — the browser blocks it as mixed
+content, and live crawl progress silently never arrives while the rest of the
+dashboard keeps working. That failure gives no console error users would notice.
 
-Configures the Python function:
+## Deployment
 
-```json
-{
-  "functions": {
-    "api/audit.py": { "memory": 1024, "maxDuration": 60, "includeFiles": "seo_auditor/seo_auditor/**" }
-  }
-}
-```
+The frontend deploys to Vercel from the repository root; the root `vercel.json`
+pins the framework and build settings, and `.vercelignore` keeps the Python
+sources out of the upload. Set the two variables above in the Vercel project, or
+every audit fails against the visitor's own machine.
 
-- `maxDuration: 60` — crawls of many pages are slow; 60s is the Hobby-plan ceiling.
-  On the **Pro** plan you can raise this up to 300s for larger crawls.
-- `includeFiles` — bundles the `seo_auditor` package source into the function.
-- Crawls are capped at **15 pages / depth 2** to stay within the timeout.
+The backend needs a host that supports long-running processes — see
+`docs/deployment-oracle.md`.
 
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `SEO_AUDITOR_API_URL` | No | — | Optional external audit API URL. Not needed for the built-in Python function. |
-
-## Tech Stack
+## Tech stack
 
 - Next.js 14 App Router
 - TypeScript
-- Tailwind CSS (Apple design tokens)
-- shadcn/ui primitives (hand-coded, no CLI needed)
+- Tailwind CSS
+- shadcn/ui primitives (hand-coded)
 - Recharts
-- Lucide Icons
+- Lucide icons
+- Vitest + React Testing Library

@@ -101,7 +101,7 @@ def collect_audit_data(
 ):
     """Run the full crawl + analysis pipeline and return the structured report dict.
 
-    Shared by the CLI (`run_audit`) and the serverless API (`api/audit.py`) so both
+    Shared by the CLI (`run_audit`) and the FastAPI backend so both
     produce identical JSON without duplicating the audit logic and without writing
     any files to disk (important for read-only serverless filesystems).
     """
