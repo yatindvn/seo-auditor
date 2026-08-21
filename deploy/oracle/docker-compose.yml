@@ -1,0 +1,49 @@
+# Backend + TLS terminator for an Oracle Cloud Always Free VM.
+#
+# Caddy exists here for one non-negotiable reason: the frontend is served over
+# HTTPS, and a page on https:// may not open a ws:// socket -- browsers block it
+# as mixed content. Live crawl progress would silently never arrive. Caddy
+# obtains a certificate automatically and upgrades the socket to wss://.
+services:
+  backend:
+    build:
+      context: ../../apps/backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 8000
+      # Must name the frontend's exact origin. See app/main.py:_cors_options.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
+      GOOGLE_CSE_CX: ${GOOGLE_CSE_CX:-}
+      GOOGLE_CSE_DAILY_QUOTA: ${GOOGLE_CSE_DAILY_QUOTA:-100}
+      GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE: ${GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE:-3}
+      GOOGLE_CSE_CACHE_TTL_HOURS: ${GOOGLE_CSE_CACHE_TTL_HOURS:-24}
+      CRAWL_TIMEOUT: ${CRAWL_TIMEOUT:-10}
+    # Deliberately NOT published to the host: only Caddy may reach it, so the
+    # plaintext port is never exposed to the internet.
+    expose:
+      - "8000"
+    # All audit state is in process memory, so a replica count above 1 would
+    # serve requests that cannot see it. Never scale this service.
+    deploy:
+      replicas: 1
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      BACKEND_DOMAIN: ${BACKEND_DOMAIN}
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:

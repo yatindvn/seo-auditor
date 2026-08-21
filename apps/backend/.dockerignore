@@ -1,0 +1,17 @@
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/
+seo_auditor/test_audit_output/
+audit_output/
+seo_audit_output/
+# Never bake credentials into an image layer.
+.env
+.env.*
+!.env.example
+src/
+node_modules/
+package.json
+tsconfig.json

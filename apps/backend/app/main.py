@@ -3,6 +3,7 @@ import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
+from app.config import config
 from app.websocket.ws_manager import ws_manager
 
 app = FastAPI(
@@ -11,13 +12,35 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def _cors_options():
+    """Pick a CORS policy that is actually valid.
+
+    The CORS spec forbids `Access-Control-Allow-Origin: *` on a credentialed
+    request, so wildcard-plus-credentials is not a stricter wildcard -- it is a
+    contradiction, and Starlette silently resolves it by dropping the credentials
+    header. Choose deliberately instead:
+
+      - ALLOWED_ORIGINS set   -> echo those origins, credentials permitted.
+      - ALLOWED_ORIGINS unset -> wildcard, credentials off. Keeps local
+        development (and any same-origin deployment) working without pretending
+        to support credentialed cross-origin calls.
+    """
+    if config.ALLOWED_ORIGINS:
+        return {
+            "allow_origins": config.ALLOWED_ORIGINS,
+            "allow_credentials": True,
+            "allow_methods": ["*"],
+            "allow_headers": ["*"],
+        }
+    return {
+        "allow_origins": ["*"],
+        "allow_credentials": False,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+
+
+app.add_middleware(CORSMiddleware, **_cors_options())
 
 app.include_router(api_router, prefix="/api")
 
