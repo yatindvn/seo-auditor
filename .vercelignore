@@ -1,0 +1,34 @@
+# Vercel deploys the Next.js frontend from this repo root. Without this file it
+# scans the whole tree, finds the Python sources under apps/backend, and decides
+# the project is a Python/Flask app:
+#
+#   Error: No Flask entrypoint found in default locations, but found potential
+#   entrypoints:
+#     apps/backend/api/audit.py (variable: handler)
+#     apps/backend/app/main.py (variable: app)
+#     apps/backend/tests/test_export_endpoint.py (variable: app)
+#
+# apps/backend/api/audit.py is the strongest bait: a module-level `handler`
+# is exactly Vercel's Python serverless convention.
+#
+# The backend does not belong on Vercel regardless -- it crawls for minutes per
+# audit, serves a WebSocket, and keeps state in process memory. It is deployed
+# separately; see docs/deployment-oracle.md.
+#
+# apps/backend/package.json is deliberately NOT excluded: the npm workspace glob
+# `apps/*` still needs to resolve it during install.
+apps/backend/app/
+apps/backend/api/
+apps/backend/seo_auditor/
+apps/backend/tests/
+apps/backend/src/
+apps/backend/requirements.txt
+apps/backend/requirements-dev.txt
+apps/backend/Dockerfile
+apps/backend/.dockerignore
+apps/backend/pytest.ini
+
+# Not needed to build or serve the frontend.
+deploy/
+docs/
+scripts/
