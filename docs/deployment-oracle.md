@@ -167,3 +167,7 @@ docker compose -f deploy/oracle/docker-compose.yml logs -f backend
 `SessionStore` (`apps/backend/app/models/session_model.py`) is a plain in-memory
 list. Persisting it to SQLite or Postgres is a self-contained change and the
 natural next step if this becomes more than a demo.
+
+<!-- Deployment note: NEXT_PUBLIC_API_URL and NEXT_PUBLIC_WS_URL are inlined at
+build time, so changing them in the Vercel dashboard has no effect until a new
+production build runs. Pushing a commit is the reliable way to force one. -->
