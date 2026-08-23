@@ -28,6 +28,16 @@ Two consequences:
 
 ## 1. Create the instance
 
+### Pick an Always Free eligible shape, or lose the VM in 30 days
+
+A new Oracle account starts as a **Free Trial**: 30 days of credits *on top of*
+the Always Free allowance. The console will happily create an instance on a shape
+paid for out of those credits, and nothing warns you at the time. When the trial
+ends, that instance is stopped and reclaimed — the deployment simply disappears.
+
+The shape picker shows a green **"Always Free eligible"** badge. Confirm it before
+creating. The default selection is frequently *not* eligible.
+
 OCI Console → Compute → Instances → Create instance.
 
 - **Shape:** `VM.Standard.A1.Flex`, 2 OCPU / 12 GB is ample (Always Free allows up
@@ -75,9 +85,22 @@ nano deploy/oracle/.env
   certificate for a bare IP.** With no domain, use nip.io, which resolves
   `<ip>.nip.io` to that IP and passes HTTP-01 validation:
   `BACKEND_DOMAIN=203.0.113.10.nip.io`
-- `ALLOWED_ORIGINS` — your frontend's exact origin,
-  e.g. `https://seo-auditor.vercel.app`. Without it the browser blocks every API
-  call. Multiple origins are comma-separated.
+- `ALLOWED_ORIGINS` — your frontend's exact origin(s), comma-separated. Without
+  it the browser blocks every API call.
+
+  CORS matches the `Origin` header **exactly**, and a Vercel project answers on
+  several hostnames at once: a project alias (`seo-auditor-navy.vercel.app`), an
+  owner alias (`seo-auditor-<owner>.vercel.app`), and a per-deployment URL
+  (`seo-auditor-<hash>-<owner>.vercel.app`). List every alias you actually browse
+  to. The per-deployment URL changes on every push, so preview deployments will
+  not be covered — that is usually fine, but it is why a preview can fail with
+  "blocked by CORS policy" while production works.
+
+  Changing this needs the backend restarted to take effect:
+
+  ```bash
+  docker compose -f deploy/oracle/docker-compose.yml --env-file deploy/oracle/.env up -d
+  ```
 - `GOOGLE_CSE_API_KEY` / `GOOGLE_CSE_CX` — optional. Left blank, rank checks
   return `status: "skipped"` and the UI reports that honestly rather than
   implying the keywords rank badly.
