@@ -45,6 +45,12 @@ seo_audit_output/
 .env
 .env.*
 !.env.example
+# NEXT_PUBLIC_* values are compiled into the client bundle and served to every
+# visitor, so the backend URL is public by construction -- committing it leaks
+# nothing that opening the site would not reveal. Tracked here because Vercel
+# dashboard variables were not reaching this project's production builds, and a
+# file in the repo is verifiable from the outside.
+!apps/frontend/.env.production
 *.pem
 *.key
 
