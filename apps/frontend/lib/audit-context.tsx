@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import {
   AuditResponse,
   CrawlStatus,
@@ -60,13 +60,44 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // The socket must outlive any single audit. Reconnecting whenever
+  // activeSessionId changed used to drop the connection at the worst possible
+  // moment: startNewAudit() fires immediately after POST /api/audit, by which
+  // point the backend is already broadcasting crawl:start. Events emitted
+  // during the reconnect were lost, and closing a still-CONNECTING socket
+  // logged "closed before the connection is established". The session id now
+  // lives in a ref so the handler always reads the current value without the
+  // subscription itself having to restart.
+  const activeSessionRef = useRef<string | null>(null);
+  const completedSessionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeSessionRef.current = activeSessionId;
+  }, [activeSessionId]);
+
+  const loadFinishedAudit = useCallback((sessionId: string) => {
+    if (completedSessionRef.current === sessionId) return;
+    completedSessionRef.current = sessionId;
+    ApiService.getLatestAudit(sessionId)
+      .then(data => {
+        setAuditDataState(data);
+        setIsLoading(false);
+        try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+      })
+      .catch(err => {
+        // Allow a later crawl:complete or poll to retry this session.
+        completedSessionRef.current = null;
+        console.error(err);
+      });
+  }, []);
+
   // Connect to WebSocket Server for Live Streaming Events
   useEffect(() => {
-    // Keep a ref to activeSessionId to use inside the WebSocket callback
-    const activeSessionRef = { current: activeSessionId };
-    activeSessionRef.current = activeSessionId;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
 
-    const ws = ApiService.createWebSocketClient((event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data);
         const { event: evtType, payload } = message;
@@ -94,13 +125,11 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
         } else if (evtType === WS_EVENTS.ACTIVITY_NEW) {
           setActivityLog((prev) => [payload, ...prev.slice(0, 99)]);
         } else if (evtType === WS_EVENTS.CRAWL_COMPLETE) {
-          setIsLoading(false);
           setLiveCrawlMetrics((prev) => (prev ? { ...prev, completed: true, progress: 100 } : null));
           if (activeSessionRef.current) {
-            ApiService.getLatestAudit(activeSessionRef.current).then(data => {
-              setAuditDataState(data);
-              try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
-            }).catch(console.error);
+            loadFinishedAudit(activeSessionRef.current);
+          } else {
+            setIsLoading(false);
           }
         } else if (evtType === WS_EVENTS.CRAWL_ERROR) {
           setIsLoading(false);
@@ -109,14 +138,49 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Ignore JSON parse errors
       }
-    });
+    };
+
+    const connect = () => {
+      if (closed) return;
+      ws = ApiService.createWebSocketClient(handleMessage);
+      if (!ws) return;
+      // A dropped socket would otherwise strand the UI mid-crawl with no way back.
+      ws.onclose = () => {
+        if (closed) return;
+        reconnectTimer = setTimeout(connect, 2000);
+      };
+    };
+
+    connect();
 
     return () => {
-      if (ws) ws.close();
+      closed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
     };
-  }, [activeSessionId]);
+  }, [loadFinishedAudit]);
+
+  // crawl:complete is a single fire-and-forget broadcast: if it lands while the
+  // socket is down, nothing else ever tells the UI the audit finished. Poll for
+  // the finished result as a safety net whenever a session is in flight.
+  useEffect(() => {
+    if (!activeSessionId || !isLoading) return;
+    const poll = setInterval(() => {
+      ApiService.getLatestAudit(activeSessionId)
+        .then(data => { if (data) loadFinishedAudit(activeSessionId); })
+        .catch(() => { /* 404 until the audit finishes */ });
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [activeSessionId, isLoading, loadFinishedAudit]);
 
   const startNewAudit = (sessionId: string) => {
+    // Set synchronously: the backend starts broadcasting within milliseconds of
+    // POST /api/audit returning, well before the effect that syncs this ref runs.
+    activeSessionRef.current = sessionId;
+    completedSessionRef.current = null;
     setActiveSessionId(sessionId);
     setAuditDataState(null);
     setIsLoading(true);
