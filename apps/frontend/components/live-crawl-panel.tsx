@@ -197,7 +197,13 @@ export function CompactCrawlBar() {
   const elapsed = liveCrawlMetrics?.elapsed_seconds ?? 0;
   const eta = liveCrawlMetrics?.eta_seconds ?? 0;
   const currentUrl = liveCrawlMetrics?.current_url ?? "";
-  const stage = liveCrawlMetrics?.stage ?? (isLoading ? "Initialising…" : "Complete");
+  const rawStage = liveCrawlMetrics?.stage ?? (isLoading ? "Initialising…" : "Complete");
+  // The crawl loop is only the first half of an audit: link checking, duplicate
+  // detection, keyword extraction and report building all run after the last
+  // page is fetched, and emit no progress events. Without this the panel sits
+  // at "Crawling Pages… 100%" for the whole tail and looks hung.
+  const isAnalysing = progress >= 100 && queueRemaining === 0 && !liveCrawlMetrics?.completed;
+  const stage = isAnalysing ? "Analysing results…" : rawStage;
   const unreadCount = activityLog.length;
 
   return (
