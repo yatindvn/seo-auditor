@@ -2,6 +2,14 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
+# Measured on the deployment VM: 500 pages completes in ~127s and returns an 11 MB
+# payload. 5000 pages never returned -- the crawl finished but the per-page checks
+# ran past 20 minutes at 98% CPU, and the payload would have been ~110 MB, which
+# no browser tab handles. Refuse out-of-range requests immediately with a 422
+# rather than accepting work that cannot finish.
+MAX_PAGES_LIMIT = 1000
+
+
 class RankTarget(BaseModel):
     """One user-nominated page and the keywords to rank-check on it.
 
@@ -15,7 +23,7 @@ class RankTarget(BaseModel):
 
 class AuditRequestParams(BaseModel):
     url: str
-    max_pages: Optional[int] = Field(default=8, ge=1, le=5000)
+    max_pages: Optional[int] = Field(default=8, ge=1, le=MAX_PAGES_LIMIT)
     max_depth: Optional[int] = Field(default=1, ge=0, le=15)
     ignore_robots: Optional[bool] = False
     enable_keyword_analysis: Optional[bool] = True
