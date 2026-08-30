@@ -72,6 +72,23 @@ const PRESETS = [
     color: "text-rose-500",
     bg: "bg-rose-500/10",
     border: "border-rose-500/30",
+    // TEMPORARILY DISABLED.
+    //
+    // Near-duplicate detection is O(n^2) by design -- see the docstring on
+    // `near_duplicate_content` in apps/backend/app/analysis/analysis.py:103,
+    // which states it is "fine for a few hundred pages, not designed for huge
+    // sites". At 5000 pages that is ~12.5 million pairwise Jaccard comparisons
+    // over per-page shingle sets. Observed in production: the crawl finished in
+    // 696s, then the analysis pinned a single CPU core at ~99% and never
+    // returned, so /api/audit/latest kept answering 404 and the dashboard never
+    // appeared. The resulting payload would also be ~100 MB of JSON, since 100
+    // pages already produces 2.36 MB.
+    //
+    // The config above is left intact rather than deleted. To re-enable, remove
+    // these two lines -- but fix the quadratic analysis first, or the same hang
+    // returns.
+    disabled: true,
+    disabledReason: "Full Site Crawl is temporarily closed - large crawls are being optimised",
   }
 ];
 
@@ -96,7 +113,9 @@ export default function LandingPage() {
   // Sync preset values
   const handlePresetSelect = (presetId: string) => {
     const preset = PRESETS.find(p => p.id === presetId);
-    if (preset) {
+    // A disabled preset must not apply its page/depth values even if the click
+    // somehow lands -- the button is also disabled in the markup below.
+    if (preset && !preset.disabled) {
       setSelectedPreset(presetId);
       setMaxPages(preset.pages);
       setMaxDepth(preset.depth);
@@ -226,16 +245,28 @@ export default function LandingPage() {
                   key={p.id}
                   type="button"
                   onClick={() => handlePresetSelect(p.id)}
-                  disabled={isLoading}
+                  disabled={isLoading || p.disabled}
+                  aria-disabled={p.disabled || undefined}
+                  // Native title rather than a tooltip component: this repo has no
+                  // tooltip primitive in components/ui, and title works on hover
+                  // for a disabled button without adding a dependency.
+                  title={p.disabled ? p.disabledReason : undefined}
                   className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border p-4 transition-all text-center ${
-                    selectedPreset === p.id 
-                      ? `${p.border} ${p.bg} ring-2 ring-primary/20 shadow-md` 
-                      : 'border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border'
+                    p.disabled
+                      ? 'border-border/40 bg-muted/10 opacity-50 cursor-not-allowed'
+                      : selectedPreset === p.id
+                        ? `${p.border} ${p.bg} ring-2 ring-primary/20 shadow-md`
+                        : 'border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border'
                   }`}
                 >
-                  {p.badge && (
+                  {p.badge && !p.disabled && (
                     <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-sm shadow-sm">
                       {p.badge}
+                    </span>
+                  )}
+                  {p.disabled && (
+                    <span className="absolute -top-2 -right-2 bg-muted-foreground/80 text-background text-[9px] font-bold px-1.5 py-0.5 rounded-sm shadow-sm">
+                      Temporarily closed
                     </span>
                   )}
                   <p.icon className={`h-6 w-6 ${selectedPreset === p.id ? p.color : 'text-muted-foreground'}`} />
