@@ -66,7 +66,7 @@ const PRESETS = [
     id: "full",
     name: "Full Site Crawl",
     icon: Globe,
-    pages: 5000,
+    pages: 1000,
     depth: 15,
     desc: "Enterprise, ecommerce, large docs",
     color: "text-rose-500",
@@ -171,7 +171,9 @@ export default function LandingPage() {
       const rankTargets = buildRankTargets(rankRows);
       const data = await ApiService.runAudit({
         url: url.trim(),
-        max_pages: Math.min(Math.max(maxPages, 1), 5000),
+        // Mirrors MAX_PAGES_LIMIT in apps/backend/app/schemas/schemas.py; above it
+        // the API returns 422, and beyond ~1000 pages the audit cannot finish usefully.
+        max_pages: Math.min(Math.max(maxPages, 1), 1000),
         max_depth: Math.min(Math.max(maxDepth, 0), 15),
         ignore_robots: ignoreRobots,
         ...(rankTargets.length > 0 && {
@@ -323,13 +325,13 @@ export default function LandingPage() {
                     </label>
                     <input 
                       type="range" 
-                      min="10" max="5000" step="10"
+                      min="10" max="1000" step="10"
                       value={maxPages} 
                       onChange={(e) => handleCustomChange('pages', parseInt(e.target.value))}
                       className="w-full accent-primary" 
                     />
                     <div className="flex justify-between text-[9px] text-muted-foreground px-1">
-                      <span>10</span><span>2500</span><span>5000</span>
+                      <span>10</span><span>500</span><span>1000</span>
                     </div>
                   </div>
                   

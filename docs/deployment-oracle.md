@@ -141,7 +141,8 @@ Redeploy the frontend for the variables to take effect.
 
 **Memory.** `PageResult` retains each page's full HTML
 (`apps/backend/app/crawler/crawler.py:61`) for the whole crawl, and `max_pages`
-accepts up to 5000. On a 1 GB E2.1.Micro, keep crawls to a few hundred pages. On
+is capped at 1000 (MAX_PAGES_LIMIT). On a 1 GB E2.1.Micro, keep crawls to a few
+hundred pages. On
 a 12 GB A1 there is far more headroom, but the ceiling is still real.
 
 **Crawling from a cloud IP.** Some sites rate-limit or block datacenter ranges.
