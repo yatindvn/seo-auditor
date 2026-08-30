@@ -45,7 +45,8 @@ def _extract_competitor_meta(page) -> Tuple[Dict, Dict]:
     _, title = checks.check_title(page)
     _, h1 = checks.check_headings(page)
     _, meta_description = checks.check_meta_description(page)
-    soup = checks._soup(page.html)
+    # mutable: decomposes script/style/noscript just below.
+    soup = checks._soup(page.html, mutable=True)
     for tag in (soup(["script", "style", "noscript"]) if soup else []):
         tag.decompose()
     text = soup.get_text(" ", strip=True) if soup else ""
