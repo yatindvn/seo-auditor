@@ -8,6 +8,8 @@ Plus some functions return raw extracted data used later for duplicate/content a
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import json
 import re
 import urllib.parse as up
@@ -19,13 +21,39 @@ STOP_WORDS = set("""a an the and or but if then else for of on in to with is are
 this that these those it its as at by from not no so such than too very can will just""".split())
 
 
-def _soup(html: str) -> Optional[BeautifulSoup]:
-    if not html:
-        return None
+@lru_cache(maxsize=2)
+def _parse(html: str) -> Optional[BeautifulSoup]:
     try:
         return BeautifulSoup(html, "lxml")
     except Exception:
         return None
+
+
+def _soup(html: str, mutable: bool = False) -> Optional[BeautifulSoup]:
+    """Parse `html`, reusing the previous parse when the same page is re-checked.
+
+    A single page runs through ~15 checks and each one used to build its own
+    BeautifulSoup, so every page was parsed ~15 times. On a 3530-page crawl that
+    is ~53,000 full parses -- py-spy caught the audit stuck exactly there, and it
+    is why a large crawl reached 100% and then never produced a dashboard.
+
+    The cache holds only the last couple of documents because the audit walks
+    pages one at a time; it is a reuse window, not a growing store.
+
+    Pass `mutable=True` if you intend to modify the tree. Callers that decompose
+    tags must not share a cached soup with callers that read them -- notably
+    check_content strips script/style/noscript, while check_js_rendering_signal
+    counts <script> tags afterwards and would otherwise see none.
+    """
+    if not html:
+        return None
+    if mutable:
+        # A private tree the caller is free to mutate.
+        try:
+            return BeautifulSoup(html, "lxml")
+        except Exception:
+            return None
+    return _parse(html)
 
 
 def issue(severity: str, code: str, message: str) -> Dict:
@@ -101,7 +129,7 @@ def check_canonical(page, page_url: str):
 
     if canonical_href:
         abs_canonical = up.urljoin(page_url, canonical_href)
-        from .crawler import normalize_url
+        from app.crawler.crawler import normalize_url
         if normalize_url(abs_canonical) != normalize_url(page_url):
             out.append(issue("info", "CANONICAL_ELSEWHERE", f"Canonical points to a different URL: {abs_canonical}"))
     return out, canonical_href
@@ -289,7 +317,9 @@ def check_url_structure(page_url: str) -> List[Dict]:
 # ------------------------------------------------------------------- content
 def check_content(page):
     out = []
-    soup = _soup(page.html)
+    # mutable: this strips script/style/noscript below, so it must not share the
+    # cached tree that later checks read.
+    soup = _soup(page.html, mutable=True)
     stats = {"word_count": 0, "text": ""}
     if not soup:
         return out, stats
