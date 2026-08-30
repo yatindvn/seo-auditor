@@ -10,6 +10,8 @@ analysis.py — Site-wide (cross-page) analysis.
 
 from __future__ import annotations
 
+import math
+
 import hashlib
 from collections import defaultdict
 from typing import Dict, List
@@ -101,27 +103,90 @@ def content_hash(text: str) -> str:
 
 
 def near_duplicate_content(page_data: List[Dict], shingle_size: int = 5, threshold: float = 0.85) -> List[Dict]:
-    """Cheap near-duplicate detection using Jaccard similarity over word shingles.
-    O(n^2) — fine for a few hundred pages, not designed for huge sites."""
+    """Near-duplicate detection by Jaccard similarity over word shingles.
 
-    def shingles(text: str) -> set:
+    Exact: this returns the same pairs a brute-force all-against-all comparison
+    would, but prunes the candidate set first so it is usable on a full-site
+    crawl. The previous implementation was openly O(n^2) -- at the 5000-page
+    preset that is ~12.5 million pairwise set operations, which pinned a CPU
+    core indefinitely and meant the audit never returned.
+
+    Three things do the work:
+
+    * Shingles are stored as 64-bit hashes rather than joined strings, which
+      cuts memory sharply and makes the set operations faster.
+    * Size filter: J(A,B) >= t requires |B| >= t*|A|, so pages are processed in
+      increasing size order and anything too small to qualify is skipped.
+    * Prefix filter: with a consistent global token order, two sets whose
+      Jaccard is >= t must share at least one token within their prefixes
+      (|X| - ceil(t*|X|) + 1 tokens). Only prefixes go into the inverted index,
+      so most pairs are never compared at all.
+
+    Both filters are lossless -- they can only exclude pairs that could not have
+    met the threshold -- so every surviving candidate is still verified with a
+    real Jaccard computation before being reported.
+    """
+
+    def shingle_hashes(text: str) -> set:
+        # hash() is SipHash-64 here: fast, and collisions are negligible at this
+        # scale. Values are only compared within a single process, so per-process
+        # hash randomisation does not matter.
         words = text.lower().split()
-        return {
-            " ".join(words[i:i + shingle_size])
-            for i in range(max(len(words) - shingle_size + 1, 1))
-        }
+        limit = max(len(words) - shingle_size + 1, 1)
+        return {hash(" ".join(words[i:i + shingle_size])) for i in range(limit)}
 
-    shingle_sets = {p["url"]: shingles(p.get("text", "")) for p in page_data if p.get("text")}
-    urls = list(shingle_sets.keys())
+    shingle_sets = {}
+    original_order = {}
+    for position, page in enumerate(page_data):
+        text = page.get("text")
+        if not text:
+            continue
+        url = page["url"]
+        tokens = shingle_hashes(text)
+        if tokens:
+            shingle_sets[url] = tokens
+            original_order[url] = position
+
+    # Ascending size makes the size filter one-sided: anything already indexed is
+    # no larger than the page being probed.
+    urls = sorted(shingle_sets, key=lambda u: len(shingle_sets[u]))
+    prefixes = {}
+    for url in urls:
+        size = len(shingle_sets[url])
+        prefix_len = size - math.ceil(threshold * size) + 1
+        prefixes[url] = sorted(shingle_sets[url])[:max(prefix_len, 1)]
+
+    index: Dict[int, List[str]] = {}
     pairs = []
-    for i in range(len(urls)):
-        for j in range(i + 1, len(urls)):
-            a, b = shingle_sets[urls[i]], shingle_sets[urls[j]]
-            if not a or not b:
+    for url in urls:
+        current = shingle_sets[url]
+        size = len(current)
+        smallest_possible_partner = threshold * size
+
+        candidates = set()
+        for token in prefixes[url]:
+            bucket = index.get(token)
+            if bucket:
+                candidates.update(bucket)
+
+        for other in candidates:
+            other_set = shingle_sets[other]
+            if len(other_set) < smallest_possible_partner:
                 continue
-            sim = len(a & b) / len(a | b)
-            if sim >= threshold:
-                pairs.append({"url_a": urls[i], "url_b": urls[j], "similarity": round(sim, 3)})
+            intersection = len(current & other_set)
+            union = size + len(other_set) - intersection
+            if not union:
+                continue
+            similarity = intersection / union
+            if similarity >= threshold:
+                # Emit in the caller's page order so output is independent of the
+                # size ordering used internally.
+                a, b = (other, url) if original_order[other] < original_order[url] else (url, other)
+                pairs.append({"url_a": a, "url_b": b, "similarity": round(similarity, 3)})
+
+        for token in prefixes[url]:
+            index.setdefault(token, []).append(url)
+
     return pairs
 
 
