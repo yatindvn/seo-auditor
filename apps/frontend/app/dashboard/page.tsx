@@ -84,6 +84,25 @@ const DEFAULT_LAYOUT = [
   { id: "pages-table", width: "full", visible: true },
 ];
 
+// A saved layout is a snapshot of the panels that existed when the user last
+// customised the dashboard, so it silently hides any panel added since. Merge
+// it against DEFAULT_LAYOUT instead of replacing: keep the user's order and
+// visibility for panels they know about, drop panels that no longer exist, and
+// insert newly shipped ones at their default position.
+function mergeSavedLayout(saved: typeof DEFAULT_LAYOUT) {
+  const knownIds = new Set(DEFAULT_LAYOUT.map(panel => panel.id));
+  const merged = saved.filter(panel => knownIds.has(panel.id));
+  const savedIds = new Set(merged.map(panel => panel.id));
+
+  DEFAULT_LAYOUT.forEach((panel, defaultIndex) => {
+    if (!savedIds.has(panel.id)) {
+      merged.splice(Math.min(defaultIndex, merged.length), 0, panel);
+    }
+  });
+
+  return merged;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { auditData, error, isLoading, activeSessionId } = useAudit();
@@ -100,7 +119,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem("seo_dashboard_layout");
-    if (saved) setLayout(JSON.parse(saved));
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) setLayout(mergeSavedLayout(parsed));
+    } catch {
+      localStorage.removeItem("seo_dashboard_layout");
+    }
   }, []);
 
   useEffect(() => {
@@ -221,7 +246,7 @@ export default function DashboardPage() {
     ),
     "broken-links": <BrokenLinksTable brokenLinks={broken_links} />,
     "tech-seo": <Card><CardContent className="pt-6"><TechnicalSeoPanel es={es} pages={pages} /></CardContent></Card>,
-    "keywords": <Card><CardContent className="pt-6"><KeywordPanel pages={pages} /></CardContent></Card>,
+    "keywords": <Card><CardContent className="pt-6"><KeywordPanel pages={pages} rankTargets={auditData?.rank_targets} /></CardContent></Card>,
     "links": <LinkAnalysisPanel pages={pages} es={es} />,
     "redirects": <RedirectAnalysisPanel pages={pages} es={es} />,
     "performance": <PerformancePanel pages={pages} />,
