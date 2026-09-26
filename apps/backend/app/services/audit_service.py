@@ -72,7 +72,7 @@ def run_full_audit(
         max_pages=max_pages,
         max_depth=max_depth,
         respect_robots=not ignore_robots,
-        concurrency=10,
+        concurrency=config.CRAWL_CONCURRENCY,
         timeout=10,
         retries=1,
     )

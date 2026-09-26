@@ -15,6 +15,11 @@ HOST = os.getenv("HOST", "0.0.0.0")
 MAX_PAGES_CAP = int(os.getenv("MAX_PAGES", "15"))
 MAX_DEPTH_CAP = int(os.getenv("MAX_DEPTH", "2"))
 CRAWL_TIMEOUT = int(os.getenv("CRAWL_TIMEOUT", "10"))
+# Fetch workers. The work is network-bound, so this far exceeds the core
+# count of the deployed 2 OCPU shape. It is also the politeness dial: it
+# sets how many connections a crawl opens against someone else's site at
+# once, which is why it is configurable rather than a constant.
+CRAWL_CONCURRENCY = int(os.getenv("CRAWL_CONCURRENCY", "32"))
 # Where per-session SQLite files live, one per audit. A named Docker volume
 # maps here in deploy/oracle/docker-compose.yml so audit history outlives a
 # container rebuild -- it used to be an in-memory list, lost on every deploy.

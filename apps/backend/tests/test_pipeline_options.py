@@ -126,3 +126,19 @@ def test_signatures_are_computed_when_the_cap_exceeds_the_exact_path():
 
     assert captured
     assert all(p.compute_signature is True for p in captured)
+
+
+# --- Crawl concurrency ------------------------------------------------------
+
+
+def test_run_full_audit_uses_the_configured_concurrency():
+    """32 fetch workers is the setting the 5000-page budget assumes; it was
+    hardcoded to 10. Configurable because it is also the politeness dial: it is
+    how much load a crawl puts on someone else's site."""
+    from app.config import config
+
+    with patch.object(audit_service, "Crawler") as mock_crawler, \
+         patch.object(audit_service, "_build_audit_result", return_value={}):
+        audit_service.run_full_audit("https://example.com/", "sess_x")
+
+    assert mock_crawler.call_args.kwargs["concurrency"] == config.CRAWL_CONCURRENCY
