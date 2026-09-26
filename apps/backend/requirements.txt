@@ -17,3 +17,9 @@ reportlab>=4.0
 # package's requirements before, so production — which installs this file — fell
 # through the guard and shipped pagerank_available: false on every audit.
 networkx>=3.0
+
+# Vectorises the MinHash signatures in app/analysis/minhash.py. The scalar
+# Python equivalent measured 50 ms for a 2000-word page against 5 ms here --
+# more than half the per-page CPU budget for one feature. Prebuilt aarch64
+# wheels exist for 3.12, which matters: this image is ARM (see the FROM line).
+numpy>=1.26
