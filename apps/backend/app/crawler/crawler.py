@@ -16,6 +16,9 @@ Handles:
 from __future__ import annotations
 
 import concurrent.futures
+import heapq
+import itertools
+import threading
 import time
 import urllib.parse as up
 import urllib.robotparser as robotparser
@@ -100,6 +103,11 @@ class Crawler:
         self.results: Dict[str, PageResult] = {}
         
         self.is_paused = False
+        # Links are counted and flushed periodically rather than emitted one
+        # event each: 5000 pages is a few hundred thousand messages, which
+        # stalls the browser long before the crawl finishes.
+        self._link_counts = {"internal": 0, "external": 0}
+        self._last_link_flush = 0.0
         self.is_stopped = False
         self.event_callback = None
         self.link_graph: Dict[str, Set[str]] = {}  # url -> set(linked urls, internal only)
@@ -245,84 +253,152 @@ class Crawler:
             links.append(absolute)
         return links
 
-    def crawl(self, progress_callback=None, event_callback=None) -> Dict[str, PageResult]:
-        """BFS crawl honoring max_pages / max_depth, multi-threaded per depth level."""
+    def crawl(self, progress_callback=None, event_callback=None, on_page=None) -> Dict[str, PageResult]:
+        """BFS crawl with a continuous worker pool.
+
+        The frontier is a heap keyed on (depth, sequence), so pages are still
+        discovered in click-depth order -- the order that makes crawl depth and
+        the architecture graph mean anything. What changed is that workers draw
+        from it continuously instead of in lockstep batches: a batch previously
+        had to drain before the next began, so one slow page idled every other
+        worker until it finished.
+
+        `on_page`, when given, observes each PageResult as it completes; its
+        return value is ignored, and it may release the page's markup.
+
+        Stage 2 could instead parse each page once and hand the links back,
+        saving the parse here -- but this loop would then have to block on a
+        worker to learn them, and only one worker would ever be busy. Measured,
+        this parse is 11% of a page's analysis while the parallelism it would
+        forfeit is worth about 50%, so the duplicate parse is the cheaper half
+        of the trade.
+        """
         self.event_callback = event_callback
-        frontier = [(self.start_url, 0, None)]
+        sequence = itertools.count()
+        frontier = [(0, next(sequence), self.start_url, None)]
         self.queued.add(self.start_url)
 
-        while frontier and len(self.visited) < self.max_pages:
-            if self.is_stopped:
-                break
-            if self.is_paused:
-                time.sleep(0.5)
-                continue
-                
-            remaining = self.max_pages - len(self.visited)
-            batch_size = min(self.concurrency, remaining)
-            batch = frontier[:batch_size]
-            frontier = frontier[batch_size:]
+        in_flight = {}
+        admitted = 0
+        # Admission is counted under a lock rather than from len(self.visited):
+        # with many fetches outstanding, each could pass a `visited < max_pages`
+        # check before any of them has recorded a result, and the crawl would
+        # overshoot the cap.
+        lock = threading.Lock()
+        # Bounded so the frontier cannot run far ahead of the work, which is
+        # what keeps un-analysed HTML from accumulating.
+        max_in_flight = max(self.concurrency * 2, 1)
 
-            batch = [b for b in batch if b[0] not in self.visited]
-            if not batch:
-                continue
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.concurrency) as pool:
+            while frontier or in_flight:
+                if self.is_stopped:
+                    break
+                if self.is_paused:
+                    time.sleep(0.5)
+                    continue
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.concurrency) as ex:
-                future_map = {}
-                for u, depth, referrer in batch:
-                    if len(self.visited) >= self.max_pages:
-                        break
-                    if not self._allowed(u):
+                while frontier and len(in_flight) < max_in_flight:
+                    depth, _, url, referrer = heapq.heappop(frontier)
+                    if url in self.visited or not self._allowed(url):
                         continue
-                    future_map[ex.submit(self._fetch, u)] = (u, depth, referrer)
+                    with lock:
+                        if admitted >= self.max_pages:
+                            frontier.clear()
+                            break
+                        admitted += 1
+                    in_flight[pool.submit(self._fetch, url)] = (url, depth, referrer)
 
-                for fut in concurrent.futures.as_completed(future_map):
-                    u, depth, referrer = future_map[fut]
-                    result = fut.result()
-                    result.depth = depth
-                    if referrer:
-                        result.referrers.add(referrer)
-                        self.inbound_links.setdefault(u, set()).add(referrer)
-                    self.visited.add(u)
-                    self.results[u] = result
+                if not in_flight:
+                    # Nothing outstanding and nothing admissible: the crawl is
+                    # done, whether the frontier emptied or the cap was reached.
+                    break
 
-                    if progress_callback:
-                        progress_callback(len(self.visited), self.max_pages, u)
-                    if self.event_callback:
-                        self.event_callback("page_crawled", {
-                            "url": result.url,
-                            "status": result.status_code,
-                            "depth": result.depth,
-                            "response_time": result.response_time_ms,
-                            "timestamp": time.time() * 1000
-                        })
+                done, _ = concurrent.futures.wait(
+                    in_flight, return_when=concurrent.futures.FIRST_COMPLETED
+                )
+                for future in done:
+                    url, depth, referrer = in_flight.pop(future)
+                    self._handle_result(
+                        future, url, depth, referrer, frontier, sequence,
+                        progress_callback, on_page,
+                    )
 
-                    if self.delay:
-                        time.sleep(self.delay)
-
-                    if not result.html or depth >= self.max_depth:
-                        continue
-
-                    child_links = self._extract_links(result.final_url, result.html)
-                    internal_children = set()
-                    for link in child_links:
-                        norm = normalize_url(link)
-                        if same_registrable_domain(norm, self.root_netloc):
-                            internal_children.add(norm)
-                            self.link_graph.setdefault(u, set()).add(norm)
-                            if self.event_callback:
-                                self.event_callback("internal_link", {"from": u, "to": norm})
-                            if norm not in self.queued and norm not in self.visited:
-                                self.queued.add(norm)
-                                frontier.append((norm, depth + 1, u))
-                        else:
-                            if self.event_callback:
-                                self.event_callback("external_link", {"from": u, "to": norm})
-                            self.external_links.add(norm)
-                            self.link_graph.setdefault(u, set()).add(norm)
-                    self.link_graph[u] = internal_children
-
+        self._flush_link_progress(force=True)
         return self.results
+
+    def _flush_link_progress(self, force: bool = False) -> None:
+        """Emit the running link totals, at most once a second.
+
+        `force` is used once the crawl ends: a crawl that finishes inside the
+        flush window would otherwise report a stale total, or none at all.
+        """
+        if not self.event_callback:
+            return
+        now = time.monotonic()
+        if not force and now - self._last_link_flush < 1.0:
+            return
+        self._last_link_flush = now
+        self.event_callback("link_progress", {
+            "internal_total": self._link_counts["internal"],
+            "external_total": self._link_counts["external"],
+        })
+
+    def _handle_result(self, future, url, depth, referrer, frontier, sequence,
+                       progress_callback, on_page):
+        """Record one fetched page and push whatever it links to."""
+        result = future.result()
+        result.depth = depth
+        if referrer:
+            result.referrers.add(referrer)
+            self.inbound_links.setdefault(url, set()).add(referrer)
+        self.visited.add(url)
+        self.results[url] = result
+
+        if progress_callback:
+            progress_callback(len(self.visited), self.max_pages, url)
+        if self.event_callback:
+            self.event_callback("page_crawled", {
+                "url": result.url,
+                "status": result.status_code,
+                "depth": result.depth,
+                "response_time": result.response_time_ms,
+                "timestamp": time.time() * 1000,
+            })
+
+        if self.delay:
+            time.sleep(self.delay)
+
+        internal_links, external_links = [], []
+        if result.html:
+            for link in self._extract_links(result.final_url, result.html):
+                normalized = normalize_url(link)
+                if same_registrable_domain(normalized, self.root_netloc):
+                    internal_links.append(normalized)
+                else:
+                    external_links.append(normalized)
+
+        # Links are read before the observer runs, because stage 2 releases the
+        # page's markup as soon as it has handed it to a worker -- extracting
+        # afterwards would find an empty string and the crawl would stop at the
+        # start URL. on_page runs for every page, including at the depth limit
+        # and for an empty one: it is how stage 2 receives the page at all.
+        if on_page is not None:
+            on_page(result)
+
+        self.link_graph[url] = set(internal_links)
+        for target in external_links:
+            self.external_links.add(target)
+
+        self._link_counts["internal"] += len(internal_links)
+        self._link_counts["external"] += len(external_links)
+        self._flush_link_progress()
+
+        if depth >= self.max_depth:
+            return
+        for target in internal_links:
+            if target not in self.queued and target not in self.visited:
+                self.queued.add(target)
+                heapq.heappush(frontier, (depth + 1, next(sequence), target, url))
 
     # ------------------------------------------------------------ ext links
     def check_external_links(self, max_check: int = 100):

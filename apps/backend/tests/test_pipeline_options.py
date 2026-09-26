@@ -83,3 +83,62 @@ def test_psi_runs_for_successful_pages_when_a_key_is_given():
         "https://example.com/", "test-key", strategy="desktop",
     )
     assert result["psi_metrics"]["https://example.com/"] == {"lcp": 1.2}
+
+
+# --- Duplicate-detection mode ----------------------------------------------
+
+
+def test_result_reports_which_duplicate_path_ran():
+    """The two paths do not produce identical similarity numbers, so the client
+    is told which one produced these."""
+    result = _run(SpyCrawler())
+
+    assert result["near_duplicate_mode"] == "exact"
+
+
+def test_signatures_are_not_computed_for_a_small_crawl():
+    """Signing costs real CPU per page. A crawl that will use the exact path
+    must not pay for signatures it will never read."""
+    crawler = SpyCrawler()
+    crawler.max_pages = 100
+
+    # The submit seam, not analyze_page itself: above the pool threshold the
+    # analysis runs in a subprocess, where a patch in this process is invisible.
+    with patch.object(audit_service, "_submit_analysis",
+                      side_effect=audit_service._submit_analysis) as spy:
+        _run(crawler)
+
+    payloads = [call.args[1] for call in spy.call_args_list]
+    assert payloads, "analyze_page should have been submitted"
+    assert all(p.compute_signature is False for p in payloads)
+
+
+def test_signatures_are_computed_when_the_cap_exceeds_the_exact_path():
+    """The decision has to be made per page during the crawl, before the final
+    page count is known, so it keys off the cap rather than the realised count."""
+    crawler = SpyCrawler()
+    crawler.max_pages = 5000
+
+    with patch.object(audit_service, "_submit_analysis",
+                      side_effect=audit_service._submit_analysis) as spy:
+        _run(crawler)
+
+    payloads = [call.args[1] for call in spy.call_args_list]
+    assert payloads
+    assert all(p.compute_signature is True for p in payloads)
+
+
+# --- Crawl concurrency ------------------------------------------------------
+
+
+def test_run_full_audit_uses_the_configured_concurrency():
+    """32 fetch workers is the setting the 5000-page budget assumes; it was
+    hardcoded to 10. Configurable because it is also the politeness dial: it is
+    how much load a crawl puts on someone else's site."""
+    from app.config import config
+
+    with patch.object(audit_service, "Crawler") as mock_crawler, \
+         patch.object(audit_service, "_build_audit_result", return_value={}):
+        audit_service.run_full_audit("https://example.com/", "sess_x")
+
+    assert mock_crawler.call_args.kwargs["concurrency"] == config.CRAWL_CONCURRENCY

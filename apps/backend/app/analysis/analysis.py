@@ -14,7 +14,9 @@ import math
 
 import hashlib
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
+
+from app.analysis import minhash
 
 try:
     import networkx as nx
@@ -188,6 +190,35 @@ def near_duplicate_content(page_data: List[Dict], shingle_size: int = 5, thresho
             index.setdefault(token, []).append(url)
 
     return pairs
+
+
+# Above this many pages, holding a full shingle set per page costs hundreds of
+# megabytes -- 160-320 MB at 5000 pages -- so detection switches to MinHash
+# estimates. At or below it, exact results are affordable and strictly better,
+# so the crawl sizes that have always worked are unaffected.
+EXACT_PATH_MAX_PAGES = 500
+
+
+def find_near_duplicates(
+    page_data: List[Dict],
+    signatures: Optional[Dict[str, bytes]] = None,
+    threshold: float = 0.85,
+) -> Tuple[List[Dict], str]:
+    """Return (pairs, mode), where mode is "exact" or "minhash".
+
+    The mode is reported to the client because the two paths do not produce
+    identical numbers: a MinHash similarity is an estimate, so a pair sitting on
+    the threshold can fall either side of it.
+
+    Signatures are computed during the crawl, from the page cap rather than the
+    realised page count. A crawl that arrives here large but unsigned therefore
+    should not happen -- but if it does, the exact path still gives the right
+    answer, and the returned mode names what actually ran.
+    """
+    usable = {url: sig for url, sig in (signatures or {}).items() if sig}
+    if len(page_data) <= EXACT_PATH_MAX_PAGES or not usable:
+        return near_duplicate_content(page_data, threshold=threshold), "exact"
+    return minhash.near_duplicates(usable, threshold=threshold), "minhash"
 
 
 def redirect_report(crawler) -> Dict:

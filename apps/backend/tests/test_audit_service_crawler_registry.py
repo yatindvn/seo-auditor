@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.crawler.crawler import PageResult
-from app.services import audit_service
+from app.services import audit_service, page_pipeline
 
 
 class FakeCrawler:
@@ -39,8 +39,15 @@ class FakeCrawler:
         self.event_callback = None
         self.fetch_calls = []
 
-    def crawl(self, progress_callback=None, event_callback=None):
+    def crawl(self, progress_callback=None, event_callback=None, on_page=None):
         self.event_callback = event_callback
+        # Mirrors the real crawler's observer contract: stage 2 receives each
+        # page through on_page as it completes, not from crawler.results
+        # afterwards. A fake that skipped this would leave every page
+        # unanalysed while looking like a successful crawl.
+        for result in list(self.results.values()):
+            if on_page is not None:
+                on_page(result)
 
     def check_external_links(self, max_check=25):
         pass
@@ -185,7 +192,7 @@ def test_resolve_keyword_data_disabled_and_no_target_keywords_returns_empty():
     page_meta_entry = {"title": "Espresso Machines", "h1": "Best Espresso Machines", "heading_hierarchy": []}
     content_stats = {"text": "espresso machine reviews and buying guide"}
 
-    result = audit_service._resolve_keyword_data(
+    result = page_pipeline.resolve_keyword_data(
         target_keywords=None,
         enable_keyword_analysis=False,
         page_meta_entry=page_meta_entry,
@@ -199,7 +206,7 @@ def test_resolve_keyword_data_enabled_and_no_target_keywords_extracts_keywords()
     page_meta_entry = {"title": "Espresso Machines", "h1": "Best Espresso Machines", "heading_hierarchy": []}
     content_stats = {"text": "espresso machine reviews and buying guide"}
 
-    result = audit_service._resolve_keyword_data(
+    result = page_pipeline.resolve_keyword_data(
         target_keywords=None,
         enable_keyword_analysis=True,
         page_meta_entry=page_meta_entry,
@@ -214,7 +221,7 @@ def test_resolve_keyword_data_target_keywords_override_wins_even_when_disabled()
     page_meta_entry = {"title": "Espresso Machines", "h1": "Best Espresso Machines", "heading_hierarchy": []}
     content_stats = {"text": "espresso machine reviews and buying guide"}
 
-    result = audit_service._resolve_keyword_data(
+    result = page_pipeline.resolve_keyword_data(
         target_keywords=["custom keyword"],
         enable_keyword_analysis=False,
         page_meta_entry=page_meta_entry,

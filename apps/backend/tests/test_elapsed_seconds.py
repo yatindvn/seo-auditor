@@ -50,18 +50,34 @@ def test_elapsed_seconds_measures_the_span_across_the_audit():
     assert result["elapsed_seconds"] == 2.5
 
 
-def test_saved_session_id_still_uses_wall_clock_time():
-    """The saved session `id` is a wall-clock-derived identifier and must NOT be
-    switched to monotonic alongside the elapsed_seconds fix — monotonic's origin
+def test_generated_session_id_still_uses_wall_clock_time():
+    """The session `id` is a wall-clock-derived identifier and must NOT be
+    switched to monotonic alongside the elapsed_seconds fix -- monotonic's origin
     is arbitrary, so ids built from it would not be time-ordered across process
-    restarts."""
-    crawler = FakeCrawler()
-    saved = {}
+    restarts.
 
-    with patch.object(audit_service.session_store, "save_session", side_effect=saved.update), \
-         patch.object(audit_service.time, "time", return_value=1786810788.0):
+    It now names the audit's database file rather than a dict key, which makes
+    that ordering matter more, not less.
+    """
+    crawler = FakeCrawler()
+
+    with patch.object(audit_service.session_store, "open_session") as mock_open,          patch.object(audit_service.time, "time", return_value=1786810788.0):
         audit_service._build_audit_result(
             "https://example.com/", crawler, progress_callback=None, event_callback=None,
         )
 
-    assert saved["id"] == "sess_1786810788"
+    assert mock_open.call_args.args[0] == "sess_1786810788"
+
+
+def test_a_supplied_session_id_is_used_as_given():
+    """The API generates the id when it starts the audit, so the two must agree:
+    a second id invented here would write rows the endpoints cannot find."""
+    crawler = FakeCrawler()
+
+    with patch.object(audit_service.session_store, "open_session") as mock_open:
+        audit_service._build_audit_result(
+            "https://example.com/", crawler, progress_callback=None,
+            event_callback=None, session_id="sess_from_api",
+        )
+
+    assert mock_open.call_args.args[0] == "sess_from_api"

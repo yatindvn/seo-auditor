@@ -35,7 +35,7 @@ describe("matchesActivityFilter", () => {
   });
 
   it("filters to only link events when filterType is link", () => {
-    const linkEvent = makeEvent({ type: "internal_link" });
+    const linkEvent = makeEvent({ type: "link_progress" });
     const pageEvent = makeEvent({ type: "page_crawled" });
     expect(matchesActivityFilter(linkEvent, "", "link")).toBe(true);
     expect(matchesActivityFilter(pageEvent, "", "link")).toBe(false);

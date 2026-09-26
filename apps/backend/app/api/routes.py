@@ -43,13 +43,14 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
     def event_callback(event_type: str, payload: dict):
         if event_type == "page_crawled":
             asyncio.run_coroutine_threadsafe(ws_manager.emit_page_crawled(payload, session_id), loop)
-        elif event_type in ("internal_link", "external_link", "redirect", "broken_link", "timeout"):
+        elif event_type in ("link_progress", "redirect", "broken_link", "timeout"):
             msg = f"Found {event_type}"
             if event_type == "redirect": msg = f"Redirected {payload['url']} -> {payload['to']}"
             elif event_type == "broken_link": msg = f"Broken Link {payload['url']} (Status {payload['status']})"
             elif event_type == "timeout": msg = f"Timeout accessing {payload['url']}"
-            elif event_type == "internal_link": msg = f"Internal Link found: {payload.get('to')}"
-            elif event_type == "external_link": msg = f"External Link found: {payload.get('to')}"
+            elif event_type == "link_progress":
+                msg = (f"{payload['internal_total']:,} internal links found "
+                       f"({payload['external_total']:,} external)")
             
             payload_data = {
                 "id": f"act_{int(time.time()*1000)}_{event_type}",
