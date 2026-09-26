@@ -226,12 +226,17 @@ requests to confirm a number nobody acts on to three decimal places.
 ## PageRank
 
 `build_link_graph_stats` (`analysis.py:47`) computes PageRank via networkx behind
-a `try: import` guard. networkx is declared in `seo_auditor/requirements.txt` but
-**not** in `apps/backend/requirements.txt`, which is the file the Dockerfile
-installs — so in production the import fails silently and
-`pagerank_available: false` ships. Add `networkx>=3.0` to
-`apps/backend/requirements.txt`. At 5000 nodes and ~250k edges, `nx.pagerank`
-runs in a few seconds and reads its graph from the `links` table.
+a `try: import` guard. networkx was declared in `seo_auditor/requirements.txt`
+but **not** in `apps/backend/requirements.txt`, which is the file the Dockerfile
+installs — so in production the import failed silently and
+`pagerank_available: false` shipped on every audit.
+
+**Already fixed**, ahead of this work, on branch
+`fix/pagerank-declaration-and-check-isolation` (commit `f4ea190`): the
+declaration is added and guarded by a test that scans `app/` for third-party
+imports and asserts each is declared. Nothing further is needed here. At 5000
+nodes and ~250k edges, `nx.pagerank` runs in a few seconds and reads its graph
+from the `links` table.
 
 ## API contract
 
@@ -335,8 +340,11 @@ style. `tests/test_cli_tree_parity.py` exists solely to stop these drifting.
 ## Error handling
 
 - **A page whose checks raise** gets a row with `error` set and the audit
-  continues. Today an exception in the per-page loop kills the whole audit after
-  the crawl has already been paid for.
+  continues. **Already fixed** for the current single-process loop on branch
+  `fix/pagerank-declaration-and-check-isolation` (commit `9884352`): the page is
+  recorded with a critical `AUDIT_ERROR` issue and the rest are still audited.
+  Stage 2 must carry that boundary across the process-pool hand-off, where the
+  exception arrives as a `future.result()` raise rather than in-line.
 - **A dead process-pool worker** (`BrokenProcessPool`) is retried once for that
   page, then recorded as an error row. If the pool dies repeatedly, the audit
   falls back to in-process checks and records `degraded: true` in the summary —
@@ -370,8 +378,8 @@ Unit and integration, with pytest:
   `partial: true`.
 - **Degraded path:** with the process pool forced to fail, the audit completes
   in-process and reports `degraded: true`.
-- **All 17 existing backend tests stay green**, and the parity assertions
-  survive their move.
+- **All 121 existing backend tests stay green** (17 files, as of commit
+  `9884352`), and the parity assertions survive their move.
 
 Separately, a manual performance harness (not in CI): a synthetic local site of
 1000 pages, asserting wall-clock and peak-RSS ceilings. CI cannot be trusted to
