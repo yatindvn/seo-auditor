@@ -11,3 +11,9 @@ python-dotenv>=1.0.0
 # install served those two formats an ImportError at request time.
 openpyxl>=3.1
 reportlab>=4.0
+
+# Imported behind a try/except guard in app/analysis/analysis.py to compute the
+# PageRank scores behind "top pages by importance". Declared only in the CLI
+# package's requirements before, so production — which installs this file — fell
+# through the guard and shipped pagerank_available: false on every audit.
+networkx>=3.0
