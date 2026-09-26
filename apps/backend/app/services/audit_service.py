@@ -1,3 +1,4 @@
+import logging
 import time
 import asyncio
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,10 @@ from app.models.session_model import session_store
 from app.websocket.ws_manager import ws_manager
 from app.config import config
 from app.seo import keyword_extraction, rank_checker, keyword_suggestions
+
+# Same logger name the API layer uses (app/api/routes.py), so audit failures and
+# crawl failures land in one stream rather than two.
+logger = logging.getLogger("seo_auditor")
 
 
 # Crawlers currently running, keyed by session_id — each pause/resume/stop
@@ -126,178 +131,195 @@ def _build_audit_result(
     page_data_for_dupes = []
 
     for page_url, page in crawler.results.items():
-        issues = []
-        issues += checks.check_status_and_https(page, {})
-        issues += checks.check_mixed_content(page)
-        canon_issues, canonical = checks.check_canonical(page, page_url)
-        issues += canon_issues
-        issues += checks.check_indexability(page)
-
-        title_issues, title = checks.check_title(page)
-        issues += title_issues
-        desc_issues, desc = checks.check_meta_description(page)
-        issues += desc_issues
-        heading_issues, h1 = checks.check_headings(page)
-        issues += heading_issues
-        issues += checks.check_images(page)
-        issues += checks.check_links(page)
-        issues += checks.check_structured_data(page)
-        issues += checks.check_open_graph_twitter(page)
-        issues += checks.check_url_structure(page_url)
-
-        content_issues, content_stats = checks.check_content(page)
-        issues += content_issues
-
-        issues += checks.check_mobile(page)
-        issues += checks.check_accessibility(page)
-        issues += checks.check_security_headers(page)
-        issues += checks.check_hreflang(page)
-        issues += checks.check_media(page)
-        issues += checks.check_js_rendering_signal(page)
-
-        weight = performance.analyze_page_weight(page)
-        issues += performance.check_performance_proxies(page, weight)
-
-        soup = checks._soup(page.html)
-        meta_robots = None
-        lang = None
-        open_graph = {}
-        twitter_cards = {}
-        h2_count = 0
-        h3_count = 0
-        heading_hierarchy = []
-        images_count = 0
-        missing_alt_count = 0
-        structured_data = []
-        security_headers = {}
-
-        if soup:
-            html_el = soup.find("html")
-            lang = html_el.get("lang") if html_el else None
-            robots_tag = soup.find("meta", attrs={"name": "robots"})
-            meta_robots = robots_tag.get("content") if robots_tag else None
-
-            for meta_tag in soup.find_all("meta"):
-                prop = meta_tag.get("property", "")
-                name = meta_tag.get("name", "")
-                content = meta_tag.get("content", "")
-                if prop.startswith("og:"):
-                    open_graph[prop] = content
-                if name.startswith("twitter:"):
-                    twitter_cards[name] = content
-
-            h2s = soup.find_all("h2")
-            h3s = soup.find_all("h3")
-            h2_count = len(h2s)
-            h3_count = len(h3s)
-
-            for h in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
-                text = h.get_text(strip=True)
-                if text:
-                    level = int(h.name[1])
-                    heading_hierarchy.append({"level": level, "text": text[:100]})
-
-            imgs = soup.find_all("img")
-            images_count = len(imgs)
-            missing_alt_count = sum(1 for img in imgs if not img.get("alt", "").strip())
-
-            for script in soup.find_all("script", type="application/ld+json"):
-                if script.string:
-                    structured_data.append({"type": "JSON-LD", "raw": script.string.strip()[:500]})
-
-        if page.headers:
-            headers_lower = {k.lower(): v for k, v in page.headers.items()}
-            for h in ("strict-transport-security", "content-security-policy", "x-frame-options", "x-content-type-options", "referrer-policy"):
-                security_headers[h] = headers_lower.get(h, False)
-
-        int_links = len(crawler.link_graph.get(page_url, set()))
-        ext_links = len([u for u in crawler.external_links_checked if page_url in crawler.inbound_links.get(u, set())])
-        word_cnt = content_stats.get("word_count", 0)
-
-        all_page_issues[page_url] = issues
-        page_meta[page_url] = {
-            "title": title,
-            "meta_description": desc,
-            "h1": h1,
-            "word_count": word_cnt,
-            "canonical": canonical,
-            "performance": weight,
-            "meta_robots": meta_robots,
-            "lang": lang,
-            "open_graph": open_graph,
-            "twitter_cards": twitter_cards,
-            "h2_count": h2_count,
-            "h3_count": h3_count,
-            "heading_hierarchy": heading_hierarchy,
-            "char_count": len(content_stats.get("text", "")),
-            "reading_time_mins": max(1, round(word_cnt / 200)) if word_cnt else 0,
-            "internal_links_count": int_links,
-            "external_links_count": ext_links,
-            "images_count": images_count,
-            "missing_alt_count": missing_alt_count,
-            "structured_data": structured_data,
-            "security_headers": security_headers,
-        }
-        keyword_data = _resolve_keyword_data(
-            target_keywords, enable_keyword_analysis, page_meta[page_url], content_stats
-        )
-        # Rank checks fire only on pages the user nominated. With enable_rank_check
-        # on but nothing nominated, spend is zero rather than one query per keyword
-        # per crawled page — which would exhaust the 100/day free tier in one audit.
-        nominated_keywords = _match_rank_target(page_url, rank_targets)
-        rank_data = (
-            rank_checker.check_rankings(
-                page_url, nominated_keywords, config, max_keywords=len(nominated_keywords)
-            )
-            if enable_rank_check and nominated_keywords else []
-        )
-        # Competitor-gap fetches (via `crawler._fetch`) reuse the crawler's own
-        # HTTP machinery, but that crawler instance still has its
-        # `event_callback` wired up from `crawler.crawl()` above. Left as-is,
-        # a 404/timeout/redirect on a *competitor's* URL would be broadcast to
-        # the live activity feed as if it happened on the audited site. Null
-        # the callback out for the duration of the suggestions call so only
-        # audit-target crawl events ever reach the feed.
-        # When rank_targets were supplied at all, suggestions are scoped to
-        # nominated pages only — generating them for every other crawled page
-        # would fire up to 3 synchronous Google Autocomplete requests each
-        # (5s timeout apiece) from the no-rank-data fallback, and would offer
-        # ungrounded suggestions on pages the user never asked about while the
-        # one page they did nominate correctly shows none pre-credentials.
-        # When rank_targets is None/empty, `enable_keyword_suggestions` keeps
-        # its original site-wide behaviour: it is a documented standalone API
-        # capability (docs/api.md) independent of rank tracking, and direct
-        # API callers who never send rank_targets must not silently regress.
-        suggestions_allowed = (
-            not rank_targets or nominated_keywords is not None
-        )
-        saved_event_callback = crawler.event_callback
-        crawler.event_callback = None
+        # One page's checks must not discard the whole crawl. Checks meet markup
+        # they did not anticipate -- a tag BeautifulSoup returns as None, an
+        # attribute that is a list where a string was expected -- and every such
+        # exception used to propagate out of this loop, throwing away an audit
+        # that had already paid for the crawl. The page is recorded as failed
+        # and the remaining pages are still audited.
         try:
-            suggestions = (
-                keyword_suggestions.suggest_keywords(
-                    keyword_data, rank_data, config,
-                    fetch_page=crawler._fetch, page_url=page_url,
-                    enable_competitor_gap=enable_competitor_gap,
-                )
-                if enable_keyword_suggestions and suggestions_allowed else []
+            issues = []
+            issues += checks.check_status_and_https(page, {})
+            issues += checks.check_mixed_content(page)
+            canon_issues, canonical = checks.check_canonical(page, page_url)
+            issues += canon_issues
+            issues += checks.check_indexability(page)
+
+            title_issues, title = checks.check_title(page)
+            issues += title_issues
+            desc_issues, desc = checks.check_meta_description(page)
+            issues += desc_issues
+            heading_issues, h1 = checks.check_headings(page)
+            issues += heading_issues
+            issues += checks.check_images(page)
+            issues += checks.check_links(page)
+            issues += checks.check_structured_data(page)
+            issues += checks.check_open_graph_twitter(page)
+            issues += checks.check_url_structure(page_url)
+
+            content_issues, content_stats = checks.check_content(page)
+            issues += content_issues
+
+            issues += checks.check_mobile(page)
+            issues += checks.check_accessibility(page)
+            issues += checks.check_security_headers(page)
+            issues += checks.check_hreflang(page)
+            issues += checks.check_media(page)
+            issues += checks.check_js_rendering_signal(page)
+
+            weight = performance.analyze_page_weight(page)
+            issues += performance.check_performance_proxies(page, weight)
+
+            soup = checks._soup(page.html)
+            meta_robots = None
+            lang = None
+            open_graph = {}
+            twitter_cards = {}
+            h2_count = 0
+            h3_count = 0
+            heading_hierarchy = []
+            images_count = 0
+            missing_alt_count = 0
+            structured_data = []
+            security_headers = {}
+
+            if soup:
+                html_el = soup.find("html")
+                lang = html_el.get("lang") if html_el else None
+                robots_tag = soup.find("meta", attrs={"name": "robots"})
+                meta_robots = robots_tag.get("content") if robots_tag else None
+
+                for meta_tag in soup.find_all("meta"):
+                    prop = meta_tag.get("property", "")
+                    name = meta_tag.get("name", "")
+                    content = meta_tag.get("content", "")
+                    if prop.startswith("og:"):
+                        open_graph[prop] = content
+                    if name.startswith("twitter:"):
+                        twitter_cards[name] = content
+
+                h2s = soup.find_all("h2")
+                h3s = soup.find_all("h3")
+                h2_count = len(h2s)
+                h3_count = len(h3s)
+
+                for h in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+                    text = h.get_text(strip=True)
+                    if text:
+                        level = int(h.name[1])
+                        heading_hierarchy.append({"level": level, "text": text[:100]})
+
+                imgs = soup.find_all("img")
+                images_count = len(imgs)
+                missing_alt_count = sum(1 for img in imgs if not img.get("alt", "").strip())
+
+                for script in soup.find_all("script", type="application/ld+json"):
+                    if script.string:
+                        structured_data.append({"type": "JSON-LD", "raw": script.string.strip()[:500]})
+
+            if page.headers:
+                headers_lower = {k.lower(): v for k, v in page.headers.items()}
+                for h in ("strict-transport-security", "content-security-policy", "x-frame-options", "x-content-type-options", "referrer-policy"):
+                    security_headers[h] = headers_lower.get(h, False)
+
+            int_links = len(crawler.link_graph.get(page_url, set()))
+            ext_links = len([u for u in crawler.external_links_checked if page_url in crawler.inbound_links.get(u, set())])
+            word_cnt = content_stats.get("word_count", 0)
+
+            all_page_issues[page_url] = issues
+            page_meta[page_url] = {
+                "title": title,
+                "meta_description": desc,
+                "h1": h1,
+                "word_count": word_cnt,
+                "canonical": canonical,
+                "performance": weight,
+                "meta_robots": meta_robots,
+                "lang": lang,
+                "open_graph": open_graph,
+                "twitter_cards": twitter_cards,
+                "h2_count": h2_count,
+                "h3_count": h3_count,
+                "heading_hierarchy": heading_hierarchy,
+                "char_count": len(content_stats.get("text", "")),
+                "reading_time_mins": max(1, round(word_cnt / 200)) if word_cnt else 0,
+                "internal_links_count": int_links,
+                "external_links_count": ext_links,
+                "images_count": images_count,
+                "missing_alt_count": missing_alt_count,
+                "structured_data": structured_data,
+                "security_headers": security_headers,
+            }
+            keyword_data = _resolve_keyword_data(
+                target_keywords, enable_keyword_analysis, page_meta[page_url], content_stats
             )
-        finally:
-            crawler.event_callback = saved_event_callback
-        page_meta[page_url]["keyword_analysis"] = {
-            "top_keywords": keyword_data,
-            "rankings": rank_data,
-            "suggested_keywords": suggestions,
-        }
-        page_data_for_dupes.append({
-            "url": page_url,
-            "title": title,
-            "meta_description": desc,
-            "h1": h1,
-            "canonical": canonical,
-            "content_hash": analysis.content_hash(content_stats["text"]) if content_stats["text"] else None,
-            "text": content_stats["text"],
-        })
+            # Rank checks fire only on pages the user nominated. With enable_rank_check
+            # on but nothing nominated, spend is zero rather than one query per keyword
+            # per crawled page — which would exhaust the 100/day free tier in one audit.
+            nominated_keywords = _match_rank_target(page_url, rank_targets)
+            rank_data = (
+                rank_checker.check_rankings(
+                    page_url, nominated_keywords, config, max_keywords=len(nominated_keywords)
+                )
+                if enable_rank_check and nominated_keywords else []
+            )
+            # Competitor-gap fetches (via `crawler._fetch`) reuse the crawler's own
+            # HTTP machinery, but that crawler instance still has its
+            # `event_callback` wired up from `crawler.crawl()` above. Left as-is,
+            # a 404/timeout/redirect on a *competitor's* URL would be broadcast to
+            # the live activity feed as if it happened on the audited site. Null
+            # the callback out for the duration of the suggestions call so only
+            # audit-target crawl events ever reach the feed.
+            # When rank_targets were supplied at all, suggestions are scoped to
+            # nominated pages only — generating them for every other crawled page
+            # would fire up to 3 synchronous Google Autocomplete requests each
+            # (5s timeout apiece) from the no-rank-data fallback, and would offer
+            # ungrounded suggestions on pages the user never asked about while the
+            # one page they did nominate correctly shows none pre-credentials.
+            # When rank_targets is None/empty, `enable_keyword_suggestions` keeps
+            # its original site-wide behaviour: it is a documented standalone API
+            # capability (docs/api.md) independent of rank tracking, and direct
+            # API callers who never send rank_targets must not silently regress.
+            suggestions_allowed = (
+                not rank_targets or nominated_keywords is not None
+            )
+            saved_event_callback = crawler.event_callback
+            crawler.event_callback = None
+            try:
+                suggestions = (
+                    keyword_suggestions.suggest_keywords(
+                        keyword_data, rank_data, config,
+                        fetch_page=crawler._fetch, page_url=page_url,
+                        enable_competitor_gap=enable_competitor_gap,
+                    )
+                    if enable_keyword_suggestions and suggestions_allowed else []
+                )
+            finally:
+                crawler.event_callback = saved_event_callback
+            page_meta[page_url]["keyword_analysis"] = {
+                "top_keywords": keyword_data,
+                "rankings": rank_data,
+                "suggested_keywords": suggestions,
+            }
+            page_data_for_dupes.append({
+                "url": page_url,
+                "title": title,
+                "meta_description": desc,
+                "h1": h1,
+                "canonical": canonical,
+                "content_hash": analysis.content_hash(content_stats["text"]) if content_stats["text"] else None,
+                "text": content_stats["text"],
+            })
+        except Exception as exc:
+            logger.error("Audit checks failed for %s: %s", page_url, exc, exc_info=exc)
+            # A blank row would read as "audited, nothing wrong", which is worse
+            # than the crash: wrong, quietly. Say the page could not be audited.
+            all_page_issues[page_url] = [
+                checks.issue("critical", "AUDIT_ERROR", f"This page could not be audited: {exc}")
+            ]
+            page_meta[page_url] = {}
+            continue
+
 
     site_wide = analysis.build_link_graph_stats(crawler)
     duplicates = analysis.find_duplicates(page_data_for_dupes)
