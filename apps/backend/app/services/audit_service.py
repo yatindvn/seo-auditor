@@ -118,17 +118,24 @@ def _build_audit_result(
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
     rank_targets: Optional[List[Any]] = None,
+    external_link_check_limit: int = 25,
+    psi_key: Optional[str] = None,
+    psi_strategy: str = "mobile",
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
     started_at = time.monotonic()
 
     crawler.crawl(progress_callback=progress_callback, event_callback=event_callback)
-    crawler.check_external_links(max_check=25)
+    # 0 means skip the requests entirely (the CLI's --skip-external-links), not
+    # issue zero-length ones. 25 is the API's long-standing default.
+    if external_link_check_limit:
+        crawler.check_external_links(max_check=external_link_check_limit)
 
     all_page_issues = {}
     page_meta = {}
     page_data_for_dupes = []
+    psi_results: Dict[str, Any] = {}
 
     for page_url, page in crawler.results.items():
         # One page's checks must not discard the whole crawl. Checks meet markup
@@ -169,6 +176,14 @@ def _build_audit_result(
 
             weight = performance.analyze_page_weight(page)
             issues += performance.check_performance_proxies(page, weight)
+
+            # PageSpeed Insights is a quota'd Google API and a per-page network
+            # round trip, so it runs only when a key is supplied -- never by
+            # default, and never for a page that did not return 200.
+            if psi_key and page.status_code == 200:
+                psi_results[page_url] = performance.fetch_psi_metrics(
+                    page_url, psi_key, strategy=psi_strategy
+                )
 
             soup = checks._soup(page.html)
             meta_robots = None
@@ -380,6 +395,7 @@ def _build_audit_result(
             "links": arch_links,
         },
         "page_issues_detail": {u: v for u, v in all_page_issues.items()},
+        "psi_metrics": psi_results,
         "robots_txt": crawler.robots_txt_content,
         "sitemaps_found": crawler.sitemaps_found,
         "sitemap_urls": list(crawler.sitemap_urls),

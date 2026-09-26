@@ -30,8 +30,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: "URL is required" }, { status: 400 });
     }
 
-    const scriptPath = path.resolve(process.cwd(), "../backend/seo_auditor");
-    const cmd = `python -m seo_auditor.cli "${url}" --max-pages ${max_pages} --max-depth ${max_depth} ${ignore_robots ? "--ignore-robots" : ""} --json`;
+    const scriptPath = path.resolve(process.cwd(), "../backend");
+    const cmd = `python -m app.cli "${url}" --max-pages ${max_pages} --max-depth ${max_depth} ${ignore_robots ? "--ignore-robots" : ""} --json`;
     const { stdout } = await execAsync(cmd, { cwd: scriptPath });
     const result = JSON.parse(stdout);
     return NextResponse.json(result);

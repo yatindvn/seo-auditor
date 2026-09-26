@@ -17,11 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # The FastAPI app.
 COPY app ./app
 
-# The CLI package too: GET /api/export/{fmt} imports its report writers at
-# request time (app/api/routes.py). Omitting it makes all five export formats
-# fail in production while everything else looks healthy.
-COPY seo_auditor ./seo_auditor
-
 # Run as a non-root user. The crawler fetches arbitrary attacker-influenced URLs
 # and parses their HTML, so this process should hold no privileges it never needs.
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app

@@ -1,14 +1,15 @@
-"""`GET /api/export/{fmt}` imports the report writers from the CLI package at
-request time. That import named `seo_auditor.report`, but the module actually
-lives at `seo_auditor.seo_auditor.report` in this repo layout — the outer
-`seo_auditor/` directory is the *package root* (it holds setup.py), not the
-package. So every export request raised ModuleNotFoundError unless someone had
-separately run `pip install -e apps/backend/seo_auditor`, an undeclared step
-documented nowhere.
+"""`GET /api/export/{fmt}` and the five report writers behind it.
 
-These tests exercise the endpoint through the real app, so they fail if the
-import path regresses — testing the import in isolation would not catch a
-route that never reaches it.
+History, because it explains the shape of these tests: the writers used to live
+in a separate CLI package that resolved under two different names depending on
+how it was on the path, reached through a `ModuleNotFoundError` fallback. Every
+export request failed unless someone had separately run
+`pip install -e apps/backend/seo_auditor`, an undeclared step documented
+nowhere. `app/utils/report.py` owns them now and the fallback is gone.
+
+These tests exercise the endpoint through the real app rather than importing the
+writers directly, so they fail if the import path regresses — testing the import
+in isolation would not catch a route that never reaches it.
 """
 
 import csv
@@ -117,12 +118,12 @@ def test_unknown_session_is_a_404(client):
 
 # --- The test that actually guards the import path -------------------------
 #
-# Everything above runs under pytest.ini's `pythonpath = . seo_auditor`, which
-# puts the CLI package root on sys.path and makes the *first* import name resolve.
-# That masks the production failure: uvicorn is started from apps/backend
-# (scripts/dev.js) with no such entry, so those tests pass whether or not the
-# fallback exists. A subprocess with a pruned sys.path is the only way to
-# reproduce the real conditions from inside the suite.
+# The two-name fallback this file was written for is gone: app/ owns the export
+# writers now, so there is only one name to resolve. The probe stays because the
+# failure it catches is about *layout*, not about that fallback -- it runs the
+# endpoint from apps/backend with no extra sys.path entries, exactly as
+# `uvicorn app.main:app` does (scripts/dev.js), and so would still catch an
+# export import that only resolves under pytest's path setup.
 
 _SUBPROCESS_PROBE = """
 import sys
@@ -165,3 +166,32 @@ def test_export_import_resolves_without_the_cli_root_on_syspath():
         "export failed with the CLI root off sys.path — the layout the server "
         f"actually runs in.\nstdout: {proc.stdout}\nstderr: {proc.stderr[-2000:]}"
     )
+
+
+# --- The writers now live in app/, not in the CLI package -------------------
+
+
+def test_export_writers_are_importable_from_the_app_package():
+    """The export writers lived in the CLI package, reached through a
+    ModuleNotFoundError fallback because that package resolves under two names
+    depending on how it is on the path. Owning them in app/ deletes the hack."""
+    from app.utils.report import (
+        export_csv, export_excel, export_html_report, export_json, export_pdf_summary,
+    )
+
+    assert callable(export_json)
+    assert callable(export_csv)
+    assert callable(export_excel)
+    assert callable(export_pdf_summary)
+    assert callable(export_html_report)
+
+
+def test_export_csv_returns_bytes_when_no_path_given():
+    """Pins the writers' contract as the endpoint uses it: path=None means
+    "hand the bytes back" rather than "write to disk"."""
+    from app.utils.report import export_csv
+
+    data = export_csv(None, [{"url": "https://example.com/", "status_code": 200}])
+
+    assert isinstance(data, bytes)
+    assert b"https://example.com/" in data

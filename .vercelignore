@@ -19,7 +19,6 @@
 # `apps/*` still needs to resolve it during install.
 apps/backend/app/
 apps/backend/api/
-apps/backend/seo_auditor/
 apps/backend/tests/
 apps/backend/src/
 apps/backend/requirements.txt

@@ -4,7 +4,6 @@
 .mypy_cache/
 .ruff_cache/
 tests/
-seo_auditor/test_audit_output/
 audit_output/
 seo_audit_output/
 # Never bake credentials into an image layer.

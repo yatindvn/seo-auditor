@@ -25,7 +25,7 @@ SiteCrawler/
 │       │   ├── utils/          # Python process runner
 │       │   ├── ai/             # AI suggestions bridge
 │       │   └── server.ts       # Express + HTTP + WS entry point
-│       ├── seo_auditor/        # Core Python BFS crawler & SEO analysis engine
+│       ├── app/                # Core Python BFS crawler & SEO analysis engine (also `python -m app.cli`)
 │       ├── package.json        # Backend manifest
 │       └── tsconfig.json       # Backend TypeScript config
 │
