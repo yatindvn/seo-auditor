@@ -31,6 +31,10 @@ POOL_MIN_PAGES = 50
 # page's markup until a worker takes it.
 MAX_PENDING_ANALYSES = 64
 
+# Rows per database write. Batched because the crawl produces rows
+# continuously and a transaction per page would fsync thousands of times.
+WRITE_BATCH_SIZE = 50
+
 
 def _submit_analysis(pool, payload):
     """Start one page's analysis, in a worker when there is a pool.
@@ -108,6 +112,7 @@ def run_full_audit(
             url, crawler, progress_callback, event_callback,
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
+            session_id=session_id,
         )
     finally:
         unregister_crawler(session_id)
@@ -127,6 +132,7 @@ def _build_audit_result(
     external_link_check_limit: int = 25,
     psi_key: Optional[str] = None,
     psi_strategy: str = "mobile",
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
@@ -148,13 +154,64 @@ def _build_audit_result(
     pending: Dict[str, Any] = {}
     degraded = False
 
+    # Rows go to disk as they are produced rather than being assembled in one
+    # structure at the end. The id is generated here when a caller (the CLI,
+    # a test) does not supply one, so every audit is persisted the same way.
+    session_id = session_id or f"sess_{int(time.time())}"
+    db = session_store.open_session(session_id)
+    row_buffer: List[Dict[str, Any]] = []
+
+    def _flush_rows(force: bool = False) -> None:
+        if not row_buffer or (not force and len(row_buffer) < WRITE_BATCH_SIZE):
+            return
+        db.add_pages(row_buffer)
+        row_buffer.clear()
+
+    def _record(url: str, result, page_analysis) -> None:
+        """Queue one page's row, and write its links and signature."""
+        meta = dict(page_analysis.meta)
+        row_buffer.append({
+            "url": url,
+            "final_url": result.final_url,
+            "depth": result.depth,
+            "status": result.status_code,
+            "response_time_ms": result.response_time_ms,
+            "content_type": result.content_type,
+            "title": meta.get("title"),
+            "meta_description": meta.get("meta_description"),
+            "h1": meta.get("h1"),
+            "canonical": meta.get("canonical"),
+            "word_count": meta.get("word_count", 0),
+            "char_count": meta.get("char_count", 0),
+            "internal_links_count": meta.get("internal_links_count", 0),
+            "external_links_count": meta.get("external_links_count", 0),
+            "images_count": meta.get("images_count", 0),
+            "missing_alt_count": meta.get("missing_alt_count", 0),
+            "meta_robots": meta.get("meta_robots"),
+            "lang": meta.get("lang"),
+            "error": result.error or ("audit failed" if page_analysis.failed else None),
+            "meta": meta,
+            "issues": page_analysis.issues,
+        })
+        edges = [(url, target, True) for target in page_analysis.internal_links]
+        edges += [(url, target, False) for target in page_analysis.external_links]
+        if edges:
+            db.add_links(edges)
+        if page_analysis.signature:
+            db.add_signature(url, page_analysis.signature)
+        _flush_rows()
+
     def _resolve(url, outcome):
         """Store a completed analysis, or the record of one that raised."""
         try:
-            analyses[url] = outcome.result() if hasattr(outcome, "result") else outcome
+            resolved = outcome.result() if hasattr(outcome, "result") else outcome
         except Exception as exc:
             logger.error("Audit checks failed for %s: %s", url, exc, exc_info=exc)
-            analyses[url] = page_pipeline.failed_analysis(url, exc)
+            resolved = page_pipeline.failed_analysis(url, exc)
+        analyses[url] = resolved
+        # A page that could not be audited is still written, saying so. Missing
+        # from the table would read as never crawled.
+        _record(url, crawler.results[url], resolved)
 
     def on_page(result):
         """Hand one fetched page to stage 2 and let the crawl carry on.
@@ -224,6 +281,7 @@ def _build_audit_result(
         for url, outcome in list(pending.items()):
             _resolve(url, outcome)
         pending.clear()
+        _flush_rows(force=True)
     finally:
         if pool is not None:
             pool.shutdown(wait=True)
@@ -341,19 +399,23 @@ def _build_audit_result(
     broken_set = {b["url"] for b in broken_links}
     hub_set = {h[0] for h in site_wide.get("hub_pages_over_linked", [])}
 
-    for url, res in crawler.results.items():
+    # node_url, not url: this loop used to rebind the function's `url`
+    # parameter, so everything after it saw the last crawled page instead of
+    # the audited site -- which is what the saved session recorded as the URL
+    # it had audited.
+    for node_url, res in crawler.results.items():
         arch_nodes.append({
-            "id": url,
-            "url": url,
-            "label": url.replace("https://", "").replace("http://", "").split("?")[0],
+            "id": node_url,
+            "url": node_url,
+            "label": node_url.replace("https://", "").replace("http://", "").split("?")[0],
             "depth": res.depth,
-            "isBroken": url in broken_set or (res.status_code is not None and res.status_code >= 400),
-            "isOrphan": url in orphan_set,
-            "isDeadEnd": url in dead_end_set,
+            "isBroken": node_url in broken_set or (res.status_code is not None and res.status_code >= 400),
+            "isOrphan": node_url in orphan_set,
+            "isDeadEnd": node_url in dead_end_set,
             "isDeep": res.depth >= 3,
-            "isHub": url in hub_set,
-            "inboundCount": len(crawler.inbound_links.get(url, set())),
-            "outboundCount": len(crawler.link_graph.get(url, set())),
+            "isHub": node_url in hub_set,
+            "inboundCount": len(crawler.inbound_links.get(node_url, set())),
+            "outboundCount": len(crawler.link_graph.get(node_url, set())),
         })
 
     for src, targets in crawler.link_graph.items():
@@ -390,10 +452,15 @@ def _build_audit_result(
         "note": "Audit executed directly via native Python engine.",
     }
 
-    session_store.save_session({
-        "id": f"sess_{int(time.time())}",
+    # Written through the session's own database rather than save_session,
+    # which would open a second one and discard the rows just persisted.
+    # auditResult is still carried whole because the history panel restores a
+    # past audit from it; it stops being stored here once the endpoints read
+    # rows instead.
+    db.set_summary({
         "url": url,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "saved_at": time.time_ns(),
         "auditResult": result_data,
     })
 
