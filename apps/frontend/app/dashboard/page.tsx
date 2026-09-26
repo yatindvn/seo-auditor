@@ -105,7 +105,8 @@ function mergeSavedLayout(saved: typeof DEFAULT_LAYOUT) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { auditData, error, isLoading, activeSessionId } = useAudit();
+  const { auditData, error, isLoading, activeSessionId, pageSample, pageSampleTotal,
+          isPageSampleComplete } = useAudit();
   
   const [isEditMode, setIsEditMode] = useState(false);
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
@@ -162,7 +163,11 @@ export default function DashboardPage() {
     return <DashboardSkeleton />;
   }
 
-  const { executive_summary: es, pages, recommendations, duplicates, broken_links, elapsed_seconds, note } = auditData;
+  const { executive_summary: es, recommendations, duplicates, broken_links, elapsed_seconds, note } = auditData;
+  // The audit payload is a summary now: page rows live behind /api/pages. The
+  // panels below summarise across pages rather than listing them, so they read
+  // a bounded sample and say so when the crawl was larger than it.
+  const pages = pageSample;
   const { health_score, start_url, audit_date, pages_crawled, orphan_pages, broken_links: brokenCount, duplicate_titles } = es;
 
   const statCards = [
@@ -252,7 +257,7 @@ export default function DashboardPage() {
     "performance": <PerformancePanel pages={pages} />,
     "security": <SecurityAccessibilityPanel pages={pages} />,
     "duplicates": <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4"/>Duplicate Content Analysis</CardTitle></CardHeader><CardContent><DuplicatesPanel duplicates={duplicates} /></CardContent></Card>,
-    "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages</CardTitle></CardHeader><CardContent><PagesTable pages={pages} /></CardContent></Card>,
+    "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages</CardTitle></CardHeader><CardContent><PagesTable sessionId={activeSessionId!} /></CardContent></Card>,
   };
 
   return (
@@ -326,6 +331,20 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {statCards.map((card, i) => <StatCard key={i} {...card} />)}
         </div>
+
+        {/* Said plainly rather than left for the reader to discover: the
+            cross-page panels below summarise a sample, not the whole crawl.
+            The pages table and every export still cover every page. */}
+        {!isPageSampleComplete && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-500">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Panels below summarise the first {formatNumber(pages.length)} of{" "}
+              {formatNumber(pageSampleTotal)} crawled pages. The pages table and
+              CSV/JSON exports cover all of them.
+            </span>
+          </div>
+        )}
 
         {/* ─── Dynamic Layout Grid ─── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

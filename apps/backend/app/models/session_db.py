@@ -45,7 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_pages_depth ON pages(depth);
 # from a query parameter cannot become SQL.
 SORTABLE = {
     "url", "depth", "status", "word_count", "response_time_ms",
-    "internal_links_count", "issue_count",
+    "internal_links_count", "external_links_count", "issue_count",
 }
 
 PAGE_COLUMNS = [

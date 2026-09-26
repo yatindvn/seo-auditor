@@ -197,7 +197,7 @@ def health_check():
 # called from the CLI.
 SortablePageColumn = Literal[
     "url", "depth", "status", "word_count", "response_time_ms",
-    "internal_links_count", "issue_count",
+    "internal_links_count", "external_links_count", "issue_count",
 ]
 
 
