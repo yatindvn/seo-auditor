@@ -83,3 +83,46 @@ def test_psi_runs_for_successful_pages_when_a_key_is_given():
         "https://example.com/", "test-key", strategy="desktop",
     )
     assert result["psi_metrics"]["https://example.com/"] == {"lcp": 1.2}
+
+
+# --- Duplicate-detection mode ----------------------------------------------
+
+
+def test_result_reports_which_duplicate_path_ran():
+    """The two paths do not produce identical similarity numbers, so the client
+    is told which one produced these."""
+    result = _run(SpyCrawler())
+
+    assert result["near_duplicate_mode"] == "exact"
+
+
+def test_signatures_are_not_computed_for_a_small_crawl():
+    """Signing costs real CPU per page. A crawl that will use the exact path
+    must not pay for signatures it will never read."""
+    crawler = SpyCrawler()
+    crawler.max_pages = 100
+    captured = []
+
+    real_analyze = audit_service.page_pipeline.analyze_page
+    with patch.object(audit_service.page_pipeline, "analyze_page",
+                      side_effect=lambda payload: captured.append(payload) or real_analyze(payload)):
+        _run(crawler)
+
+    assert captured, "analyze_page should have been called"
+    assert all(p.compute_signature is False for p in captured)
+
+
+def test_signatures_are_computed_when_the_cap_exceeds_the_exact_path():
+    """The decision has to be made per page during the crawl, before the final
+    page count is known, so it keys off the cap rather than the realised count."""
+    crawler = SpyCrawler()
+    crawler.max_pages = 5000
+    captured = []
+
+    real_analyze = audit_service.page_pipeline.analyze_page
+    with patch.object(audit_service.page_pipeline, "analyze_page",
+                      side_effect=lambda payload: captured.append(payload) or real_analyze(payload)):
+        _run(crawler)
+
+    assert captured
+    assert all(p.compute_signature is True for p in captured)

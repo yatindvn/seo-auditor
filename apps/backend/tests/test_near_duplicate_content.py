@@ -13,7 +13,7 @@ is an exact optimisation, not an approximation), and it must scale.
 import random
 import time
 
-from app.analysis import analysis
+from app.analysis import analysis, minhash
 
 
 def _brute_force(page_data, shingle_size=5, threshold=0.85):
@@ -122,3 +122,81 @@ def test_scales_to_a_full_site_crawl():
     found = {(p["url_a"], p["url_b"]) for p in out}
     assert ("https://example.com/0", "https://example.com/dup-a") in found
     assert ("https://example.com/1", "https://example.com/dup-b") in found
+
+
+# --- Picking a path by crawl size ------------------------------------------
+#
+# Above a few hundred pages, holding a full shingle set per page costs hundreds
+# of megabytes, so detection switches to MinHash estimates. Below it, exact
+# results are affordable and strictly better, so nothing changes for the crawl
+# sizes that have always worked.
+
+
+def _pages(count, text_for=lambda i: None):
+    return [
+        {"url": f"https://example.com/{i}",
+         "text": text_for(i) or f"unique filler text number {i} " * 30}
+        for i in range(count)
+    ]
+
+
+def test_small_crawls_use_the_exact_path():
+    pairs, mode = analysis.find_near_duplicates(_pages(10), signatures={})
+
+    assert mode == "exact"
+    assert pairs == []
+
+
+def test_large_crawls_switch_to_minhash():
+    pages = _pages(analysis.EXACT_PATH_MAX_PAGES + 1)
+    signatures = {p["url"]: minhash.signature(p["text"]) for p in pages}
+
+    _, mode = analysis.find_near_duplicates(pages, signatures=signatures)
+
+    assert mode == "minhash"
+
+
+def test_minhash_mode_still_reports_a_real_duplicate_pair():
+    """Switching paths must not switch the feature off."""
+    shared = "the same paragraph repeated across two separate pages " * 40
+    pages = _pages(analysis.EXACT_PATH_MAX_PAGES)
+    pages += [
+        {"url": "https://example.com/dupe-a", "text": shared},
+        {"url": "https://example.com/dupe-b", "text": shared},
+    ]
+    signatures = {p["url"]: minhash.signature(p["text"]) for p in pages}
+
+    pairs, mode = analysis.find_near_duplicates(pages, signatures=signatures)
+
+    assert mode == "minhash"
+    assert any(
+        {p["url_a"], p["url_b"]} == {"https://example.com/dupe-a", "https://example.com/dupe-b"}
+        for p in pairs
+    ), f"the planted duplicate pair was not reported: {pairs}"
+
+
+def test_a_large_crawl_without_signatures_falls_back_to_exact():
+    """Signatures are computed during the crawl, decided from the page cap. If
+    a crawl somehow arrives here large but unsigned, the answer must still be
+    correct -- slower beats wrong -- and the reported mode must say what
+    actually ran rather than what was intended."""
+    pages = _pages(analysis.EXACT_PATH_MAX_PAGES + 1)
+
+    _, mode = analysis.find_near_duplicates(pages, signatures={})
+
+    assert mode == "exact"
+
+
+def test_both_paths_return_the_same_shape():
+    """find_near_duplicates hands either path's output to the same caller."""
+    shared = "identical content on both of these pages " * 40
+    small = [{"url": "https://example.com/a", "text": shared},
+             {"url": "https://example.com/b", "text": shared}]
+    exact_pairs, _ = analysis.find_near_duplicates(small, signatures={})
+
+    large = small + _pages(analysis.EXACT_PATH_MAX_PAGES)
+    signatures = {p["url"]: minhash.signature(p["text"]) for p in large}
+    minhash_pairs, _ = analysis.find_near_duplicates(large, signatures=signatures)
+
+    assert set(exact_pairs[0]) == {"url_a", "url_b", "similarity"}
+    assert set(minhash_pairs[0]) == {"url_a", "url_b", "similarity"}

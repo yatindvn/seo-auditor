@@ -117,6 +117,12 @@ def _build_audit_result(
     page_meta = {}
     page_data_for_dupes = []
     psi_results: Dict[str, Any] = {}
+    signatures: Dict[str, bytes] = {}
+    # Decided from the page cap, not the realised count: each page is signed (or
+    # not) as it is analysed, long before the crawl's final size is known.
+    # getattr because the cap is a Crawler attribute and callers may pass any
+    # object exposing crawler.results.
+    compute_signature = getattr(crawler, "max_pages", 0) > analysis.EXACT_PATH_MAX_PAGES
 
     for page_url, page in crawler.results.items():
         # Everything that happens to one page's HTML now lives in a pure,
@@ -142,6 +148,7 @@ def _build_audit_result(
                 error=page.error,
                 enable_keyword_analysis=enable_keyword_analysis,
                 target_keywords=target_keywords,
+                compute_signature=compute_signature,
             ))
         except Exception as exc:
             logger.error("Audit checks failed for %s: %s", page_url, exc, exc_info=exc)
@@ -152,6 +159,8 @@ def _build_audit_result(
 
         all_page_issues[page_url] = analysis_result.issues
         page_meta[page_url] = analysis_result.meta
+        if analysis_result.signature:
+            signatures[page_url] = analysis_result.signature
         keyword_data = analysis_result.keyword_data
 
         # PageSpeed Insights is a quota'd Google API and a per-page network
@@ -216,7 +225,9 @@ def _build_audit_result(
 
     site_wide = analysis.build_link_graph_stats(crawler)
     duplicates = analysis.find_duplicates(page_data_for_dupes)
-    near_dupes = analysis.near_duplicate_content(page_data_for_dupes)
+    near_dupes, near_duplicate_mode = analysis.find_near_duplicates(
+        page_data_for_dupes, signatures=signatures
+    )
     redirects = analysis.redirect_report(crawler)
     broken_links = analysis.broken_link_report(crawler)
 
@@ -260,6 +271,7 @@ def _build_audit_result(
         "site_wide_analysis": site_wide,
         "duplicates": duplicates,
         "near_duplicate_content": near_dupes,
+        "near_duplicate_mode": near_duplicate_mode,
         "redirects": redirects,
         "broken_links": broken_links,
         "recommendations": recommendations,
