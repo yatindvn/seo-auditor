@@ -1,7 +1,7 @@
 import logging
 import time
 import asyncio
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, HTTPException, Query, Path, BackgroundTasks
 from app.schemas.schemas import AuditRequestParams
 from app.services.audit_service import run_full_audit
@@ -16,7 +16,50 @@ from app.utils.report import (
 router = APIRouter()
 logger = logging.getLogger("seo_auditor")
 
-active_sessions: Dict[str, Any] = {}
+# Audits live in their own SQLite file under config.SESSION_DIR, reached through
+# session_store. There is no process-local session dict any more: it did not
+# survive a restart, and at 5000 pages it held tens of megabytes per audit.
+
+
+
+# Fields /api/audit/latest carries. Everything else -- the page rows, the
+# per-page issue detail, the architecture graph -- is read from its own
+# paginated endpoint. Sending all of it at once was tens of megabytes at 5000
+# pages, more than the dashboard could store or parse.
+SUMMARY_FIELDS = (
+    "executive_summary", "site_wide_analysis", "recommendations",
+    "issue_frequency", "duplicates", "redirects", "rank_targets",
+    "near_duplicate_mode", "elapsed_seconds", "degraded", "partial",
+    "robots_txt", "sitemaps_found", "psi_metrics", "note",
+)
+
+
+def _require_session(session_id: str):
+    """The session's database, or a 404.
+
+    Replaces a lookup in a process-local dict, which meant a restart lost every
+    session the dashboard still had a link to.
+    """
+    db = session_store.get(session_id)
+    if db is None:
+        raise HTTPException(status_code=404, detail="No audit session found")
+    return db
+
+
+def _require_result(session_id: str) -> Dict[str, Any]:
+    """The finished audit for a session.
+
+    A database with no summary row is a crawl still running: the dashboard polls
+    from the moment it starts, and 404 is what it already expects meanwhile.
+    """
+    summary = _require_session(session_id).get_summary()
+    if not summary or not summary.get("auditResult"):
+        raise HTTPException(status_code=404, detail="No audit session found")
+    return summary["auditResult"]
+
+
+def _page(items: List[Any], total: int, offset: int, limit: int) -> Dict[str, Any]:
+    return {"items": items, "total": total, "offset": offset, "limit": limit}
 
 
 def log_crawl_failure(session_id: str, exc: Exception) -> None:
@@ -27,7 +70,6 @@ def log_crawl_failure(session_id: str, exc: Exception) -> None:
 async def execute_audit(params: AuditRequestParams, background_tasks: BackgroundTasks):
     url = params.url.strip()
     session_id = f"sess_{int(time.time() * 1000)}"
-    active_sessions[session_id] = {}
 
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -92,7 +134,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                     }), loop
                 )
             )
-            active_sessions[session_id] = data
+            # The audit persisted itself as it crawled; nothing to stash here.
             asyncio.run_coroutine_threadsafe(ws_manager.broadcast("crawl:complete", {"status": "success", "session_id": session_id}), loop)
         except Exception as exc:
             log_crawl_failure(session_id, exc)
@@ -104,9 +146,15 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
 
 @router.get("/audit/latest")
 def get_latest_audit(session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
-    return active_sessions[session_id]
+    """The audit summary. Page rows, issue detail and the graph have their own
+    endpoints -- this response is what the dashboard needs to paint first."""
+    result = _require_result(session_id)
+    db = _require_session(session_id)
+    _, page_count = db.get_pages(limit=1)
+
+    summary = {field: result.get(field) for field in SUMMARY_FIELDS if field in result}
+    summary["page_count"] = page_count
+    return summary
 
 
 @router.post("/audit/pause")
@@ -144,31 +192,101 @@ def health_check():
     }
 
 
+# Typed as a Literal so an unknown column is a 422 at the edge rather than a
+# ValueError from the database layer. Both guards stay: the database is also
+# called from the CLI.
+SortablePageColumn = Literal[
+    "url", "depth", "status", "word_count", "response_time_ms",
+    "internal_links_count", "issue_count",
+]
+
+
 @router.get("/pages")
-def get_pages(session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
-    return active_sessions[session_id].get("pages", [])
+def get_pages(
+    session_id: str = Query(...),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    sort: SortablePageColumn = Query("depth"),
+    order: Literal["asc", "desc"] = Query("asc"),
+    filter: Optional[str] = Query(None, max_length=200),
+    status: Optional[int] = Query(None),
+    has_issues: Optional[bool] = Query(None),
+):
+    db = _require_session(session_id)
+    items, total = db.get_pages(
+        offset=offset, limit=limit, sort=sort, order=order,
+        filter_text=filter, status=status, has_issues=has_issues,
+    )
+    return _page(items, total, offset, limit)
 
 
 @router.get("/issues")
-def get_issues(session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
-    return active_sessions[session_id].get("recommendations", [])
+def get_issues(
+    session_id: str = Query(...),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    severity: Optional[Literal["critical", "warning", "info"]] = Query(None),
+    code: Optional[str] = Query(None, max_length=100),
+):
+    """Per-page issues. Site-wide recommendations stay on /api/audit/latest --
+    there are tens of those, not tens of thousands."""
+    db = _require_session(session_id)
+    items, total = db.get_issues(offset=offset, limit=limit, severity=severity, code=code)
+    return _page(items, total, offset, limit)
+
+
+@router.get("/duplicates")
+def get_duplicates(
+    session_id: str = Query(...),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Near-duplicate pairs, with the mode that produced their similarities.
+
+    `mode` travels with the numbers because it changes what they mean: above
+    500 pages a similarity is a MinHash estimate, not an exact Jaccard.
+    """
+    result = _require_result(session_id)
+    pairs = result.get("near_duplicate_content", [])
+    window = pairs[offset:offset + limit]
+    body = _page(window, len(pairs), offset, limit)
+    body["mode"] = result.get("near_duplicate_mode", "exact")
+    return body
 
 
 @router.get("/architecture")
-def get_architecture(session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
-    return active_sessions[session_id].get("architecture", {"nodes": [], "links": []})
+def get_architecture(
+    session_id: str = Query(...),
+    expand: Optional[str] = Query(None, max_length=200),
+):
+    """Path-clustered by default; one cluster's pages when expanded.
+
+    A node per page is ~5000 nodes and a few hundred thousand edges at the Full
+    Site Crawl preset, which no browser draws interactively.
+    """
+    db = _require_session(session_id)
+    summary = db.get_summary() or {}
+    start_url = summary.get("url") or ""
+
+    if expand:
+        nodes, links = db.get_cluster_pages(start_url, expand)
+        return {"clustered": False, "expanded": expand, "nodes": nodes, "links": links}
+
+    return {
+        "clustered": True,
+        "nodes": db.get_clusters(start_url),
+        "links": db.get_cluster_edges(start_url),
+    }
 
 
 @router.get("/history")
 def get_history(session_id: str = Query(None)):
     sessions = session_store.get_all_sessions()
-    latest = active_sessions.get(session_id) if session_id else None
+    latest = None
+    if session_id:
+        db = session_store.get(session_id)
+        summary = db.get_summary() if db else None
+        latest = (summary or {}).get("auditResult")
     comparison = session_store.get_history_comparison(latest) if latest else None
     return {"sessions": sessions, "comparison": comparison}
 
@@ -184,30 +302,32 @@ def delete_history_session(session_id: str):
 
 @router.get("/page/{page_id:path}")
 def get_page_by_id(page_id: str, session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
-    for page in active_sessions[session_id].get("pages", []):
-        if page.get("url") == page_id or page_id in page.get("url", ""):
-            return page
-    raise HTTPException(status_code=404, detail="Page not found")
+    """One page by URL: a primary-key read rather than a scan of every row."""
+    db = _require_session(session_id)
+    page = db.get_page(page_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail="Page not found")
+    return page
 
 
 @router.get("/internal-links")
-def get_internal_links(session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
+def get_internal_links(
+    session_id: str = Query(...),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+):
+    result = _require_result(session_id)
+    broken = result.get("broken_links", [])
     return {
-        "site_wide_analysis": active_sessions[session_id].get("site_wide_analysis"),
-        "broken_links": active_sessions[session_id].get("broken_links", []),
+        "site_wide_analysis": result.get("site_wide_analysis"),
+        "broken_links": _page(broken[offset:offset + limit], len(broken), offset, limit),
     }
 
 
 @router.get("/export/{fmt}")
 def export_report(fmt: str, session_id: str = Query(...)):
-    if session_id not in active_sessions or not active_sessions[session_id]:
-        raise HTTPException(status_code=404, detail="No audit session found")
+    result = _require_result(session_id)
         
-    result = active_sessions[session_id]
     if fmt == "json":
         data = export_json(None, result)
         return Response(content=data, media_type="application/json", headers={"Content-Disposition": 'attachment; filename="audit_report.json"'})

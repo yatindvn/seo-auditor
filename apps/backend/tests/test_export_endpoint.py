@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.main import app
+from app.models.session_model import SessionStore
 
 SESSION_ID = "sess_export_test"
 
@@ -52,10 +53,17 @@ AUDIT_RESULT = {
 
 
 @pytest.fixture
-def client():
-    routes.active_sessions[SESSION_ID] = AUDIT_RESULT
-    yield TestClient(app)
-    routes.active_sessions.pop(SESSION_ID, None)
+def client(tmp_path, monkeypatch):
+    # Audits live in a SQLite file per session now, not a process-local dict.
+    store = SessionStore(session_dir=tmp_path)
+    store.open_session(SESSION_ID).set_summary({
+        "url": "https://example.com/",
+        "timestamp": "2026-08-17T00:00:00Z",
+        "saved_at": 1,
+        "auditResult": AUDIT_RESULT,
+    })
+    monkeypatch.setattr(routes, "session_store", store)
+    return TestClient(app)
 
 
 def test_export_json_returns_the_audit_result(client):
@@ -134,13 +142,22 @@ sys.path = [p for p in sys.path if "seo_auditor" not in p.replace("\\\\", "/")]
 from fastapi.testclient import TestClient
 from app.api import routes
 from app.main import app
+from app.models.session_model import SessionStore
 
-routes.active_sessions["probe"] = {
-    "executive_summary": {"health_score": {"score": 1, "grade": "A"}},
-    "pages": [{"url": "https://example.com/"}],
-    "recommendations": [],
-    "broken_links": [],
-}
+import tempfile
+store = SessionStore(session_dir=tempfile.mkdtemp())
+store.open_session("probe").set_summary({
+    "url": "https://example.com/",
+    "timestamp": "2026-08-17T00:00:00Z",
+    "saved_at": 1,
+    "auditResult": {
+        "executive_summary": {"health_score": {"score": 1, "grade": "A"}},
+        "pages": [{"url": "https://example.com/"}],
+        "recommendations": [],
+        "broken_links": [],
+    },
+})
+routes.session_store = store
 resp = TestClient(app).get("/api/export/json?session_id=probe")
 print("STATUS", resp.status_code)
 """

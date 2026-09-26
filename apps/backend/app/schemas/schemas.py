@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -7,7 +8,10 @@ from pydantic import BaseModel, Field
 # ran past 20 minutes at 98% CPU, and the payload would have been ~110 MB, which
 # no browser tab handles. Refuse out-of-range requests immediately with a 422
 # rather than accepting work that cannot finish.
-MAX_PAGES_LIMIT = 1000
+# 5000 is the Full Site Crawl preset. Configurable because the 1 GB
+# E2.1.Micro shape documented as an alternative in docs/deployment-oracle.md
+# cannot hold a crawl this size.
+MAX_PAGES_LIMIT = int(os.getenv("MAX_PAGES_LIMIT", "5000"))
 
 
 class RankTarget(BaseModel):
