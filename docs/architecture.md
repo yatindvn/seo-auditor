@@ -7,7 +7,7 @@ flowchart TD
     Backend["Express Backend Server (apps/backend)"]
     WsServer["WebSocket Server"]
     AuditService["Audit Service"]
-    PythonEngine["Python seo_auditor Engine"]
+    PythonEngine["Python audit engine (app/)"]
     RankChecker["RankChecker (app/seo/rank_checker.py)"]
     KeywordSuggestions["KeywordSuggestions (app/seo/keyword_suggestions.py)"]
     GoogleCSE["Google Custom Search API (external)"]
@@ -37,7 +37,8 @@ flowchart TD
 
 2. **Backend App (`apps/backend`)**:
    - Express REST API server + `ws` WebSocket server.
-   - Invokes Python `seo_auditor` engine asynchronously for high-performance BFS crawling and SEO scoring.
+   - Runs the Python audit engine in `app/` for BFS crawling and SEO scoring. The same engine backs the
+     command line (`python -m app.cli`); it is no longer duplicated in a separate CLI package.
    - `RankChecker` and `KeywordSuggestions` are the only components that call external services beyond the crawl target itself: the official Google Custom Search JSON API (100 free queries/day, cached and quota-limited) and the unofficial Google Autocomplete endpoint (best-effort, failures are swallowed at debug level). Both are off by default and the audit succeeds identically without them configured. Note the gating is per-component, not per-feature: `enable_rank_check` gates `RankChecker`/Google CSE, and `enable_keyword_suggestions` — not `enable_keyword_analysis` — gates `KeywordSuggestions`/Google Autocomplete. `enable_keyword_analysis` only controls on-page keyword *extraction*, which is pure local computation and makes no external calls of its own.
 
 3. **Shared Package (`packages/shared`)**:
