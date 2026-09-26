@@ -20,6 +20,14 @@ COPY app ./app
 # Run as a non-root user. The crawler fetches arbitrary attacker-influenced URLs
 # and parses their HTML, so this process should hold no privileges it never needs.
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+
+# The session volume mounts at /data/sessions. This directory has to exist in
+# the image, owned by appuser: Docker copies an image path's ownership onto a
+# fresh named volume, and without it the volume is created root-owned, leaving
+# the non-root process unable to write a single audit -- a failure that appears
+# only on a real deployment with a volume attached, never in local runs.
+RUN mkdir -p /data/sessions && chown -R appuser:appuser /data
+
 USER appuser
 
 EXPOSE 8000

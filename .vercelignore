@@ -31,3 +31,4 @@ apps/backend/pytest.ini
 deploy/
 docs/
 scripts/
+apps/backend/sessions/
