@@ -184,3 +184,131 @@ def build_page_level_report(crawler, all_page_issues, page_meta: Dict[str, Dict]
             "keyword_analysis": meta.get("keyword_analysis"),
         })
     return rows
+
+
+# --- Export writers ---------------------------------------------------------
+#
+# Moved here from the deleted CLI package, which owned them while GET
+# /api/export/{fmt} imported them at request time under whichever of two names
+# happened to resolve. app/ owns them now.
+#
+# Each takes `path`: write to it when given, and return the bytes either way.
+# openpyxl and reportlab stay imported inside their functions -- both are heavy,
+# and only two of the five formats need them.
+def export_json(path, data):
+    import json
+    js = json.dumps(data, indent=2)
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(js)
+    return js.encode("utf-8")
+
+
+def export_csv(path, page_rows):
+    import io, csv
+    output = io.StringIO()
+    if not page_rows:
+        return b""
+    writer = csv.DictWriter(output, fieldnames=page_rows[0].keys())
+    writer.writeheader()
+    for row in page_rows:
+        writer.writerow({k: str(v) for k, v in row.items()})
+    csv_str = output.getvalue()
+    if path:
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(csv_str)
+    return csv_str.encode("utf-8")
+
+
+def export_excel(path, sheets_dict):
+    import io
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.remove(wb.active)  # remove default sheet
+    for sheet_name, rows in sheets_dict.items():
+        ws = wb.create_sheet(title=sheet_name[:31])
+        if rows:
+            if isinstance(rows[0], dict):
+                headers = list(rows[0].keys())
+                ws.append(headers)
+                for row in rows:
+                    ws.append([str(row.get(h, "")) for h in headers])
+            else:
+                for row in rows:
+                    ws.append(list(row) if isinstance(row, (list, tuple)) else [str(row)])
+    
+    if path:
+        wb.save(path)
+        return b""
+    else:
+        out = io.BytesIO()
+        wb.save(out)
+        return out.getvalue()
+
+
+def export_pdf_summary(path, exec_summary):
+    import io
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    
+    out = io.BytesIO() if not path else path
+    c = canvas.Canvas(out, pagesize=letter)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, 750, "SEO Audit Executive Summary")
+    c.setFont("Helvetica", 12)
+    
+    y = 710
+    health = exec_summary.get("health_score", {})
+    lines = [
+        f"Audit Date: {exec_summary.get('audit_date')}",
+        f"Start URL: {exec_summary.get('start_url')}",
+        f"Pages Crawled: {exec_summary.get('pages_crawled')}",
+        f"Health Score: {health.get('score', 0)} / 100 (Grade {health.get('grade', 'N/A')})",
+        f"Critical Issues: {health.get('critical_issues', 0)}",
+        f"Warnings: {health.get('warning_issues', 0)}",
+        f"Info: {health.get('info_issues', 0)}",
+        f"Orphan Pages: {exec_summary.get('orphan_pages', 0)}",
+        f"Broken Links: {exec_summary.get('broken_links', 0)}",
+    ]
+    
+    for line in lines:
+        c.drawString(50, y, line)
+        y -= 20
+        
+    c.setFont("Helvetica-Bold", 14)
+    y -= 20
+    c.drawString(50, y, "Top Recommendations")
+    y -= 20
+    
+    c.setFont("Helvetica", 10)
+    for i, rec in enumerate(exec_summary.get("top_recommendations", [])[:10], 1):
+        if y < 50:
+            c.showPage()
+            y = 750
+            c.setFont("Helvetica", 10)
+        text = f"{i}. [{rec.get('severity', '').upper()}] {rec.get('recommendation')} ({rec.get('affected_pages')} pages)"
+        c.drawString(50, y, text[:100] + ("..." if len(text) > 100 else ""))
+        y -= 20
+
+    c.save()
+    if not path:
+        return out.getvalue()
+    return b""
+
+
+def export_html_report(path, exec_summary, pages):
+    html = f"<html><head><title>SEO Audit Report</title></head><body>"
+    html += f"<h1>SEO Audit Report: {exec_summary.get('start_url')}</h1>"
+    health = exec_summary.get("health_score", {})
+    html += f"<p><strong>Health Score:</strong> {health.get('score', 0)} (Grade {health.get('grade', 'N/A')})</p>"
+    html += f"<p><strong>Pages Crawled:</strong> {exec_summary.get('pages_crawled')}</p>"
+    html += f"<h2>Top Recommendations</h2><ul>"
+    for rec in exec_summary.get("top_recommendations", []):
+        html += f"<li>[{rec.get('severity', '').upper()}] {rec.get('recommendation')} ({rec.get('affected_pages')} pages)</li>"
+    html += f"</ul>"
+    html += "</body></html>"
+    
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+    return html.encode("utf-8")

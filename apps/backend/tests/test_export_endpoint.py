@@ -165,3 +165,32 @@ def test_export_import_resolves_without_the_cli_root_on_syspath():
         "export failed with the CLI root off sys.path — the layout the server "
         f"actually runs in.\nstdout: {proc.stdout}\nstderr: {proc.stderr[-2000:]}"
     )
+
+
+# --- The writers now live in app/, not in the CLI package -------------------
+
+
+def test_export_writers_are_importable_from_the_app_package():
+    """The export writers lived in the CLI package, reached through a
+    ModuleNotFoundError fallback because that package resolves under two names
+    depending on how it is on the path. Owning them in app/ deletes the hack."""
+    from app.utils.report import (
+        export_csv, export_excel, export_html_report, export_json, export_pdf_summary,
+    )
+
+    assert callable(export_json)
+    assert callable(export_csv)
+    assert callable(export_excel)
+    assert callable(export_pdf_summary)
+    assert callable(export_html_report)
+
+
+def test_export_csv_returns_bytes_when_no_path_given():
+    """Pins the writers' contract as the endpoint uses it: path=None means
+    "hand the bytes back" rather than "write to disk"."""
+    from app.utils.report import export_csv
+
+    data = export_csv(None, [{"url": "https://example.com/", "status_code": 200}])
+
+    assert isinstance(data, bytes)
+    assert b"https://example.com/" in data
