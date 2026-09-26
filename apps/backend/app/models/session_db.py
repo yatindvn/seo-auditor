@@ -17,6 +17,7 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS pages (
@@ -44,7 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_pages_depth ON pages(depth);
 # from a query parameter cannot become SQL.
 SORTABLE = {
     "url", "depth", "status", "word_count", "response_time_ms",
-    "internal_links_count", "issue_count",
+    "internal_links_count", "external_links_count", "issue_count",
 }
 
 PAGE_COLUMNS = [
@@ -221,3 +222,102 @@ class SessionDB:
 
     def close(self) -> None:
         self._conn.close()
+
+    # ------------------------------------------------------------- clusters
+    #
+    # A node per page is ~5000 nodes and a few hundred thousand edges at the
+    # Full Site Crawl preset, which no browser draws interactively. Pages group
+    # by their first path segment -- which is also how people describe their own
+    # sites -- and a cluster expands on demand.
+
+    @staticmethod
+    def _segment_of(url: str, start_url: str) -> str:
+        """The cluster a URL belongs to.
+
+        The start URL anchors the graph and is never folded into a cluster, and
+        a URL with no path segment has nothing else to group on.
+        """
+        if url.rstrip("/") == start_url.rstrip("/"):
+            return "home"
+        path = urlsplit(url).path.strip("/")
+        if not path:
+            return "home"
+        return "/" + path.split("/")[0]
+
+    def get_clusters(self, start_url: str, max_clusters: int = 60) -> List[Dict[str, Any]]:
+        """Cluster nodes, largest first, with the tail collapsed into `other`."""
+        grouped: Dict[str, List[str]] = {}
+        for row in self._conn.execute("SELECT url FROM pages"):
+            grouped.setdefault(self._segment_of(row["url"], start_url), []).append(row["url"])
+
+        home = grouped.pop("home", None)
+        ordered = sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0]))
+
+        clusters: List[Dict[str, Any]] = []
+        if home:
+            clusters.append({
+                "id": "home", "label": "home", "count": len(home),
+                "url": start_url, "is_page": len(home) == 1,
+            })
+
+        for segment, urls in ordered[:max_clusters]:
+            clusters.append({
+                "id": segment,
+                "label": segment,
+                "count": len(urls),
+                # A cluster standing for one page adds a click and says nothing,
+                # so it is rendered as that page.
+                "url": urls[0] if len(urls) == 1 else None,
+                "is_page": len(urls) == 1,
+            })
+
+        leftover = ordered[max_clusters:]
+        if leftover:
+            clusters.append({
+                "id": "other",
+                "label": f"other ({len(leftover)} sections)",
+                "count": sum(len(urls) for _, urls in leftover),
+                "url": None,
+                "is_page": False,
+            })
+        return clusters
+
+    def get_cluster_edges(self, start_url: str) -> List[Dict[str, Any]]:
+        """Links between clusters, weighted by how many page links they stand
+        for. Self-edges are dropped: a cluster linking to itself is the normal
+        state of any section and tells the viewer nothing."""
+        weights: Dict[Tuple[str, str], int] = {}
+        for row in self._conn.execute("SELECT src, dst FROM links WHERE internal = 1"):
+            source = self._segment_of(row["src"], start_url)
+            target = self._segment_of(row["dst"], start_url)
+            if source == target:
+                continue
+            weights[(source, target)] = weights.get((source, target), 0) + 1
+        return [
+            {"source": source, "target": target, "weight": weight}
+            for (source, target), weight in sorted(weights.items())
+        ]
+
+    def get_cluster_pages(self, start_url: str, segment: str):
+        """One cluster's pages and the edges among them.
+
+        Edges leaving the cluster are left out: the other clusters are still
+        collapsed, so an edge to one of them has no node to land on.
+        """
+        members = [
+            row["url"] for row in self._conn.execute("SELECT url FROM pages")
+            if self._segment_of(row["url"], start_url) == segment
+        ]
+        if not members:
+            return [], []
+
+        member_set = set(members)
+        nodes = [self._row_to_page(row) for row in self._conn.execute(
+            f"SELECT * FROM pages WHERE url IN ({','.join('?' * len(members))})", members
+        )]
+        links = [
+            {"source": row["src"], "target": row["dst"]}
+            for row in self._conn.execute("SELECT src, dst FROM links WHERE internal = 1")
+            if row["src"] in member_set and row["dst"] in member_set
+        ]
+        return nodes, links

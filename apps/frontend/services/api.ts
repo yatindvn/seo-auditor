@@ -1,4 +1,5 @@
 import { AuditRequestParams, AuditResponse } from "@seo-auditor/shared";
+import type { Paginated } from "@/lib/api-hooks";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
 const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || process.env.VITE_WS_URL || "ws://localhost:5000/ws";
@@ -27,21 +28,52 @@ export class ApiService {
     return res.json();
   }
 
-  public static async getPages(sessionId: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE_URL}/api/pages?session_id=${sessionId}`);
-    if (!res.ok) return [];
+  // These endpoints return a window of rows plus the unpaginated total, rather
+  // than every row at once. A failure throws instead of returning an empty
+  // list: an empty table and a failed request look identical to the reader,
+  // and only one of them is true.
+  private static async getPaginated(path: string, params: Record<string, unknown>): Promise<Paginated<any>> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== "") query.set(key, String(value));
+    }
+    const res = await fetch(`${API_BASE_URL}${path}?${query.toString()}`);
+    if (!res.ok) {
+      const detail = await res.json().catch(() => null);
+      throw new Error(detail?.detail || `Request failed with status ${res.status}`);
+    }
     return res.json();
   }
 
-  public static async getIssues(sessionId: string): Promise<any[]> {
-    const res = await fetch(`${API_BASE_URL}/api/issues?session_id=${sessionId}`);
-    if (!res.ok) return [];
-    return res.json();
+  public static getPages(
+    sessionId: string,
+    options: {
+      offset?: number; limit?: number; sort?: string; order?: "asc" | "desc";
+      filter?: string; status?: number; has_issues?: boolean;
+    } = {},
+  ): Promise<Paginated<any>> {
+    return ApiService.getPaginated("/api/pages", { session_id: sessionId, ...options });
   }
 
-  public static async getArchitecture(sessionId: string): Promise<any> {
-    const res = await fetch(`${API_BASE_URL}/api/architecture?session_id=${sessionId}`);
-    if (!res.ok) return { nodes: [], links: [] };
+  public static getIssues(
+    sessionId: string,
+    options: { offset?: number; limit?: number; severity?: string; code?: string } = {},
+  ): Promise<Paginated<any>> {
+    return ApiService.getPaginated("/api/issues", { session_id: sessionId, ...options });
+  }
+
+  public static getDuplicates(
+    sessionId: string,
+    options: { offset?: number; limit?: number } = {},
+  ): Promise<Paginated<any> & { mode?: string }> {
+    return ApiService.getPaginated("/api/duplicates", { session_id: sessionId, ...options });
+  }
+
+  public static async getArchitecture(sessionId: string, expand?: string): Promise<any> {
+    const query = new URLSearchParams({ session_id: sessionId });
+    if (expand) query.set("expand", expand);
+    const res = await fetch(`${API_BASE_URL}/api/architecture?${query.toString()}`);
+    if (!res.ok) return { clustered: true, nodes: [], links: [] };
     return res.json();
   }
 

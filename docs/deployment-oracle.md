@@ -7,13 +7,13 @@ process on a real VM.
 
 ## Why a VM, and why exactly one instance
 
-Every piece of audit state lives in memory:
+Finished audits are SQLite files under `SESSION_DIR`, on the volume declared in
+`deploy/oracle/docker-compose.yml`, so history survives a container rebuild. The
+state that is still in memory is the state of a crawl *in progress*:
 
 | State | Location |
 | --- | --- |
-| `active_sessions` | `apps/backend/app/api/routes.py:16` |
-| `active_crawlers` | `apps/backend/app/services/audit_service.py:17` |
-| Audit history (in-memory list, capped at 50) | `apps/backend/app/models/session_model.py:7` |
+| `active_crawlers` | `apps/backend/app/services/audit_service.py` |
 | Rank cache + daily CSE quota counter | `apps/backend/app/seo/rank_checker.py:69` |
 | Live WebSocket connections | `apps/backend/app/websocket/ws_manager.py:9` |
 
@@ -139,11 +139,20 @@ Redeploy the frontend for the variables to take effect.
 
 ## Operating it
 
-**Memory.** `PageResult` retains each page's full HTML
-(`apps/backend/app/crawler/crawler.py:61`) for the whole crawl, and `max_pages`
-is capped at 1000 (MAX_PAGES_LIMIT). On a 1 GB E2.1.Micro, keep crawls to a few
-hundred pages. On
-a 12 GB A1 there is far more headroom, but the ceiling is still real.
+**Memory.** Each page's HTML is released as soon as its analysis has been
+submitted, so resident memory no longer grows with the crawl. `max_pages` is
+capped at 5000 (`MAX_PAGES_LIMIT`), and a crawl that size assumes the 2 OCPU /
+12 GB A1 shape this document recommends.
+
+On a 1 GB E2.1.Micro that ceiling is too high: set `MAX_PAGES_LIMIT` to
+something a gigabyte can hold — a few hundred — since the cap is read from the
+environment precisely so a smaller shape can lower it.
+
+**CPU.** The per-page checks run in a process pool sized to the core count, so
+they overlap the crawl rather than following it. That makes the checks the
+critical path rather than the network: on 2 OCPUs a 5000-page crawl is expected
+to take roughly 5–10 minutes. Verify with `python perf/crawl_harness.py` before
+trusting that figure on a new shape.
 
 **Crawling from a cloud IP.** Some sites rate-limit or block datacenter ranges.
 If crawls start failing against a specific target, this is a likely cause.

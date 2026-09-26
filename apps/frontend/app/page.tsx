@@ -66,29 +66,12 @@ const PRESETS = [
     id: "full",
     name: "Full Site Crawl",
     icon: Globe,
-    pages: 1000,
+    pages: 5000,
     depth: 15,
     desc: "Enterprise, ecommerce, large docs",
     color: "text-rose-500",
     bg: "bg-rose-500/10",
     border: "border-rose-500/30",
-    // TEMPORARILY DISABLED.
-    //
-    // Near-duplicate detection is O(n^2) by design -- see the docstring on
-    // `near_duplicate_content` in apps/backend/app/analysis/analysis.py:103,
-    // which states it is "fine for a few hundred pages, not designed for huge
-    // sites". At 5000 pages that is ~12.5 million pairwise Jaccard comparisons
-    // over per-page shingle sets. Observed in production: the crawl finished in
-    // 696s, then the analysis pinned a single CPU core at ~99% and never
-    // returned, so /api/audit/latest kept answering 404 and the dashboard never
-    // appeared. The resulting payload would also be ~100 MB of JSON, since 100
-    // pages already produces 2.36 MB.
-    //
-    // The config above is left intact rather than deleted. To re-enable, remove
-    // these two lines -- but fix the quadratic analysis first, or the same hang
-    // returns.
-    disabled: true,
-    disabledReason: "Full Site Crawl is temporarily closed - large crawls are being optimised",
   }
 ];
 
@@ -113,9 +96,7 @@ export default function LandingPage() {
   // Sync preset values
   const handlePresetSelect = (presetId: string) => {
     const preset = PRESETS.find(p => p.id === presetId);
-    // A disabled preset must not apply its page/depth values even if the click
-    // somehow lands -- the button is also disabled in the markup below.
-    if (preset && !preset.disabled) {
+    if (preset) {
       setSelectedPreset(presetId);
       setMaxPages(preset.pages);
       setMaxDepth(preset.depth);
@@ -171,9 +152,11 @@ export default function LandingPage() {
       const rankTargets = buildRankTargets(rankRows);
       const data = await ApiService.runAudit({
         url: url.trim(),
-        // Mirrors MAX_PAGES_LIMIT in apps/backend/app/schemas/schemas.py; above it
-        // the API returns 422, and beyond ~1000 pages the audit cannot finish usefully.
-        max_pages: Math.min(Math.max(maxPages, 1), 1000),
+        // Mirrors MAX_PAGES_LIMIT in apps/backend/app/schemas/schemas.py, above
+        // which the API returns 422. That ceiling is configurable there, so a
+        // deployment can lower it; this clamp only stops the slider sending
+        // something the default refuses.
+        max_pages: Math.min(Math.max(maxPages, 1), 5000),
         max_depth: Math.min(Math.max(maxDepth, 0), 15),
         ignore_robots: ignoreRobots,
         ...(rankTargets.length > 0 && {
@@ -247,28 +230,16 @@ export default function LandingPage() {
                   key={p.id}
                   type="button"
                   onClick={() => handlePresetSelect(p.id)}
-                  disabled={isLoading || p.disabled}
-                  aria-disabled={p.disabled || undefined}
-                  // Native title rather than a tooltip component: this repo has no
-                  // tooltip primitive in components/ui, and title works on hover
-                  // for a disabled button without adding a dependency.
-                  title={p.disabled ? p.disabledReason : undefined}
+                  disabled={isLoading}
                   className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border p-4 transition-all text-center ${
-                    p.disabled
-                      ? 'border-border/40 bg-muted/10 opacity-50 cursor-not-allowed'
-                      : selectedPreset === p.id
-                        ? `${p.border} ${p.bg} ring-2 ring-primary/20 shadow-md`
-                        : 'border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border'
+                    selectedPreset === p.id
+                      ? `${p.border} ${p.bg} ring-2 ring-primary/20 shadow-md`
+                      : 'border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border'
                   }`}
                 >
-                  {p.badge && !p.disabled && (
+                  {p.badge && (
                     <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-sm shadow-sm">
                       {p.badge}
-                    </span>
-                  )}
-                  {p.disabled && (
-                    <span className="absolute -top-2 -right-2 bg-muted-foreground/80 text-background text-[9px] font-bold px-1.5 py-0.5 rounded-sm shadow-sm">
-                      Temporarily closed
                     </span>
                   )}
                   <p.icon className={`h-6 w-6 ${selectedPreset === p.id ? p.color : 'text-muted-foreground'}`} />
@@ -284,7 +255,7 @@ export default function LandingPage() {
               <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 flex items-start gap-3 mt-2 text-rose-600 dark:text-rose-400">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                 <p className="text-xs leading-relaxed font-medium">
-                  <strong>Enterprise Warning:</strong> Full Site Crawls can execute up to 5,000 pages and take significant backend processing time and memory.
+                  <strong>Enterprise crawl:</strong> up to 5,000 pages, roughly 5&ndash;10 minutes. Cross-page panels summarise a sample of the crawl; the pages table and exports cover every page.
                 </p>
               </div>
             )}
@@ -325,13 +296,13 @@ export default function LandingPage() {
                     </label>
                     <input 
                       type="range" 
-                      min="10" max="1000" step="10"
+                      min="10" max="5000" step="10"
                       value={maxPages} 
                       onChange={(e) => handleCustomChange('pages', parseInt(e.target.value))}
                       className="w-full accent-primary" 
                     />
                     <div className="flex justify-between text-[9px] text-muted-foreground px-1">
-                      <span>10</span><span>500</span><span>1000</span>
+                      <span>10</span><span>2500</span><span>5000</span>
                     </div>
                   </div>
                   

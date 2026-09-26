@@ -1,11 +1,32 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAudit } from "@/lib/audit-context";
-import { GitFork, Network, Search, Filter, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ApiService } from "@/services/api";
+import { formatNumber } from "@/lib/utils";
+import { GitFork, Network, Search, Filter, ZoomIn, ZoomOut, Maximize, ArrowLeft, AlertTriangle } from "lucide-react";
+
+/** A node as this component draws it, whichever view produced it. */
+interface GraphNode {
+  id: string;
+  label: string;
+  url: string;
+  /** Pages this node stands for: 1 for a page, many for a section. */
+  count: number;
+  /** A section opens; a page opens the drawer. */
+  isSection: boolean;
+  depth?: number;
+  status?: number;
+  inboundCount?: number;
+  outboundCount?: number;
+  isBroken?: boolean;
+  isOrphan?: boolean;
+  isDeadEnd?: boolean;
+  isHub?: boolean;
+}
 
 export function SiteArchitectureGraph() {
-  const { auditData, setSelectedPage } = useAudit();
+  const { activeSessionId, setSelectedPage } = useAudit();
   const [viewMode, setViewMode] = useState<"graph" | "tree">("graph");
   const [filterType, setFilterType] = useState<"all" | "broken" | "orphan" | "deadend" | "hub" | "deep">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,17 +36,90 @@ export function SiteArchitectureGraph() {
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
 
-  const nodes = auditData?.architecture?.nodes || [];
-  const links = auditData?.architecture?.links || [];
+  // Which section is open, or null for the whole site. The graph is fetched
+  // rather than read from the audit payload: that payload carried a node per
+  // page, which is ~5000 nodes and a few hundred thousand edges at the Full
+  // Site Crawl preset -- more than a browser draws interactively.
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [links, setLinks] = useState<Array<{ source: string; target: string }>>([]);
+  const [isClustered, setIsClustered] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+
+    ApiService.getArchitecture(activeSessionId, expanded ?? undefined)
+      .then((graph) => {
+        if (cancelled) return;
+        const clustered = graph.clustered !== false;
+        setIsClustered(clustered);
+        setLinks(graph.links ?? []);
+        setNodes(
+          (graph.nodes ?? []).map((node: any): GraphNode =>
+            clustered
+              ? {
+                  id: node.id,
+                  label: node.label ?? node.id,
+                  url: node.url ?? node.id,
+                  count: node.count ?? 1,
+                  // A section standing for a single page behaves as that page:
+                  // expanding it would add a click and show the same thing.
+                  isSection: !node.is_page,
+                }
+              : {
+                  id: node.url,
+                  label: node.url,
+                  url: node.url,
+                  count: 1,
+                  isSection: false,
+                  depth: node.depth,
+                  status: node.status,
+                  inboundCount: node.internal_links_count,
+                  outboundCount: node.external_links_count,
+                  isBroken: typeof node.status === "number" && node.status >= 400,
+                },
+          ),
+        );
+        setLoadError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        // Said rather than swallowed: an empty canvas and a failed request look
+        // the same, and only one of them is true.
+        setLoadError(err instanceof Error ? err.message : String(err));
+        setNodes([]);
+        setLinks([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, expanded]);
+
+  const openNode = useCallback((node: GraphNode) => {
+    if (node.isSection) {
+      setExpanded(node.id);
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+      return;
+    }
+    setSelectedPage({ url: node.url } as any);
+  }, [setSelectedPage]);
 
   const filteredNodes = nodes.filter((node) => {
-    const matchesSearch = node.url.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = node.url.toLowerCase().includes(searchQuery.toLowerCase())
+      || node.label.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
+    // The page-level filters have nothing to say about a section: a section is
+    // neither broken nor orphaned, and claiming otherwise would be a guess.
+    if (isClustered) return true;
     if (filterType === "broken") return node.isBroken;
     if (filterType === "orphan") return node.isOrphan;
     if (filterType === "deadend") return node.isDeadEnd;
     if (filterType === "hub") return node.isHub;
-    if (filterType === "deep") return node.depth >= 3;
+    if (filterType === "deep") return (node.depth ?? 0) >= 3;
     return true;
   });
 
@@ -109,7 +203,16 @@ export function SiteArchitectureGraph() {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+        {expanded && (
+          <button
+            onClick={() => setExpanded(null)}
+            className="flex items-center gap-1.5 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> All sections
+          </button>
+        )}
+
+        <div className={`flex items-center gap-1.5 overflow-x-auto text-xs ${isClustered ? "hidden" : ""}`}>
           <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           {(["all", "broken", "orphan", "deadend", "hub", "deep"] as const).map((type) => (
             <button
@@ -131,8 +234,17 @@ export function SiteArchitectureGraph() {
       <div className="relative h-[450px] w-full overflow-hidden rounded-xl border border-border/60 bg-gradient-to-b from-background/90 to-muted/20 p-0 group">
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground p-4">
-            <Network className="mb-2 h-8 w-8 opacity-40" />
-            <p className="text-xs">No architecture node graph data available yet.</p>
+            {loadError ? (
+              <>
+                <AlertTriangle className="mb-2 h-8 w-8 opacity-40 text-rose-500" />
+                <p className="text-xs">Could not load the site graph — {loadError}</p>
+              </>
+            ) : (
+              <>
+                <Network className="mb-2 h-8 w-8 opacity-40" />
+                <p className="text-xs">No architecture node graph data available yet.</p>
+              </>
+            )}
           </div>
         ) : viewMode === "graph" ? (
           <>
@@ -148,9 +260,9 @@ export function SiteArchitectureGraph() {
                 <Maximize className="h-4 w-4" />
               </button>
             </div>
-            
+
             {/* SVG Interactive Topology Canvas */}
-            <svg 
+            <svg
               className={`h-full w-full outline-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -164,7 +276,7 @@ export function SiteArchitectureGraph() {
                   const srcNode = nodes.find((n) => n.id === link.source);
                   const tgtNode = nodes.find((n) => n.id === link.target);
                   if (!srcNode || !tgtNode) return null;
-                  
+
                   // Keep the same mock layout generation logic as before
                   const srcIdx = nodes.indexOf(srcNode);
                   const tgtIdx = nodes.indexOf(tgtNode);
@@ -188,7 +300,7 @@ export function SiteArchitectureGraph() {
                 })}
 
                 {/* Draw Nodes */}
-                {filteredNodes.slice(0, 200).map((node, idx) => {
+                {filteredNodes.slice(0, 200).map((node) => {
                   const nodeIdx = nodes.indexOf(node);
                   const x = 50 + (nodeIdx * 140) % 800;
                   const y = 50 + (nodeIdx * 60) % 400;
@@ -197,22 +309,30 @@ export function SiteArchitectureGraph() {
                   else if (node.isOrphan) fill = "#a855f7"; // purple
                   else if (node.isDeadEnd) fill = "#f97316"; // orange
                   else if (node.isHub) fill = "#10b981"; // green
+                  else if (node.isSection) fill = "#6366f1"; // indigo: a section
+
+                  // Sections are sized by the pages they stand for, so a 2,800
+                  // page section does not look like a 6 page one. Square-rooted
+                  // because area, not radius, is what the eye compares.
+                  const radius = node.isSection
+                    ? Math.min(34, 14 + Math.sqrt(node.count) * 1.4)
+                    : 14;
 
                   return (
-                    <g 
-                      key={node.id} 
-                      transform={`translate(${x}, ${y})`} 
+                    <g
+                      key={node.id}
+                      data-testid="graph-node"
+                      transform={`translate(${x}, ${y})`}
                       className="cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
-                        // Support double click to open Drawer? Using onClick for simplicity
-                        setSelectedPage({ url: node.url } as any);
+                        openNode(node);
                       }}
                     >
-                      <circle r={14 / scale} fill={fill} fillOpacity="0.2" stroke={fill} strokeWidth={2 / scale} />
+                      <circle r={radius / scale} fill={fill} fillOpacity="0.2" stroke={fill} strokeWidth={2 / scale} />
                       <circle r={6 / scale} fill={fill} />
                       <text
-                        x={18 / scale}
+                        x={(radius + 6) / scale}
                         y={4 / scale}
                         fill="currentColor"
                         fontSize={10 / scale}
@@ -221,6 +341,17 @@ export function SiteArchitectureGraph() {
                       >
                         {node.label.length > 35 ? node.label.substring(0, 32) + "…" : node.label}
                       </text>
+                      {node.isSection && (
+                        <text
+                          x={(radius + 6) / scale}
+                          y={16 / scale}
+                          fill="currentColor"
+                          fontSize={9 / scale}
+                          className="opacity-60"
+                        >
+                          {formatNumber(node.count)} pages
+                        </text>
+                      )}
                     </g>
                   );
                 })}
@@ -234,7 +365,7 @@ export function SiteArchitectureGraph() {
               <div
                 key={node.id}
                 className="flex items-center justify-between rounded-lg border border-border/40 bg-card/60 px-3 py-2 hover:bg-muted/50 cursor-pointer"
-                onClick={() => setSelectedPage({ url: node.url } as any)}
+                onClick={() => openNode(node)}
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
@@ -253,9 +384,17 @@ export function SiteArchitectureGraph() {
                   <span className="font-mono truncate">{node.url}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 text-[10px] text-muted-foreground">
-                  <span className="font-semibold text-foreground/70">Depth {node.depth}</span>
-                  <span>In: {node.inboundCount}</span>
-                  <span>Out: {node.outboundCount}</span>
+                  {node.isSection ? (
+                    <span className="font-semibold text-foreground/70">
+                      {formatNumber(node.count)} pages
+                    </span>
+                  ) : (
+                    <>
+                      <span className="font-semibold text-foreground/70">Depth {node.depth ?? 0}</span>
+                      <span>In: {node.inboundCount ?? 0}</span>
+                      <span>Out: {node.outboundCount ?? 0}</span>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

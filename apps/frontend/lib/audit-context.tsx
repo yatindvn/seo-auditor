@@ -23,6 +23,13 @@ interface AuditContextType {
   activeSessionId: string | null;
   startNewAudit: (sessionId: string) => void;
 
+  // A bounded window of page rows, for the panels that summarise across pages.
+  // The audit payload no longer carries every row -- at 5000 pages that is tens
+  // of megabytes -- so these panels read a sample and say so when there is more.
+  pageSample: PageItem[];
+  pageSampleTotal: number;
+  isPageSampleComplete: boolean;
+
   // Real-time Live Crawl State
   liveCrawlMetrics: CrawlStatus | null;
   activityLog: ActivityLogEvent[];
@@ -36,6 +43,44 @@ interface AuditContextType {
 const AuditContext = createContext<AuditContextType | undefined>(undefined);
 const STORAGE_KEY = "seo_auditor_latest_results";
 
+// How many rows the cross-page panels load. They summarise rather than list, so
+// they do not need every row; the table that does list them pages the server
+// instead. Ordered by crawl depth so the sample is the top of the site rather
+// than whichever pages happened to score worst.
+const PAGE_SAMPLE_SIZE = 200;
+
+interface PersistedState {
+  sessionId: string | null;
+  summary: AuditResponse | null;
+}
+
+function readPersisted(): PersistedState | null {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    return saved ? (JSON.parse(saved) as PersistedState) : null;
+  } catch {
+    // Private mode, blocked site data, or malformed leftovers. The dashboard
+    // works without persistence and must not fail because of it.
+    return null;
+  }
+}
+
+function writePersisted(state: PersistedState): void {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Quota or blocked storage: losing the restore is acceptable, crashing is not.
+  }
+}
+
+function clearPersisted(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // As above.
+  }
+}
+
 export function AuditProvider({ children }: { children: React.ReactNode }) {
   const [auditData, setAuditDataState] = useState<AuditResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -47,16 +92,19 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
   const [selectedPage, setSelectedPage] = useState<PageItem | null>(null);
   const [historyComparison, setHistoryComparison] = useState<HistoricalComparison | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [pageSample, setPageSample] = useState<PageItem[]>([]);
+  const [pageSampleTotal, setPageSampleTotal] = useState<number>(0);
 
-  // Restore from sessionStorage on initial load
+  // Restore from sessionStorage on initial load. The session id is restored
+  // with the summary because the panels fetch their own detail now: a summary
+  // without its id leaves them with nothing to ask about.
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setAuditDataState(JSON.parse(saved));
-      }
-    } catch {
-      // Ignore storage errors
+    const saved = readPersisted();
+    if (!saved) return;
+    if (saved.summary) setAuditDataState(saved.summary);
+    if (saved.sessionId) {
+      activeSessionRef.current = saved.sessionId;
+      setActiveSessionId(saved.sessionId);
     }
   }, []);
 
@@ -82,7 +130,7 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
       .then(data => {
         setAuditDataState(data);
         setIsLoading(false);
-        try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+        writePersisted({ sessionId, summary: data });
       })
       .catch(err => {
         // Allow a later crawl:complete or poll to retry this session.
@@ -188,21 +236,42 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
     setActivityLog([]);
     setLivePageRows([]);
     setError(null);
-    sessionStorage.removeItem(STORAGE_KEY);
+    setPageSample([]);
+    setPageSampleTotal(0);
+    clearPersisted();
   };
 
   const setAuditData = (data: AuditResponse | null) => {
     setAuditDataState(data);
     if (data) {
-      try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      } catch {
-        // Ignore storage quota errors
-      }
+      writePersisted({ sessionId: activeSessionRef.current, summary: data });
     } else {
-      sessionStorage.removeItem(STORAGE_KEY);
+      clearPersisted();
     }
   };
+
+  // Loaded once per finished audit, not per panel: eight panels summarise
+  // across pages and would otherwise each fetch the same window.
+  useEffect(() => {
+    if (!activeSessionId || !auditData) {
+      return;
+    }
+    let cancelled = false;
+    ApiService.getPages(activeSessionId, { limit: PAGE_SAMPLE_SIZE, sort: "depth", order: "asc" })
+      .then((page) => {
+        if (cancelled) return;
+        setPageSample(page.items as PageItem[]);
+        setPageSampleTotal(page.total);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPageSample([]);
+        setPageSampleTotal(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, auditData]);
 
   return (
     <AuditContext.Provider
@@ -214,6 +283,9 @@ export function AuditProvider({ children }: { children: React.ReactNode }) {
         error,
         setError,
         activeSessionId,
+        pageSample,
+        pageSampleTotal,
+        isPageSampleComplete: pageSampleTotal <= pageSample.length,
         startNewAudit,
         liveCrawlMetrics,
         activityLog,
