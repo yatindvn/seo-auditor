@@ -39,8 +39,15 @@ class FakeCrawler:
         self.event_callback = None
         self.fetch_calls = []
 
-    def crawl(self, progress_callback=None, event_callback=None):
+    def crawl(self, progress_callback=None, event_callback=None, on_page=None):
         self.event_callback = event_callback
+        # Mirrors the real crawler's observer contract: stage 2 receives each
+        # page through on_page as it completes, not from crawler.results
+        # afterwards. A fake that skipped this would leave every page
+        # unanalysed while looking like a successful crawl.
+        for result in list(self.results.values()):
+            if on_page is not None:
+                on_page(result)
 
     def check_external_links(self, max_check=25):
         pass

@@ -101,15 +101,16 @@ def test_signatures_are_not_computed_for_a_small_crawl():
     must not pay for signatures it will never read."""
     crawler = SpyCrawler()
     crawler.max_pages = 100
-    captured = []
 
-    real_analyze = audit_service.page_pipeline.analyze_page
-    with patch.object(audit_service.page_pipeline, "analyze_page",
-                      side_effect=lambda payload: captured.append(payload) or real_analyze(payload)):
+    # The submit seam, not analyze_page itself: above the pool threshold the
+    # analysis runs in a subprocess, where a patch in this process is invisible.
+    with patch.object(audit_service, "_submit_analysis",
+                      side_effect=audit_service._submit_analysis) as spy:
         _run(crawler)
 
-    assert captured, "analyze_page should have been called"
-    assert all(p.compute_signature is False for p in captured)
+    payloads = [call.args[1] for call in spy.call_args_list]
+    assert payloads, "analyze_page should have been submitted"
+    assert all(p.compute_signature is False for p in payloads)
 
 
 def test_signatures_are_computed_when_the_cap_exceeds_the_exact_path():
@@ -117,15 +118,14 @@ def test_signatures_are_computed_when_the_cap_exceeds_the_exact_path():
     page count is known, so it keys off the cap rather than the realised count."""
     crawler = SpyCrawler()
     crawler.max_pages = 5000
-    captured = []
 
-    real_analyze = audit_service.page_pipeline.analyze_page
-    with patch.object(audit_service.page_pipeline, "analyze_page",
-                      side_effect=lambda payload: captured.append(payload) or real_analyze(payload)):
+    with patch.object(audit_service, "_submit_analysis",
+                      side_effect=audit_service._submit_analysis) as spy:
         _run(crawler)
 
-    assert captured
-    assert all(p.compute_signature is True for p in captured)
+    payloads = [call.args[1] for call in spy.call_args_list]
+    assert payloads
+    assert all(p.compute_signature is True for p in payloads)
 
 
 # --- Crawl concurrency ------------------------------------------------------

@@ -263,11 +263,15 @@ class Crawler:
         had to drain before the next began, so one slow page idled every other
         worker until it finished.
 
-        `on_page`, when given, receives each PageResult as it completes and
-        returns (internal_links, external_links). Stage 2 supplies it so each
-        page's HTML is parsed exactly once, in the worker, rather than again
-        here. Without it the crawler parses the page itself, which is how the
-        CLI and any direct caller still work.
+        `on_page`, when given, observes each PageResult as it completes; its
+        return value is ignored, and it may release the page's markup.
+
+        Stage 2 could instead parse each page once and hand the links back,
+        saving the parse here -- but this loop would then have to block on a
+        worker to learn them, and only one worker would ever be busy. Measured,
+        this parse is 11% of a page's analysis while the parallelism it would
+        forfeit is worth about 50%, so the duplicate parse is the cheaper half
+        of the trade.
         """
         self.event_callback = event_callback
         sequence = itertools.count()
@@ -364,18 +368,22 @@ class Crawler:
         if self.delay:
             time.sleep(self.delay)
 
-        # on_page runs even at the depth limit and even for an empty page: it is
-        # how stage 2 receives the page at all, not merely how links arrive.
         internal_links, external_links = [], []
-        if on_page is not None:
-            internal_links, external_links = on_page(result)
-        elif result.html:
+        if result.html:
             for link in self._extract_links(result.final_url, result.html):
                 normalized = normalize_url(link)
                 if same_registrable_domain(normalized, self.root_netloc):
                     internal_links.append(normalized)
                 else:
                     external_links.append(normalized)
+
+        # Links are read before the observer runs, because stage 2 releases the
+        # page's markup as soon as it has handed it to a worker -- extracting
+        # afterwards would find an empty string and the crawl would stop at the
+        # start URL. on_page runs for every page, including at the depth limit
+        # and for an empty one: it is how stage 2 receives the page at all.
+        if on_page is not None:
+            on_page(result)
 
         self.link_graph[url] = set(internal_links)
         for target in external_links:

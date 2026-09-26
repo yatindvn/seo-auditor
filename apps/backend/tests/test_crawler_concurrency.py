@@ -105,22 +105,33 @@ def test_every_reachable_page_is_still_crawled():
     assert set(results) == {home, *children}
 
 
-def test_on_page_callback_supplies_the_links_when_given():
-    """Stage 2 parses each page once and hands back its links, so the crawler
-    does not parse a second time to find them."""
+def test_on_page_observes_every_page():
+    """Stage 2 receives each page through this callback. Its return value is
+    ignored: it submits the analysis and does not block the crawl on it."""
     home, children, fetch = _site(width=3)
     crawler = Crawler(home, max_pages=10, max_depth=2, respect_robots=False)
     crawler._fetch = fetch
     seen = []
 
-    def on_page(result):
-        seen.append(result.url)
-        return (list(children) if result.url == home else [], [])
+    crawler.crawl(on_page=lambda result: seen.append(result.url))
 
-    crawler.crawl(on_page=on_page)
+    assert set(seen) == {home, *children}
 
-    assert home in seen
-    assert set(children) <= set(seen), "links returned by on_page must be enqueued"
+
+def test_links_are_read_before_the_observer_can_release_the_markup():
+    """Stage 2 clears result.html once the page is on its way to a worker. If
+    the crawler extracted links after that, it would find an empty string and
+    every crawl would stop at the start URL."""
+    home, children, fetch = _site(width=3)
+    crawler = Crawler(home, max_pages=10, max_depth=2, respect_robots=False)
+    crawler._fetch = fetch
+
+    def release_markup(result):
+        result.html = ""
+
+    results = crawler.crawl(on_page=release_markup)
+
+    assert set(results) == {home, *children}
 
 
 def test_without_on_page_the_crawler_still_finds_its_own_links():
