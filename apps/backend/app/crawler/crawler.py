@@ -103,6 +103,11 @@ class Crawler:
         self.results: Dict[str, PageResult] = {}
         
         self.is_paused = False
+        # Links are counted and flushed periodically rather than emitted one
+        # event each: 5000 pages is a few hundred thousand messages, which
+        # stalls the browser long before the crawl finishes.
+        self._link_counts = {"internal": 0, "external": 0}
+        self._last_link_flush = 0.0
         self.is_stopped = False
         self.event_callback = None
         self.link_graph: Dict[str, Set[str]] = {}  # url -> set(linked urls, internal only)
@@ -314,7 +319,25 @@ class Crawler:
                         progress_callback, on_page,
                     )
 
+        self._flush_link_progress(force=True)
         return self.results
+
+    def _flush_link_progress(self, force: bool = False) -> None:
+        """Emit the running link totals, at most once a second.
+
+        `force` is used once the crawl ends: a crawl that finishes inside the
+        flush window would otherwise report a stale total, or none at all.
+        """
+        if not self.event_callback:
+            return
+        now = time.monotonic()
+        if not force and now - self._last_link_flush < 1.0:
+            return
+        self._last_link_flush = now
+        self.event_callback("link_progress", {
+            "internal_total": self._link_counts["internal"],
+            "external_total": self._link_counts["external"],
+        })
 
     def _handle_result(self, future, url, depth, referrer, frontier, sequence,
                        progress_callback, on_page):
@@ -357,6 +380,10 @@ class Crawler:
         self.link_graph[url] = set(internal_links)
         for target in external_links:
             self.external_links.add(target)
+
+        self._link_counts["internal"] += len(internal_links)
+        self._link_counts["external"] += len(external_links)
+        self._flush_link_progress()
 
         if depth >= self.max_depth:
             return

@@ -240,7 +240,9 @@ export interface CrawlStatus {
 
 export interface ActivityLogEvent {
   id: string;
-  type: "page_crawled" | "internal_link" | "external_link" | "broken_link" | "redirect" | "error" | "warning";
+  // link_progress carries a running total rather than one event per link:
+  // 5000 pages is a few hundred thousand per-link messages.
+  type: "page_crawled" | "link_progress" | "broken_link" | "redirect" | "timeout" | "error" | "warning";
   message: string;
   timestamp: string;
   url?: string;

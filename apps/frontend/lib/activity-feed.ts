@@ -22,7 +22,7 @@ export function matchesActivityFilter(
     return false;
   }
   if (filterType !== "all") {
-    if (filterType === "link" && !["internal_link", "external_link"].includes(act.type)) return false;
+    if (filterType === "link" && act.type !== "link_progress") return false;
     if (filterType === "error" && !["broken_link", "timeout"].includes(act.type)) return false;
     if (filterType === "page" && act.type !== "page_crawled") return false;
     if (filterType === "redirect" && act.type !== "redirect") return false;
