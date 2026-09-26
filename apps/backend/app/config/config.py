@@ -15,6 +15,10 @@ HOST = os.getenv("HOST", "0.0.0.0")
 MAX_PAGES_CAP = int(os.getenv("MAX_PAGES", "15"))
 MAX_DEPTH_CAP = int(os.getenv("MAX_DEPTH", "2"))
 CRAWL_TIMEOUT = int(os.getenv("CRAWL_TIMEOUT", "10"))
+# Where per-session SQLite files live, one per audit. A named Docker volume
+# maps here in deploy/oracle/docker-compose.yml so audit history outlives a
+# container rebuild -- it used to be an in-memory list, lost on every deploy.
+SESSION_DIR = Path(os.getenv("SESSION_DIR", "./sessions"))
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 GOOGLE_CSE_DAILY_QUOTA = int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100"))

@@ -20,12 +20,21 @@ services:
       GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE: ${GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE:-3}
       GOOGLE_CSE_CACHE_TTL_HOURS: ${GOOGLE_CSE_CACHE_TTL_HOURS:-24}
       CRAWL_TIMEOUT: ${CRAWL_TIMEOUT:-10}
+      # Audit history lives in SQLite files here. Mounted from a named
+      # volume so it survives a container rebuild -- history used to be an
+      # in-memory list and every deploy erased it.
+      SESSION_DIR: /data/sessions
     # Deliberately NOT published to the host: only Caddy may reach it, so the
     # plaintext port is never exposed to the internet.
     expose:
       - "8000"
-    # All audit state is in process memory, so a replica count above 1 would
-    # serve requests that cannot see it. Never scale this service.
+    volumes:
+      - sessions:/data/sessions
+    # The crawler registry, the rank cache and the live WebSocket connection
+    # list are all in process memory, so a replica count above 1 would serve
+    # requests that cannot see them. Never scale this service. (Finished
+    # audits are on the volume above and would survive; the live ones would
+    # not, which is the half that breaks.)
     deploy:
       replicas: 1
 
@@ -45,5 +54,6 @@ services:
       - backend
 
 volumes:
+  sessions:
   caddy_data:
   caddy_config:
