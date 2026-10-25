@@ -286,3 +286,68 @@ project run goes to each configured channel (Slack, email); the same change is
 never sent twice.
 
 `POST /api/cron/run` now runs due audits **and** due rank checks.
+
+---
+
+## Keywords Explorer & Content Gap
+
+Metrics come from DataForSEO (Google Ads search volume, Labs keyword
+difficulty, Labs ranked keywords) once live; until then every response is a
+**dry run** of made-up data, flagged by `"dry_run": true` (and a first CSV line
+`# DRY RUN — made-up data`). Answers are cached (metrics and difficulty for 30
+days, ranked keywords for 7), so repeats cost nothing. Hitting
+`DATAFORSEO_LABS_DAILY_CAP` returns **429**; a DataForSEO error returns **502**
+with DataForSEO's own status message.
+
+### `POST /api/keywords/explore`
+
+```json
+{"seed": "espresso machine", "country": "US", "language": "en", "cluster": false}
+```
+
+```json
+{"seed": "espresso machine", "country": "US", "language": "en", "dry_run": false,
+ "keywords": [{"keyword": "espresso machine", "source": "seed", "search_volume": 74000,
+               "cpc": 1.2, "competition": "HIGH", "difficulty": 62,
+               "traffic_potential_estimate": 20720}],
+ "clusters": [["espresso machine", "best espresso machine"]], "notes": []}
+```
+
+- Ideas: Google Autocomplete plus People Also Ask from one SERP call, up to 50.
+  `source` is `seed`, `autocomplete` or `people_also_ask`.
+- `traffic_potential_estimate` = search volume × 0.28, the typical click-through
+  rate of the #1 result. **An estimate, not measured traffic.**
+- `cluster: true` groups up to 20 keywords whose top-10 results share at least
+  3 URLs. It costs one SERP call per keyword, under `SERP_DAILY_CAP`.
+
+### `GET /api/keywords/explore.csv?seed=…&country=US&language=en`
+
+Columns: `keyword, source, search_volume, cpc, competition, difficulty, traffic_potential_estimate`.
+
+### `POST /api/projects/{id}/content-gap`
+
+```json
+{"competitors": ["rival.org", "other.net"], "country": "US", "language": "en", "limit": 500}
+```
+
+`competitors` defaults to the project's competitor list (1–5, else 400).
+A keyword is a gap when a competitor ranks it in the **top 20** and the project
+domain does not rank it in the **top 100**.
+
+```json
+{"my_domain": "example.com", "competitors": ["rival.org"], "dry_run": false, "total_gaps": 1,
+ "rows": [{"keyword": "milk frother", "search_volume": 4000, "difficulty": 20, "opportunity": 3200.0,
+           "best_competitor_position": 4,
+           "competitors": {"rival.org": {"position": 4, "url": "https://rival.org/m"}}}]}
+```
+
+- `opportunity` = volume × (100 − difficulty) / 100, with unknown difficulty
+  counted as 50. Rows are sorted by it.
+- `limit` is keywords fetched per domain (max 1000). If you rank for more
+  keywords than `limit`, some of your positions are not seen and a gap can be
+  over-reported. Raise `limit` to tighten it.
+
+### `GET /api/projects/{id}/content-gap.csv?competitor=rival.org&competitor=other.net`
+
+Columns: `keyword, search_volume, difficulty, opportunity, best_competitor_position`,
+then `<competitor> position` and `<competitor> url` per competitor.
