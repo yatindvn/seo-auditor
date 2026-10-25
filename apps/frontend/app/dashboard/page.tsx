@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ApiService } from "@/services/api";
 import { useAudit } from "@/lib/audit-context";
+import { useSessionParam } from "@/lib/session-param";
 import { useKeyboardShortcuts, useCountUp } from "@/hooks/use-ux";
 import { HealthGauge } from "@/components/health-gauge";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
@@ -106,7 +108,9 @@ function mergeSavedLayout(saved: typeof DEFAULT_LAYOUT) {
 export default function DashboardPage() {
   const router = useRouter();
   const { auditData, error, isLoading, activeSessionId, pageSample, pageSampleTotal,
-          isPageSampleComplete } = useAudit();
+          isPageSampleComplete, startNewAudit } = useAudit();
+  // /dashboard?session=<id> opens a saved audit (linked from Site Audit history).
+  useSessionParam(activeSessionId, startNewAudit);
   
   const [isEditMode, setIsEditMode] = useState(false);
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
@@ -322,6 +326,9 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 min-w-0">
               <Globe className="h-5 w-5 shrink-0 text-muted-foreground" />
               <h1 className="text-xl font-bold text-foreground truncate">{start_url}</h1>
+              {auditData.project_id && (
+                <Link href={`/projects/${auditData.project_id}`} className="text-sm text-primary hover:underline">View project</Link>
+              )}
             </div>
           </div>
           <div className="shrink-0">

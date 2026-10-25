@@ -212,6 +212,9 @@ export interface AuditResponse {
   rank_targets?: RankTarget[];
   dedup?: DedupSummary;
   reuse?: ReuseSummary;
+  audit_id?: number | null;
+  project_id?: number | null;
+  persisted?: boolean;
 }
 
 export interface AuditRequestParams {
@@ -310,3 +313,5 @@ export interface CrawlResult {
   data?: AuditResponse;
   error?: string;
 }
+
+export * from "./platform";
