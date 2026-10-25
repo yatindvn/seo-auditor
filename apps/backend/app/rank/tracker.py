@@ -10,6 +10,9 @@ from typing import List, Optional, Sequence, Tuple
 
 from sqlalchemy import select
 
+from app.alerts import rules
+from app.alerts.delivery import deliver
+from app.alerts.notifiers import configured_notifiers
 from app.config import config
 from app.db.engine import get_session_factory
 from app.db.models import Competitor, Keyword, Project, RankCheck, utcnow
@@ -89,9 +92,19 @@ def run_project(project_id: int, now: Optional[datetime] = None, provider=None,
         keywords = session.scalars(
             select(Keyword).where(Keyword.project_id == project_id, Keyword.enabled.is_(True))
             .order_by(Keyword.id)).all()
+        settings = project.alert_settings_json
+        domain = project.domain
         for keyword in keywords:
             check = check_keyword(session, provider, keyword, project.domain, competitors, config.RANK_DEPTH)
             report.checked += 1
             if check.status == "skipped":
                 report.skipped += 1
+                continue
+            previous = previous_real_check(session, keyword.id, check.id)
+            report.changes.extend(rules.evaluate(previous, check, keyword, settings))
+
+    if report.changes:
+        if notifiers is None:
+            notifiers = configured_notifiers()
+        deliver(factory, project_id, domain, report.changes, notifiers, now or utcnow())
     return report
