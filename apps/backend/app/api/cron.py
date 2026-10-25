@@ -25,4 +25,5 @@ def cron_run(background_tasks: BackgroundTasks, authorization: Optional[str] = H
     if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="invalid cron token")
     background_tasks.add_task(jobs.run_due_audits)
+    background_tasks.add_task(jobs.run_due_rank_checks)
     return {"status": "accepted"}

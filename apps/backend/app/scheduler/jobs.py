@@ -16,7 +16,7 @@ from typing import List, Optional
 from sqlalchemy import select, update
 
 from app.db.engine import get_session_factory
-from app.db.models import Project, as_utc, utcnow
+from app.db.models import Keyword, Project, as_utc, utcnow
 
 logger = logging.getLogger("seo_auditor")
 
@@ -31,13 +31,14 @@ def due_projects(session, now: datetime) -> List[Project]:
     ]
 
 
-def claim(session, project_id: int, previous: Optional[datetime], now: datetime) -> bool:
-    """Atomically mark the project as scheduled at `now` -- only if nobody else
-    has since `previous`. Returns whether this caller won."""
-    condition = (Project.last_scheduled_at.is_(None) if previous is None
-                 else Project.last_scheduled_at == previous)
+def claim(session, project_id: int, previous: Optional[datetime], now: datetime,
+          column=None) -> bool:
+    """Atomically mark the project as run at `now` -- only if nobody else has
+    since `previous`. `column` is the timestamp being claimed."""
+    column = column if column is not None else Project.last_scheduled_at
+    condition = column.is_(None) if previous is None else column == previous
     result = session.execute(
-        update(Project).where(Project.id == project_id, condition).values(last_scheduled_at=now)
+        update(Project).where(Project.id == project_id, condition).values({column.key: now})
     )
     session.commit()
     return result.rowcount == 1
@@ -73,11 +74,59 @@ def run_due_audits(now: Optional[datetime] = None, runner=None) -> List[str]:
     return started
 
 
+def due_rank_projects(session, now: datetime) -> List[Project]:
+    has_keyword = select(Keyword.id).where(Keyword.project_id == Project.id,
+                                           Keyword.enabled.is_(True)).exists()
+    projects = session.scalars(select(Project).where(Project.rank_schedule == "daily", has_keyword)).all()
+    return [p for p in projects
+            if p.last_rank_checked_at is None or now - as_utc(p.last_rank_checked_at) >= timedelta(days=1)]
+
+
+def run_due_rank_checks(now: Optional[datetime] = None, runner=None, provider=None,
+                        notifiers=None) -> List[int]:
+    """Daily rank checks. Only with a live provider: dry-run results are made
+    up, and must never become rank history."""
+    from app.providers import registry
+    from app.providers.serp import ProviderSkipped
+
+    if provider is None:
+        try:
+            provider = registry.get_serp_provider()
+        except ProviderSkipped as exc:
+            logger.warning("Scheduled rank checks skipped: %s", exc)
+            return []
+    if not registry.is_live(provider):
+        logger.warning("Scheduled rank checks skipped: no live SERP provider "
+                       "(set SERP_PROVIDER, and SERP_DRY_RUN=false for paid providers)")
+        return []
+    if runner is None:
+        from app.rank.tracker import run_project as runner
+
+    now = now or utcnow()
+    factory = get_session_factory()
+    with factory() as session:
+        due = [(p.id, p.last_rank_checked_at) for p in due_rank_projects(session, now)]
+
+    checked: List[int] = []
+    for project_id, previous in due:
+        with factory() as session:
+            if not claim(session, project_id, previous, now, column=Project.last_rank_checked_at):
+                continue
+        try:
+            runner(project_id, now=now, provider=provider, notifiers=notifiers)
+            checked.append(project_id)
+        except Exception as exc:
+            logger.error("Scheduled rank check of project %s failed: %s", project_id, exc, exc_info=exc)
+    return checked
+
+
 def start_scheduler():
     from apscheduler.schedulers.background import BackgroundScheduler
 
     scheduler = BackgroundScheduler(timezone="UTC")
     scheduler.add_job(run_due_audits, "interval", minutes=15, id="run_due_audits",
+                      max_instances=1, coalesce=True)
+    scheduler.add_job(run_due_rank_checks, "interval", minutes=15, id="run_due_rank_checks",
                       max_instances=1, coalesce=True)
     scheduler.start()
     return scheduler
