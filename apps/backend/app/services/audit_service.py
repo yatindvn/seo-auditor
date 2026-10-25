@@ -5,8 +5,9 @@ import time
 import asyncio
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any, Dict, List, Optional
-from app.crawler.crawler import Crawler
+from app.crawler.crawler import Crawler, Validators
 from app.auditor import checks
+from app.models import page_cache
 from app.analysis import analysis
 from app.ai import ai_suggestions
 from app.utils import performance, report
@@ -81,6 +82,14 @@ def _match_rank_target(page_url: str, rank_targets: Optional[List[Any]]) -> Opti
     return None
 
 
+def _header(headers, name: str) -> Optional[str]:
+    """A response header by name, whatever case the server used."""
+    for key, value in (headers or {}).items():
+        if key.lower() == name.lower():
+            return value
+    return None
+
+
 def run_full_audit(
     url: str,
     session_id: str,
@@ -95,6 +104,7 @@ def run_full_audit(
     enable_competitor_gap: bool = False,
     target_keywords: Optional[List[str]] = None,
     rank_targets: Optional[List[Any]] = None,
+    fresh: bool = False,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -102,6 +112,7 @@ def run_full_audit(
         max_depth=max_depth,
         respect_robots=not ignore_robots,
         concurrency=config.CRAWL_CONCURRENCY,
+        max_concurrency=config.CRAWL_MAX_CONCURRENCY,
         timeout=10,
         retries=1,
     )
@@ -112,7 +123,7 @@ def run_full_audit(
             url, crawler, progress_callback, event_callback,
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
-            session_id=session_id,
+            session_id=session_id, fresh=fresh,
         )
     finally:
         unregister_crawler(session_id)
@@ -133,6 +144,7 @@ def _build_audit_result(
     psi_key: Optional[str] = None,
     psi_strategy: str = "mobile",
     session_id: Optional[str] = None,
+    fresh: bool = False,
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
@@ -149,6 +161,22 @@ def _build_audit_result(
     # object exposing crawler.results.
     page_cap = getattr(crawler, "max_pages", 0)
     compute_signature = page_cap > analysis.EXACT_PATH_MAX_PAGES
+
+    # Pages whose HTML is unchanged since the last audit of this site reuse
+    # that audit's HTML analysis; only the response checks run again.
+    cache = page_cache.PageCache.open(
+        session_store.page_cache_dir, url,
+        page_cache.analyzer_fingerprint(enable_keyword_analysis, target_keywords, compute_signature),
+    )
+    reuse_counts = {"not_modified": 0, "same_hash": 0, "analysed": 0}
+    if cache is not None and not fresh and hasattr(crawler, "validators"):
+        crawler.validators = cache.validators()
+
+        def _cached_links(page_url):
+            part = cache.get_html_part(page_url)
+            return (part.internal_links, part.external_links) if part else None
+
+        crawler.cached_links = _cached_links
 
     analyses: Dict[str, Any] = {}
     pending: Dict[str, Any] = {}
@@ -190,6 +218,8 @@ def _build_audit_result(
             "meta_robots": meta.get("meta_robots"),
             "lang": meta.get("lang"),
             "error": result.error or ("audit failed" if page_analysis.failed else None),
+            "found_via": result.found_via,
+            "cache_status": result.cache_status,
             "meta": meta,
             "issues": page_analysis.issues,
         })
@@ -209,9 +239,25 @@ def _build_audit_result(
             logger.error("Audit checks failed for %s: %s", url, exc, exc_info=exc)
             resolved = page_pipeline.failed_analysis(url, exc)
         analyses[url] = resolved
+        page = crawler.results[url]
+        # Fresh analyses of 200 HTML pages go back to the cache; reused ones
+        # are left as they are, so their age still bounds how long they count.
+        if (
+            cache is not None
+            and resolved.html_part is not None
+            and not page.cache_status
+            and page.status_code == 200
+            and getattr(page, "body_hash", None)
+        ):
+            cache.put(url, Validators(
+                etag=_header(page.headers, "ETag"),
+                last_modified=_header(page.headers, "Last-Modified"),
+                body_hash=page.body_hash,
+                headers=dict(page.headers or {}),
+            ), resolved.html_part)
         # A page that could not be audited is still written, saying so. Missing
         # from the table would read as never crawled.
-        _record(url, crawler.results[url], resolved)
+        _record(url, page, resolved)
 
     def on_page(result):
         """Hand one fetched page to stage 2 and let the crawl carry on.
@@ -237,6 +283,17 @@ def _build_audit_result(
             target_keywords=target_keywords,
             compute_signature=compute_signature,
         )
+        html_part = None
+        if cache is not None and not fresh and result.cache_status:
+            html_part = cache.get_html_part(result.url)
+        if html_part is not None:
+            # Unchanged since the last audit: reuse its HTML half, redo only
+            # the response half. In-process -- it parses nothing.
+            reuse_counts[result.cache_status] += 1
+            _resolve(result.url, page_pipeline.analyze_response(payload, html_part))
+            result.html = ""
+            return None
+        reuse_counts["analysed"] += 1
         try:
             outcome = _submit_analysis(pool, payload)
         except (BrokenProcessPool, OSError) as exc:
@@ -278,13 +335,36 @@ def _build_audit_result(
             event_callback=event_callback,
             on_page=on_page,
         )
-        for url, outcome in list(pending.items()):
-            _resolve(url, outcome)
+        # pending_url, not url: binding the function's `url` here saved every
+        # pooled audit under its last-resolved page instead of the audited site.
+        for pending_url, outcome in list(pending.items()):
+            _resolve(pending_url, outcome)
         pending.clear()
+        # URLs the crawl recognised as a page it already had. They get a row
+        # saying which page represents them -- that is an SEO finding -- but
+        # no analysis, which would only repeat the owner's.
+        for skipped_url, skipped in getattr(crawler, "skipped", {}).items():
+            row_buffer.append({
+                "url": skipped_url,
+                "final_url": skipped.final_url,
+                "depth": skipped.depth,
+                "status": skipped.status_code,
+                "response_time_ms": skipped.response_time_ms,
+                "content_type": skipped.content_type,
+                "error": skipped.error,
+                "alias_of": skipped.alias_of,
+                "duplicate_of": skipped.duplicate_of,
+                "found_via": skipped.found_via,
+                "meta": {},
+                "issues": [],
+            })
+            _flush_rows()
         _flush_rows(force=True)
     finally:
         if pool is not None:
             pool.shutdown(wait=True)
+        if cache is not None:
+            cache.close()
 
     # 0 means skip the requests entirely (the CLI's --skip-external-links), not
     # issue zero-length ones. 25 is the API's long-standing default.
@@ -378,6 +458,12 @@ def _build_audit_result(
 
     site_wide = analysis.build_link_graph_stats(crawler)
     duplicates = analysis.find_duplicates(page_data_for_dupes)
+    skipped_results = getattr(crawler, "skipped", {})
+    analysis.add_skipped_duplicates(
+        duplicates,
+        page_data_for_dupes,
+        {u: r.duplicate_of for u, r in skipped_results.items() if r.duplicate_of},
+    )
     near_dupes, near_duplicate_mode = analysis.find_near_duplicates(
         page_data_for_dupes, signatures=signatures
     )
@@ -431,6 +517,14 @@ def _build_audit_result(
         "near_duplicate_mode": near_duplicate_mode,
         "degraded": degraded,
         "partial": partial,
+        "dedup": {
+            "aliases": sum(1 for r in skipped_results.values() if r.alias_of),
+            "duplicates": sum(1 for r in skipped_results.values() if r.duplicate_of),
+            "sitemap_only": sum(
+                1 for r in crawler.results.values() if getattr(r, "found_via", "link") == "sitemap"
+            ),
+        },
+        "reuse": reuse_counts,
         "redirects": redirects,
         "broken_links": broken_links,
         "recommendations": recommendations,

@@ -1,0 +1,741 @@
+{
+ "empty_body": {
+  "dupe_row": {
+   "canonical": null,
+   "content_hash": null,
+   "h1": null,
+   "meta_description": null,
+   "text": "",
+   "title": null,
+   "url": "https://example.com/"
+  },
+  "external_links": [],
+  "internal_links": [],
+  "issues": [
+   {
+    "code": "NO_CACHE_HEADER",
+    "message": "No Cache-Control header set",
+    "severity": "info"
+   },
+   {
+    "code": "NO_COMPRESSION",
+    "message": "Response is not compressed (no Content-Encoding header)",
+    "severity": "info"
+   }
+  ],
+  "keyword_data": [],
+  "meta": {
+   "canonical": null,
+   "char_count": 0,
+   "external_links_count": 0,
+   "h1": null,
+   "h2_count": 0,
+   "h3_count": 0,
+   "heading_hierarchy": [],
+   "images_count": 0,
+   "internal_links_count": 0,
+   "lang": null,
+   "meta_description": null,
+   "meta_robots": null,
+   "missing_alt_count": 0,
+   "open_graph": {},
+   "performance": {
+    "content_length_header": null,
+    "dom_node_count": 0,
+    "html_size_bytes": 0,
+    "render_blocking_css_count": 0,
+    "render_blocking_js_count": 0,
+    "script_tag_count": 0,
+    "stylesheet_count": 0,
+    "ttfb_ms": 5.0
+   },
+   "reading_time_mins": 0,
+   "security_headers": {},
+   "structured_data": [],
+   "title": null,
+   "twitter_cards": {},
+   "word_count": 0
+  },
+  "signature": null
+ },
+ "headers_and_slow": {
+  "dupe_row": {
+   "canonical": null,
+   "content_hash": "926c3206edda0bbb",
+   "h1": "Best Espresso Machines",
+   "meta_description": "Reviews of espresso machines",
+   "text": "Espresso Machines Best Espresso Machines Reviews espresso machine reviews and buying guide with plenty of words to satisfy the word count checks in this pipeline test fixture. Grinders Off Insecure",
+   "title": "Espresso Machines",
+   "url": "https://example.com/"
+  },
+  "external_links": [
+   "https://other.example/x"
+  ],
+  "internal_links": [
+   "https://example.com/grinders",
+   "http://example.com/insecure"
+  ],
+  "issues": [
+   {
+    "code": "A11Y_IMG_NO_ALT_ATTR",
+    "message": "1 images missing alt attribute entirely",
+    "severity": "warning"
+   },
+   {
+    "code": "META_DESC_TOO_SHORT",
+    "message": "Meta description is short (28 chars)",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_ALT",
+    "message": "1 of 2 images missing alt text",
+    "severity": "warning"
+   },
+   {
+    "code": "MISSING_CANONICAL",
+    "message": "No canonical tag found",
+    "severity": "warning"
+   },
+   {
+    "code": "MISSING_HEADER_REFERRER_POLICY",
+    "message": "Missing security header: referrer-policy",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_HEADER_X_CONTENT_TYPE_OPTIONS",
+    "message": "Missing security header: x-content-type-options",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_HEADER_X_FRAME_OPTIONS",
+    "message": "Missing security header: x-frame-options",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_IMG_DIMENSIONS",
+    "message": "2 images missing width/height (can cause CLS)",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_IMAGE",
+    "message": "Missing Open Graph tag: og:image",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_TYPE",
+    "message": "Missing Open Graph tag: og:type",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_URL",
+    "message": "Missing Open Graph tag: og:url",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_TWITTER_CARD",
+    "message": "Missing twitter:card meta tag",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_VIEWPORT",
+    "message": "Missing viewport meta tag (not mobile responsive)",
+    "severity": "critical"
+   },
+   {
+    "code": "NOFOLLOW",
+    "message": "Page is set to nofollow",
+    "severity": "info"
+   },
+   {
+    "code": "NOINDEX",
+    "message": "Page is set to noindex",
+    "severity": "warning"
+   },
+   {
+    "code": "NO_STRUCTURED_DATA",
+    "message": "No JSON-LD structured data found",
+    "severity": "info"
+   },
+   {
+    "code": "SLOW_TTFB",
+    "message": "Slow response time: 1500.0ms",
+    "severity": "warning"
+   },
+   {
+    "code": "THIN_CONTENT",
+    "message": "Thin content: only 30 words",
+    "severity": "warning"
+   }
+  ],
+  "keyword_data": [
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso",
+    "score": 12.0
+   },
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso machines",
+    "score": 11.0
+   },
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "machines",
+    "score": 11.0
+   },
+   {
+    "found_in": [
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "reviews",
+    "score": 5.5
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best espresso",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best espresso machines",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso machines reviews",
+    "score": 2.5
+   }
+  ],
+  "meta": {
+   "canonical": null,
+   "char_count": 197,
+   "external_links_count": 1,
+   "h1": "Best Espresso Machines",
+   "h2_count": 1,
+   "h3_count": 0,
+   "heading_hierarchy": [
+    {
+     "level": 1,
+     "text": "Best Espresso Machines"
+    },
+    {
+     "level": 2,
+     "text": "Reviews"
+    }
+   ],
+   "images_count": 2,
+   "internal_links_count": 2,
+   "lang": "en",
+   "meta_description": "Reviews of espresso machines",
+   "meta_robots": null,
+   "missing_alt_count": 1,
+   "open_graph": {
+    "og:title": "Espresso"
+   },
+   "performance": {
+    "content_length_header": "1234",
+    "dom_node_count": 17,
+    "html_size_bytes": 641,
+    "render_blocking_css_count": 1,
+    "render_blocking_js_count": 1,
+    "script_tag_count": 1,
+    "stylesheet_count": 1,
+    "ttfb_ms": 1500.0
+   },
+   "reading_time_mins": 1,
+   "security_headers": {
+    "content-security-policy": "default-src 'self'",
+    "referrer-policy": false,
+    "strict-transport-security": "max-age=1",
+    "x-content-type-options": false,
+    "x-frame-options": false
+   },
+   "structured_data": [],
+   "title": "Espresso Machines",
+   "twitter_cards": {},
+   "word_count": 30
+  },
+  "signature": "70886727f470f30aed375a111776251a3457a40bca8c7f03d93b85045021120237f4e404fcee95015330b10cb4c99b03e84ece01baf288035effad087492ed1364f216032a7cfa0b1e036502029ced032cec20082f28b60b9e10c204f3b5c80c8bc82c038e1ea81793baa10babba3b03269d0207163f51038d5fac0261409b0060152a046660a8078f90bc06f6255c02d538c007bb6591120fc8930ee22692075913210ff94bbb040c3bcf1099cd0a03c495bd0244e44200deebd706510a75058c0fb3007f748107c4ba7412fdcc7c1e2190ec1276cc7a1175b8f60c1445a40887da67078978ff08dad0120099587a1120cb4603ed307d07babd1d04db55aa008272a403832a560767049f012bff810126e50d1082370b15c1e21c101ee1220fdddb7f012b71bc0b8b332d02dd1821033f0b24071216350876965205eea1bc058257cf0683cade220aa8de060ba8a90cf8a195059a08400030b01400ec9a2c114999fb1197012902a58ff7010fe35a0e4a3dc406e781dc01bc104e00a6653c08f3fb49095e10cf0121c69b07cd045912ba8d730d3b0304064168190526e51a04f942e20a4e507c028489420d9ed35508c2b37d0c456ec7201b84ce0625bce5075971650a643a0d027be2eb085c74120bb9b367182034ec0978e4b6149969b90a3eb3be059d1a440889fbe10046d84001307d5f008fec001292aacd00eb9d3f02"
+ },
+ "plain": {
+  "dupe_row": {
+   "canonical": null,
+   "content_hash": "926c3206edda0bbb",
+   "h1": "Best Espresso Machines",
+   "meta_description": "Reviews of espresso machines",
+   "text": "Espresso Machines Best Espresso Machines Reviews espresso machine reviews and buying guide with plenty of words to satisfy the word count checks in this pipeline test fixture. Grinders Off Insecure",
+   "title": "Espresso Machines",
+   "url": "https://example.com/"
+  },
+  "external_links": [
+   "https://other.example/x"
+  ],
+  "internal_links": [
+   "https://example.com/grinders",
+   "http://example.com/insecure"
+  ],
+  "issues": [
+   {
+    "code": "A11Y_IMG_NO_ALT_ATTR",
+    "message": "1 images missing alt attribute entirely",
+    "severity": "warning"
+   },
+   {
+    "code": "META_DESC_TOO_SHORT",
+    "message": "Meta description is short (28 chars)",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_ALT",
+    "message": "1 of 2 images missing alt text",
+    "severity": "warning"
+   },
+   {
+    "code": "MISSING_CANONICAL",
+    "message": "No canonical tag found",
+    "severity": "warning"
+   },
+   {
+    "code": "MISSING_IMG_DIMENSIONS",
+    "message": "2 images missing width/height (can cause CLS)",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_IMAGE",
+    "message": "Missing Open Graph tag: og:image",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_TYPE",
+    "message": "Missing Open Graph tag: og:type",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_URL",
+    "message": "Missing Open Graph tag: og:url",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_TWITTER_CARD",
+    "message": "Missing twitter:card meta tag",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_VIEWPORT",
+    "message": "Missing viewport meta tag (not mobile responsive)",
+    "severity": "critical"
+   },
+   {
+    "code": "NOINDEX",
+    "message": "Page is set to noindex",
+    "severity": "warning"
+   },
+   {
+    "code": "NO_CACHE_HEADER",
+    "message": "No Cache-Control header set",
+    "severity": "info"
+   },
+   {
+    "code": "NO_COMPRESSION",
+    "message": "Response is not compressed (no Content-Encoding header)",
+    "severity": "info"
+   },
+   {
+    "code": "NO_STRUCTURED_DATA",
+    "message": "No JSON-LD structured data found",
+    "severity": "info"
+   },
+   {
+    "code": "THIN_CONTENT",
+    "message": "Thin content: only 30 words",
+    "severity": "warning"
+   }
+  ],
+  "keyword_data": [
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso",
+    "score": 12.0
+   },
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso machines",
+    "score": 11.0
+   },
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "machines",
+    "score": 11.0
+   },
+   {
+    "found_in": [
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "reviews",
+    "score": 5.5
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best espresso",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best espresso machines",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso machines reviews",
+    "score": 2.5
+   }
+  ],
+  "meta": {
+   "canonical": null,
+   "char_count": 197,
+   "external_links_count": 1,
+   "h1": "Best Espresso Machines",
+   "h2_count": 1,
+   "h3_count": 0,
+   "heading_hierarchy": [
+    {
+     "level": 1,
+     "text": "Best Espresso Machines"
+    },
+    {
+     "level": 2,
+     "text": "Reviews"
+    }
+   ],
+   "images_count": 2,
+   "internal_links_count": 2,
+   "lang": "en",
+   "meta_description": "Reviews of espresso machines",
+   "meta_robots": null,
+   "missing_alt_count": 1,
+   "open_graph": {
+    "og:title": "Espresso"
+   },
+   "performance": {
+    "content_length_header": null,
+    "dom_node_count": 17,
+    "html_size_bytes": 641,
+    "render_blocking_css_count": 1,
+    "render_blocking_js_count": 1,
+    "script_tag_count": 1,
+    "stylesheet_count": 1,
+    "ttfb_ms": 10.0
+   },
+   "reading_time_mins": 1,
+   "security_headers": {},
+   "structured_data": [],
+   "title": "Espresso Machines",
+   "twitter_cards": {},
+   "word_count": 30
+  },
+  "signature": "70886727f470f30aed375a111776251a3457a40bca8c7f03d93b85045021120237f4e404fcee95015330b10cb4c99b03e84ece01baf288035effad087492ed1364f216032a7cfa0b1e036502029ced032cec20082f28b60b9e10c204f3b5c80c8bc82c038e1ea81793baa10babba3b03269d0207163f51038d5fac0261409b0060152a046660a8078f90bc06f6255c02d538c007bb6591120fc8930ee22692075913210ff94bbb040c3bcf1099cd0a03c495bd0244e44200deebd706510a75058c0fb3007f748107c4ba7412fdcc7c1e2190ec1276cc7a1175b8f60c1445a40887da67078978ff08dad0120099587a1120cb4603ed307d07babd1d04db55aa008272a403832a560767049f012bff810126e50d1082370b15c1e21c101ee1220fdddb7f012b71bc0b8b332d02dd1821033f0b24071216350876965205eea1bc058257cf0683cade220aa8de060ba8a90cf8a195059a08400030b01400ec9a2c114999fb1197012902a58ff7010fe35a0e4a3dc406e781dc01bc104e00a6653c08f3fb49095e10cf0121c69b07cd045912ba8d730d3b0304064168190526e51a04f942e20a4e507c028489420d9ed35508c2b37d0c456ec7201b84ce0625bce5075971650a643a0d027be2eb085c74120bb9b367182034ec0978e4b6149969b90a3eb3be059d1a440889fbe10046d84001307d5f008fec001292aacd00eb9d3f02"
+ },
+ "redirected": {
+  "dupe_row": {
+   "canonical": null,
+   "content_hash": "926c3206edda0bbb",
+   "h1": "Best Espresso Machines",
+   "meta_description": "Reviews of espresso machines",
+   "text": "Espresso Machines Best Espresso Machines Reviews espresso machine reviews and buying guide with plenty of words to satisfy the word count checks in this pipeline test fixture. Grinders Off Insecure",
+   "title": "Espresso Machines",
+   "url": "https://example.com/"
+  },
+  "external_links": [
+   "https://other.example/x"
+  ],
+  "internal_links": [
+   "https://example.com/grinders",
+   "http://example.com/insecure"
+  ],
+  "issues": [
+   {
+    "code": "A11Y_IMG_NO_ALT_ATTR",
+    "message": "1 images missing alt attribute entirely",
+    "severity": "warning"
+   },
+   {
+    "code": "META_DESC_TOO_SHORT",
+    "message": "Meta description is short (28 chars)",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_ALT",
+    "message": "1 of 2 images missing alt text",
+    "severity": "warning"
+   },
+   {
+    "code": "MISSING_CANONICAL",
+    "message": "No canonical tag found",
+    "severity": "warning"
+   },
+   {
+    "code": "MISSING_IMG_DIMENSIONS",
+    "message": "2 images missing width/height (can cause CLS)",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_IMAGE",
+    "message": "Missing Open Graph tag: og:image",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_TYPE",
+    "message": "Missing Open Graph tag: og:type",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_OG_URL",
+    "message": "Missing Open Graph tag: og:url",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_TWITTER_CARD",
+    "message": "Missing twitter:card meta tag",
+    "severity": "info"
+   },
+   {
+    "code": "MISSING_VIEWPORT",
+    "message": "Missing viewport meta tag (not mobile responsive)",
+    "severity": "critical"
+   },
+   {
+    "code": "NOINDEX",
+    "message": "Page is set to noindex",
+    "severity": "warning"
+   },
+   {
+    "code": "NO_CACHE_HEADER",
+    "message": "No Cache-Control header set",
+    "severity": "info"
+   },
+   {
+    "code": "NO_COMPRESSION",
+    "message": "Response is not compressed (no Content-Encoding header)",
+    "severity": "info"
+   },
+   {
+    "code": "NO_STRUCTURED_DATA",
+    "message": "No JSON-LD structured data found",
+    "severity": "info"
+   },
+   {
+    "code": "TEMP_REDIRECT",
+    "message": "Uses a temporary redirect (302/307) instead of permanent",
+    "severity": "info"
+   },
+   {
+    "code": "THIN_CONTENT",
+    "message": "Thin content: only 30 words",
+    "severity": "warning"
+   }
+  ],
+  "keyword_data": [
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso",
+    "score": 12.0
+   },
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso machines",
+    "score": 11.0
+   },
+   {
+    "found_in": [
+     "title",
+     "h1",
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "machines",
+    "score": 11.0
+   },
+   {
+    "found_in": [
+     "meta_description",
+     "headings",
+     "body"
+    ],
+    "phrase": "reviews",
+    "score": 5.5
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best espresso",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "h1",
+     "headings",
+     "body"
+    ],
+    "phrase": "best espresso machines",
+    "score": 5.0
+   },
+   {
+    "found_in": [
+     "headings",
+     "body"
+    ],
+    "phrase": "espresso machines reviews",
+    "score": 2.5
+   }
+  ],
+  "meta": {
+   "canonical": null,
+   "char_count": 197,
+   "external_links_count": 1,
+   "h1": "Best Espresso Machines",
+   "h2_count": 1,
+   "h3_count": 0,
+   "heading_hierarchy": [
+    {
+     "level": 1,
+     "text": "Best Espresso Machines"
+    },
+    {
+     "level": 2,
+     "text": "Reviews"
+    }
+   ],
+   "images_count": 2,
+   "internal_links_count": 2,
+   "lang": "en",
+   "meta_description": "Reviews of espresso machines",
+   "meta_robots": null,
+   "missing_alt_count": 1,
+   "open_graph": {
+    "og:title": "Espresso"
+   },
+   "performance": {
+    "content_length_header": null,
+    "dom_node_count": 17,
+    "html_size_bytes": 641,
+    "render_blocking_css_count": 1,
+    "render_blocking_js_count": 1,
+    "script_tag_count": 1,
+    "stylesheet_count": 1,
+    "ttfb_ms": 20.0
+   },
+   "reading_time_mins": 1,
+   "security_headers": {},
+   "structured_data": [],
+   "title": "Espresso Machines",
+   "twitter_cards": {},
+   "word_count": 30
+  },
+  "signature": "70886727f470f30aed375a111776251a3457a40bca8c7f03d93b85045021120237f4e404fcee95015330b10cb4c99b03e84ece01baf288035effad087492ed1364f216032a7cfa0b1e036502029ced032cec20082f28b60b9e10c204f3b5c80c8bc82c038e1ea81793baa10babba3b03269d0207163f51038d5fac0261409b0060152a046660a8078f90bc06f6255c02d538c007bb6591120fc8930ee22692075913210ff94bbb040c3bcf1099cd0a03c495bd0244e44200deebd706510a75058c0fb3007f748107c4ba7412fdcc7c1e2190ec1276cc7a1175b8f60c1445a40887da67078978ff08dad0120099587a1120cb4603ed307d07babd1d04db55aa008272a403832a560767049f012bff810126e50d1082370b15c1e21c101ee1220fdddb7f012b71bc0b8b332d02dd1821033f0b24071216350876965205eea1bc058257cf0683cade220aa8de060ba8a90cf8a195059a08400030b01400ec9a2c114999fb1197012902a58ff7010fe35a0e4a3dc406e781dc01bc104e00a6653c08f3fb49095e10cf0121c69b07cd045912ba8d730d3b0304064168190526e51a04f942e20a4e507c028489420d9ed35508c2b37d0c456ec7201b84ce0625bce5075971650a643a0d027be2eb085c74120bb9b367182034ec0978e4b6149969b90a3eb3be059d1a440889fbe10046d84001307d5f008fec001292aacd00eb9d3f02"
+ }
+}

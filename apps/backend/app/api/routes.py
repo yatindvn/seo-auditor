@@ -29,7 +29,7 @@ logger = logging.getLogger("seo_auditor")
 SUMMARY_FIELDS = (
     "executive_summary", "site_wide_analysis", "recommendations",
     "issue_frequency", "duplicates", "redirects", "rank_targets",
-    "near_duplicate_mode", "elapsed_seconds", "degraded", "partial",
+    "near_duplicate_mode", "elapsed_seconds", "degraded", "partial", "dedup", "reuse",
     "robots_txt", "sitemaps_found", "psi_metrics", "note",
 )
 
@@ -119,6 +119,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                 enable_competitor_gap=params.enable_competitor_gap or False,
                 target_keywords=params.target_keywords,
                 rank_targets=params.rank_targets,
+                fresh=params.fresh or False,
                 event_callback=event_callback,
                 progress_callback=lambda count, total, current_url: asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast("crawl:progress", {

@@ -20,10 +20,16 @@ CRAWL_TIMEOUT = int(os.getenv("CRAWL_TIMEOUT", "10"))
 # sets how many connections a crawl opens against someone else's site at
 # once, which is why it is configurable rather than a constant.
 CRAWL_CONCURRENCY = int(os.getenv("CRAWL_CONCURRENCY", "32"))
+# Ceiling for adaptive concurrency: the crawl starts at CRAWL_CONCURRENCY and
+# grows toward this while the site responds well (app/crawler/throttle.py).
+CRAWL_MAX_CONCURRENCY = int(os.getenv("CRAWL_MAX_CONCURRENCY", "64"))
 # Where per-session SQLite files live, one per audit. A named Docker volume
 # maps here in deploy/oracle/docker-compose.yml so audit history outlives a
 # container rebuild -- it used to be an in-memory list, lost on every deploy.
 SESSION_DIR = Path(os.getenv("SESSION_DIR", "./sessions"))
+# A cached page analysis older than this is redone even if the server says the
+# page is unchanged -- a bound on trusting servers that misreport changes.
+PAGE_CACHE_MAX_AGE_DAYS = int(os.getenv("PAGE_CACHE_MAX_AGE_DAYS", "30"))
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 GOOGLE_CSE_DAILY_QUOTA = int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100"))

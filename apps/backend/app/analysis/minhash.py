@@ -16,6 +16,7 @@ reported to the client.
 from __future__ import annotations
 
 import hashlib
+import zlib
 from array import array
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -70,9 +71,9 @@ def _shingle_hashes(text: str, shingle_size: int) -> List[int]:
     seen = set()
     for start in range(limit):
         shingle = " ".join(words[start:start + shingle_size])
-        seen.add(int.from_bytes(
-            hashlib.blake2b(shingle.encode("utf-8"), digest_size=4).digest(), "big"
-        ))
+        # crc32: C-implemented and stable across processes and runs, which
+        # signatures compared between workers and audits require.
+        seen.add(zlib.crc32(shingle.encode("utf-8")))
     return list(seen)
 
 

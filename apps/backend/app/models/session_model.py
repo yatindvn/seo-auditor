@@ -40,6 +40,13 @@ class SessionStore:
     def _path(self, session_id: str) -> Path:
         return self._dir / f"{session_id}.db"
 
+    @property
+    def page_cache_dir(self) -> Path:
+        """Per-site page caches. A subdirectory, so they share the sessions
+        volume (and survive redeploys) without matching the `*.db` glob that
+        retention prunes."""
+        return self._dir / "page_cache"
+
     def _close(self, session_id: str) -> None:
         db = self._open.pop(session_id, None)
         if db is not None:

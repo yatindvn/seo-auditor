@@ -86,6 +86,7 @@ export default function LandingPage() {
   const [maxPages, setMaxPages] = useState(100);
   const [maxDepth, setMaxDepth] = useState(4);
   const [ignoreRobots, setIgnoreRobots] = useState(false);
+  const [recheckAll, setRecheckAll] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
   const [rankRows, setRankRows] = useState<RankTargetRow[]>([{ url: "", keywords: "" }]);
@@ -159,6 +160,7 @@ export default function LandingPage() {
         max_pages: Math.min(Math.max(maxPages, 1), 5000),
         max_depth: Math.min(Math.max(maxDepth, 0), 15),
         ignore_robots: ignoreRobots,
+        fresh: recheckAll,
         ...(rankTargets.length > 0 && {
           rank_targets: rankTargets,
           enable_rank_check: true,
@@ -334,6 +336,21 @@ export default function LandingPage() {
                   <div>
                     <p className="text-sm font-semibold">Ignore robots.txt</p>
                     <p className="text-xs text-muted-foreground">Force crawl paths blocked by robots.txt (for staging environments)</p>
+                  </div>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 hover:bg-muted/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={recheckAll}
+                    onChange={(e) => setRecheckAll(e.target.checked)}
+                    className="h-4 w-4 rounded border-input bg-background text-primary focus:ring-primary"
+                    disabled={isLoading}
+                    aria-label="Re-check every page"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">Re-check every page</p>
+                    <p className="text-xs text-muted-foreground">Analyse every page again, even ones unchanged since the last audit of this site</p>
                   </div>
                 </label>
 

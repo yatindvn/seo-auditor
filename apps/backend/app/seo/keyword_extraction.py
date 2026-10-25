@@ -33,13 +33,22 @@ def _is_content_word(token: str) -> bool:
 
 
 def _phrases_from_text(text: str) -> List[str]:
-    tokens = _tokenize(text)
+    """Every 1-, 2- and 3-gram made only of content words.
+
+    Such an n-gram always lies inside one run of consecutive content words, so
+    each token is classified once and n-grams are taken run by run -- instead of
+    re-testing every token for each of the three n-gram sizes it appears in.
+    """
     phrases: List[str] = []
-    for n in (1, 2, 3):
-        for i in range(len(tokens) - n + 1):
-            gram = tokens[i:i + n]
-            if all(_is_content_word(t) for t in gram):
-                phrases.append(" ".join(gram))
+    run: List[str] = []
+    for token in _tokenize(text) + [""]:  # sentinel flushes the last run
+        if token and _is_content_word(token):
+            run.append(token)
+            continue
+        for n in (1, 2, 3):
+            for i in range(len(run) - n + 1):
+                phrases.append(" ".join(run[i:i + n]))
+        run = []
     return phrases
 
 

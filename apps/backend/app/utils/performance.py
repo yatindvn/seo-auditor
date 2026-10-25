@@ -18,39 +18,49 @@ import re
 from typing import Dict, List, Optional
 
 import requests
-from bs4 import BeautifulSoup
 
+from app.auditor import checks
 from app.auditor.checks import issue
 
 PSI_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
 
-def analyze_page_weight(page) -> Dict:
-    soup = None
-    if page.html:
-        try:
-            soup = BeautifulSoup(page.html, "lxml")
-        except Exception:
-            soup = None
+def html_weight(page) -> Dict:
+    """The parts of page weight read from the HTML -- cacheable with it."""
+    # The checks' shared parse of this same HTML: read-only here.
+    soup = checks._soup(page.html)
 
-    dom_nodes = len(soup.find_all(True)) if soup else 0
     scripts = soup.find_all("script") if soup else []
     styles = soup.find_all("link", rel="stylesheet") if soup else []
     render_blocking_css = [s for s in styles if not s.get("media") or s.get("media") == "all"]
     render_blocking_js = [s for s in scripts if s.get("src") and not (s.get("async") or s.get("defer"))]
 
-    html_bytes = len(page.html.encode("utf-8")) if page.html else 0
-    content_length_header = page.headers.get("Content-Length") if page.headers else None
-
     return {
-        "ttfb_ms": page.response_time_ms,
-        "html_size_bytes": html_bytes,
-        "content_length_header": content_length_header,
-        "dom_node_count": dom_nodes,
+        "html_size_bytes": len(page.html.encode("utf-8")) if page.html else 0,
+        "dom_node_count": len(soup.find_all(True)) if soup else 0,
         "script_tag_count": len(scripts),
         "stylesheet_count": len(styles),
         "render_blocking_css_count": len(render_blocking_css),
         "render_blocking_js_count": len(render_blocking_js),
+    }
+
+
+def analyze_page_weight(page, html_part_weight: Optional[Dict] = None) -> Dict:
+    """Page weight: HTML-derived counts plus the response's TTFB and length.
+
+    `html_part_weight` is a cached html_weight() for a response with no body
+    (a 304); without it the HTML is read from the page.
+    """
+    html_part = html_part_weight if html_part_weight is not None else html_weight(page)
+    return {
+        "ttfb_ms": page.response_time_ms,
+        "html_size_bytes": html_part["html_size_bytes"],
+        "content_length_header": page.headers.get("Content-Length") if page.headers else None,
+        "dom_node_count": html_part["dom_node_count"],
+        "script_tag_count": html_part["script_tag_count"],
+        "stylesheet_count": html_part["stylesheet_count"],
+        "render_blocking_css_count": html_part["render_blocking_css_count"],
+        "render_blocking_js_count": html_part["render_blocking_js_count"],
     }
 
 

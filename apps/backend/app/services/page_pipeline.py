@@ -14,7 +14,7 @@ processes: rank checking, keyword suggestions, and PageSpeed Insights.
 from __future__ import annotations
 
 import urllib.parse as up
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
 from app.analysis import analysis, minhash
@@ -49,6 +49,36 @@ class PagePayload:
 
 
 @dataclass
+class HtmlAnalysis:
+    """Everything derived from a page's HTML alone.
+
+    This is the half worth caching across audits: it is the expensive half
+    (one parse, ~20 checks), and it stays true for as long as the HTML is
+    unchanged. Nothing here may read headers, status, or timing -- those
+    belong to analyze_response, which runs fresh every audit.
+    """
+    issues: List[Dict] = field(default_factory=list)
+    meta: Dict[str, Any] = field(default_factory=dict)
+    weight: Dict[str, Any] = field(default_factory=dict)
+    meta_robots_content: str = ""
+    dupe_row: Dict[str, Any] = field(default_factory=dict)
+    keyword_data: List[Dict] = field(default_factory=list)
+    internal_links: List[str] = field(default_factory=list)
+    external_links: List[str] = field(default_factory=list)
+    signature: Optional[bytes] = None
+
+    def to_json(self) -> Dict[str, Any]:
+        """JSON-safe form. The signature is bytes and is stored separately."""
+        data = asdict(self)
+        data.pop("signature")
+        return data
+
+    @classmethod
+    def from_json(cls, data: Dict[str, Any], signature: Optional[bytes] = None) -> "HtmlAnalysis":
+        return cls(**data, signature=signature)
+
+
+@dataclass
 class PageAnalysis:
     url: str
     issues: List[Dict] = field(default_factory=list)
@@ -59,6 +89,8 @@ class PageAnalysis:
     internal_links: List[str] = field(default_factory=list)
     external_links: List[str] = field(default_factory=list)
     failed: bool = False
+    # The cacheable half this analysis was built from; None for a failure.
+    html_part: Optional[HtmlAnalysis] = None
 
 
 def resolve_keyword_data(
@@ -127,16 +159,14 @@ def failed_analysis(url: str, exc: Exception) -> PageAnalysis:
     )
 
 
-def analyze_page(payload: PagePayload) -> PageAnalysis:
+def analyze_html(payload: PagePayload) -> HtmlAnalysis:
     page = payload  # the checks read .html/.headers/.status_code/.url off this
     page_url = payload.url
 
     issues: List[Dict] = []
-    issues += checks.check_status_and_https(page, {})
     issues += checks.check_mixed_content(page)
     canon_issues, canonical = checks.check_canonical(page, page_url)
     issues += canon_issues
-    issues += checks.check_indexability(page)
 
     title_issues, title = checks.check_title(page)
     issues += title_issues
@@ -155,13 +185,11 @@ def analyze_page(payload: PagePayload) -> PageAnalysis:
 
     issues += checks.check_mobile(page)
     issues += checks.check_accessibility(page)
-    issues += checks.check_security_headers(page)
     issues += checks.check_hreflang(page)
     issues += checks.check_media(page)
     issues += checks.check_js_rendering_signal(page)
 
-    weight = performance.analyze_page_weight(page)
-    issues += performance.check_performance_proxies(page, weight)
+    weight = performance.html_weight(page)
 
     soup = checks._soup(payload.html)
     meta_robots = None
@@ -174,7 +202,6 @@ def analyze_page(payload: PagePayload) -> PageAnalysis:
     images_count = 0
     missing_alt_count = 0
     structured_data: List[Dict] = []
-    security_headers: Dict[str, Any] = {}
 
     if soup:
         html_el = soup.find("html")
@@ -207,12 +234,6 @@ def analyze_page(payload: PagePayload) -> PageAnalysis:
             if script.string:
                 structured_data.append({"type": "JSON-LD", "raw": script.string.strip()[:500]})
 
-    if payload.headers:
-        headers_lower = {k.lower(): v for k, v in payload.headers.items()}
-        for header in ("strict-transport-security", "content-security-policy",
-                       "x-frame-options", "x-content-type-options", "referrer-policy"):
-            security_headers[header] = headers_lower.get(header, False)
-
     internal_links, external_links = _extract_links(payload.final_url or page_url, soup)
     word_cnt = content_stats.get("word_count", 0)
 
@@ -222,7 +243,6 @@ def analyze_page(payload: PagePayload) -> PageAnalysis:
         "h1": h1,
         "word_count": word_cnt,
         "canonical": canonical,
-        "performance": weight,
         "meta_robots": meta_robots,
         "lang": lang,
         "open_graph": open_graph,
@@ -241,7 +261,6 @@ def analyze_page(payload: PagePayload) -> PageAnalysis:
         "images_count": images_count,
         "missing_alt_count": missing_alt_count,
         "structured_data": structured_data,
-        "security_headers": security_headers,
     }
 
     keyword_data = resolve_keyword_data(
@@ -259,13 +278,59 @@ def analyze_page(payload: PagePayload) -> PageAnalysis:
         "text": text,
     }
 
-    return PageAnalysis(
-        url=page_url,
+    return HtmlAnalysis(
         issues=issues,
         meta=meta,
+        weight=weight,
+        meta_robots_content=checks.meta_robots_content(page),
         dupe_row=dupe_row,
         keyword_data=keyword_data,
-        signature=minhash.signature(text) if payload.compute_signature else None,
         internal_links=internal_links,
         external_links=external_links,
+        signature=minhash.signature(text) if payload.compute_signature else None,
     )
+
+
+def analyze_response(payload: PagePayload, html_part: HtmlAnalysis) -> PageAnalysis:
+    """The checks that read the response rather than the HTML, merged with an
+    HTML analysis -- fresh or cached.
+
+    Never parses HTML, so it runs on a 304's empty body: it is what makes
+    status, redirects, security headers, compression, caching and TTFB current
+    on every audit while the HTML half is reused.
+    """
+    page = payload
+    issues: List[Dict] = []
+    issues += checks.check_status_and_https(page, {})
+    robots_header = page.headers.get("X-Robots-Tag", "") if page.headers else ""
+    issues += checks.robots_issues(robots_header, html_part.meta_robots_content)
+    issues += html_part.issues
+    issues += checks.check_security_headers(page)
+
+    weight = performance.analyze_page_weight(page, html_part.weight)
+    issues += performance.check_performance_proxies(page, weight)
+
+    security_headers: Dict[str, Any] = {}
+    if payload.headers:
+        headers_lower = {k.lower(): v for k, v in payload.headers.items()}
+        for header in ("strict-transport-security", "content-security-policy",
+                       "x-frame-options", "x-content-type-options", "referrer-policy"):
+            security_headers[header] = headers_lower.get(header, False)
+
+    meta = {**html_part.meta, "performance": weight, "security_headers": security_headers}
+
+    return PageAnalysis(
+        url=payload.url,
+        issues=issues,
+        meta=meta,
+        dupe_row=html_part.dupe_row,
+        keyword_data=html_part.keyword_data,
+        signature=html_part.signature,
+        internal_links=html_part.internal_links,
+        external_links=html_part.external_links,
+        html_part=html_part,
+    )
+
+
+def analyze_page(payload: PagePayload) -> PageAnalysis:
+    return analyze_response(payload, analyze_html(payload))
