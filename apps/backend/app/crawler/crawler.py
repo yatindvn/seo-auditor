@@ -36,15 +36,49 @@ DEFAULT_HEADERS = {
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 
 
+# Query params that only identify where a click came from. They never change
+# which page the server returns, so two URLs differing only in these are one page.
+TRACKING_PARAMS = frozenset({
+    "gclid", "fbclid", "msclkid", "dclid", "yclid",
+    "mc_cid", "mc_eid", "_ga", "_gl", "ref_src",
+})
+DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _is_tracking_param(segment: str) -> bool:
+    name = up.unquote(segment.split("=", 1)[0]).lower()
+    return name.startswith("utm_") or name in TRACKING_PARAMS
+
+
 def normalize_url(url: str) -> str:
-    """Strip fragments, normalize trailing behaviour for dedup purposes."""
+    """Canonical spelling of a URL for dedup.
+
+    Only lossless rewrites: fragment, host case, default port, tracking params,
+    and param order. Query segments are filtered and sorted as raw text rather
+    than parsed and re-encoded, so `?print` stays `?print` and percent-escapes
+    are untouched. The sort is stable and keyed on the name alone, so repeated
+    keys keep their relative order.
+    """
     parts = up.urlsplit(url)
+    scheme = parts.scheme.lower()
+    netloc = parts.netloc.lower()
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    if port is not None and DEFAULT_PORTS.get(scheme) == port:
+        netloc = netloc.rsplit(":", 1)[0]
+
     path = parts.path or "/"
     # collapse duplicate slashes
     while "//" in path:
         path = path.replace("//", "/")
-    normalized = up.urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, parts.query, ""))
-    return normalized
+
+    segments = [s for s in parts.query.split("&") if s and not _is_tracking_param(s)]
+    segments.sort(key=lambda s: s.split("=", 1)[0])
+    query = "&".join(segments)
+
+    return up.urlunsplit((scheme, netloc, path, query, ""))
 
 
 def same_registrable_domain(url: str, root_netloc: str) -> bool:
