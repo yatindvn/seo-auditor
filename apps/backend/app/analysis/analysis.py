@@ -99,6 +99,24 @@ def find_duplicates(page_data: List[Dict]) -> Dict:
     }
 
 
+def add_skipped_duplicates(duplicates: Dict, page_data: List[Dict], duplicate_of: Dict[str, str]) -> None:
+    """Fold byte-identical pages the crawl skipped into the duplicate-content report.
+
+    They were never analysed, so they have no content hash of their own; they
+    join their owner's group. Without this, skipping them would make a real
+    duplicate-content problem disappear from the report.
+    """
+    hash_of = {p["url"]: p.get("content_hash") for p in page_data}
+    groups = duplicates.setdefault("duplicate_content", {})
+    for duplicate, owner in duplicate_of.items():
+        digest = hash_of.get(owner)
+        if not digest:
+            continue
+        group = groups.setdefault(digest, [owner])
+        if duplicate not in group:
+            group.append(duplicate)
+
+
 def content_hash(text: str) -> str:
     normalized = " ".join(text.split()).lower()
     return hashlib.sha256(normalized.encode("utf-8", errors="ignore")).hexdigest()[:16]
@@ -222,9 +240,12 @@ def find_near_duplicates(
 
 
 def redirect_report(crawler) -> Dict:
+    # Skipped aliases are exactly the URLs that redirected onto a page already
+    # crawled; leaving them out would hide most of the site's redirects.
+    everything = {**crawler.results, **getattr(crawler, "skipped", {})}
     chains = []
     loops = []
-    for url, result in crawler.results.items():
+    for url, result in everything.items():
         if result.redirect_chain:
             entry = {"start_url": url, "hops": result.redirect_chain, "final_status": result.status_code}
             if len(result.redirect_chain) > 1:
@@ -236,7 +257,7 @@ def redirect_report(crawler) -> Dict:
                     break
                 seen.add(hop["from"])
     return {"redirect_chains": chains, "redirect_loops": loops, "total_redirecting_urls": len(
-        [r for r in crawler.results.values() if r.redirect_chain]
+        [r for r in everything.values() if r.redirect_chain]
     )}
 
 

@@ -190,6 +190,7 @@ def _build_audit_result(
             "meta_robots": meta.get("meta_robots"),
             "lang": meta.get("lang"),
             "error": result.error or ("audit failed" if page_analysis.failed else None),
+            "found_via": result.found_via,
             "meta": meta,
             "issues": page_analysis.issues,
         })
@@ -281,6 +282,25 @@ def _build_audit_result(
         for url, outcome in list(pending.items()):
             _resolve(url, outcome)
         pending.clear()
+        # URLs the crawl recognised as a page it already had. They get a row
+        # saying which page represents them -- that is an SEO finding -- but
+        # no analysis, which would only repeat the owner's.
+        for skipped_url, skipped in getattr(crawler, "skipped", {}).items():
+            row_buffer.append({
+                "url": skipped_url,
+                "final_url": skipped.final_url,
+                "depth": skipped.depth,
+                "status": skipped.status_code,
+                "response_time_ms": skipped.response_time_ms,
+                "content_type": skipped.content_type,
+                "error": skipped.error,
+                "alias_of": skipped.alias_of,
+                "duplicate_of": skipped.duplicate_of,
+                "found_via": skipped.found_via,
+                "meta": {},
+                "issues": [],
+            })
+            _flush_rows()
         _flush_rows(force=True)
     finally:
         if pool is not None:
@@ -378,6 +398,12 @@ def _build_audit_result(
 
     site_wide = analysis.build_link_graph_stats(crawler)
     duplicates = analysis.find_duplicates(page_data_for_dupes)
+    skipped_results = getattr(crawler, "skipped", {})
+    analysis.add_skipped_duplicates(
+        duplicates,
+        page_data_for_dupes,
+        {u: r.duplicate_of for u, r in skipped_results.items() if r.duplicate_of},
+    )
     near_dupes, near_duplicate_mode = analysis.find_near_duplicates(
         page_data_for_dupes, signatures=signatures
     )
@@ -431,6 +457,13 @@ def _build_audit_result(
         "near_duplicate_mode": near_duplicate_mode,
         "degraded": degraded,
         "partial": partial,
+        "dedup": {
+            "aliases": sum(1 for r in skipped_results.values() if r.alias_of),
+            "duplicates": sum(1 for r in skipped_results.values() if r.duplicate_of),
+            "sitemap_only": sum(
+                1 for r in crawler.results.values() if getattr(r, "found_via", "link") == "sitemap"
+            ),
+        },
         "redirects": redirects,
         "broken_links": broken_links,
         "recommendations": recommendations,

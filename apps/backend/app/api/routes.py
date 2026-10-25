@@ -29,7 +29,7 @@ logger = logging.getLogger("seo_auditor")
 SUMMARY_FIELDS = (
     "executive_summary", "site_wide_analysis", "recommendations",
     "issue_frequency", "duplicates", "redirects", "rank_targets",
-    "near_duplicate_mode", "elapsed_seconds", "degraded", "partial",
+    "near_duplicate_mode", "elapsed_seconds", "degraded", "partial", "dedup",
     "robots_txt", "sitemaps_found", "psi_metrics", "note",
 )
 
