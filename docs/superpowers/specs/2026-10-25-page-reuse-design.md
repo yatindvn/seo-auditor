@@ -92,10 +92,15 @@ with unchanged output, so every existing caller and test is unaffected.
   `meta.security_headers` / `meta.performance`. Merges with `html_part` into
   the `PageAnalysis` shape callers already use.
 
-`check_indexability` is split into `check_meta_robots(page)` and
-`check_robots_header(page)`; the original stays as their concatenation.
-`analyze_page_weight` takes an optional `html_size_bytes` override for a
-payload with no body.
+`check_indexability` is split into `meta_robots_content(page)` (HTML; stored in
+the HTML half) and `robots_issues(robots_header, meta_robots)` (run by the
+response half on the fresh header plus the stored meta content). Splitting it
+into two independent checks instead would report NOINDEX twice when both the
+header and the meta tag say noindex.
+
+Page weight splits the same way: `html_weight(page)` (size, DOM, script and
+stylesheet counts) is cached; `analyze_page_weight(page, html_part_weight)`
+adds TTFB and `Content-Length` from the response.
 
 ### 3. Conditional requests — `app/crawler/crawler.py`
 
@@ -111,8 +116,6 @@ payload with no body.
   header missing.
 - **200 for a URL in `validators`:** if the body hashes to the stored
   `body_hash`, `cache_status = "same_hash"`.
-- **304 for a URL not in `validators`** (misbehaving server): re-fetched once
-  without conditional headers.
 - `fetch_unconditional(url) -> PageResult` — public; a plain `_fetch` with no
   conditional headers. Used by the audit's fallback below.
 
@@ -158,9 +161,10 @@ through. `"reuse"` joins `SUMMARY_FIELDS`.
 
 - Any exception opening, reading, or writing the cache: log once, continue the
   audit without it (writes are dropped, reads become misses).
-- `get_html_part` failing for a URL that sent conditional headers and got a
-  304 — the one case with no body to fall back on: `on_page` calls
-  `crawler.fetch_unconditional(url)` and analyses that result normally.
+- A 304 whose cache entry cannot be read — the one case with no body to fall
+  back on: the crawler's `_handle_result` finds no cached links for it and calls
+  `fetch_unconditional(url)` before extracting links, so both its links and its
+  analysis come from a full response.
 - Pages that errored, were non-HTML, or were Part A aliases/duplicates are
   never written to the cache.
 
