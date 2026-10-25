@@ -43,6 +43,8 @@ def _cors_options():
 app.add_middleware(CORSMiddleware, **_cors_options())
 
 app.include_router(api_router, prefix="/api")
+from app.api.projects import router as projects_router  # noqa: E402
+app.include_router(projects_router, prefix="/api")
 
 
 @app.websocket("/ws")
