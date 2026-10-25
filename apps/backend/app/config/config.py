@@ -69,6 +69,15 @@ ALERT_EMAIL_TO = [a.strip() for a in os.getenv("ALERT_EMAIL_TO", "").split(",") 
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 GOOGLE_CSE_DAILY_QUOTA = int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100"))
+# Core Web Vitals (Phase 5.1). PageSpeed Insights is free but quota'd, so it
+# still has a hard daily cap. Lighthouse is a local fallback, opt-in because it
+# needs Node, Chrome and a global `npm i -g lighthouse@12`.
+PSI_API_KEY = os.getenv("PSI_API_KEY", "")
+PSI_DAILY_CAP = int(os.getenv("PSI_DAILY_CAP", "50"))
+PSI_MAX_PAGES = int(os.getenv("PSI_MAX_PAGES", "5"))
+LIGHTHOUSE_ENABLED = os.getenv("LIGHTHOUSE_ENABLED", "").strip().lower() in ("1", "true", "yes")
+CHROME_PATH = os.getenv("CHROME_PATH", "")
+LIGHTHOUSE_CLI = os.getenv("LIGHTHOUSE_CLI", "")
 GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE = int(os.getenv("GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE", "3"))
 GOOGLE_CSE_CACHE_TTL_HOURS = int(os.getenv("GOOGLE_CSE_CACHE_TTL_HOURS", "24"))
 
