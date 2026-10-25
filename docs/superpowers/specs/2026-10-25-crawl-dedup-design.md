@@ -112,9 +112,11 @@ depth. The heap tolerates the stale entry: on pop, URLs already in `visited` (or
 in flight) are skipped. The `queued` check for discovered links therefore
 compares depths for sitemap-seeded URLs instead of rejecting them outright.
 
-A page crawled from the sitemap entry gets `depth = None` and `found_via =
-"sitemap"`. Depth statistics (`_depth_distribution`, `max_crawl_depth`) ignore
-`None`. A sitemap-only page is analysed, but its outgoing links are not followed:
+A page crawled from the sitemap entry gets `depth = max_depth + 1` and
+`found_via = "sitemap"`. Depth stays an integer because about ten backend and
+frontend consumers sort, compare, or do arithmetic on it; `max_depth + 1`
+truthfully reads as "deeper than the crawl reached by links", and `found_via`
+says why. A sitemap-only page is analysed, but its outgoing links are not followed:
 the sitemap adds the pages it lists, not a second crawl rooted at each of them.
 
 ### Delay
