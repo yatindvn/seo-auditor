@@ -73,13 +73,13 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
                   <label className="flex items-center gap-2">Compare
                     <select aria-label="Compare audit" className="h-9 rounded-full border bg-card px-3" value={selected ?? ""}
                             onChange={(e) => setSelected(Number(e.target.value))}>
-                      {items.map((a) => <option key={a.id} value={a.id}>{when(a.finished_at)}</option>)}
+                      {items.map((a) => <option key={a.id} value={a.id}>{`#${a.id} · ${when(a.finished_at)}`}</option>)}
                     </select>
                   </label>
                   <label className="flex items-center gap-2">compare against
                     <select aria-label="Compare against" className="h-9 rounded-full border bg-card px-3" value={against ?? ""}
                             onChange={(e) => setAgainst(Number(e.target.value))}>
-                      {items.filter((a) => a.id !== selected).map((a) => <option key={a.id} value={a.id}>{when(a.finished_at)}</option>)}
+                      {items.filter((a) => a.id !== selected).map((a) => <option key={a.id} value={a.id}>{`#${a.id} · ${when(a.finished_at)}`}</option>)}
                     </select>
                   </label>
                 </div>

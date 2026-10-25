@@ -51,7 +51,8 @@ export function RankHistoryChart({ history, competitors, myDomain }: {
               <YAxis reversed domain={[1, maxPosition]} allowDecimals={false}
                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              {/* itemSorter={null}: keep series order, so your own site is listed first */}
+              <Legend itemSorter={null} wrapperStyle={{ fontSize: 12 }} />
               {series.map((s, i) => (
                 <Line key={s.key} dataKey={s.key} name={s.name} stroke={SERIES_LIGHT[i]} strokeWidth={2}
                       dot={{ r: 4 }} activeDot={{ r: 5 }} connectNulls={false} type="monotone" />

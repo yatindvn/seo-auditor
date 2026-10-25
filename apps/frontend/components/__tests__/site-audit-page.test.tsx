@@ -51,6 +51,18 @@ describe("Site Audit page", () => {
     expect(getDiff).toHaveBeenLastCalledWith(3, 1);
   });
 
+  it("labels compare options with the audit number, so same-minute audits differ", async () => {
+    const sameMinute = (id: number) => ({ ...audit(id), finished_at: "2026-10-25T10:00:00+00:00" });
+    vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [sameMinute(3), sameMinute(2)], total: 2, offset: 0, limit: 50 } as any);
+    vi.spyOn(Platform, "auditDiff").mockResolvedValue(diff as any);
+    render(<SiteAuditPage params={{ id: "7" }} />);
+    await screen.findByText("STATUS_404");
+
+    const labels = Array.from((screen.getByLabelText(/^compare audit/i) as HTMLSelectElement).options).map((o) => o.text);
+    expect(labels[0]).toMatch(/^#3 · /);
+    expect(labels[1]).toMatch(/^#2 · /);
+  });
+
   it("links each audit to its full report", async () => {
     vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(3)], total: 1, offset: 0, limit: 50 } as any);
     render(<SiteAuditPage params={{ id: "7" }} />);
