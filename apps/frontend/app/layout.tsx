@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { GlobalNav } from "@/components/platform/global-nav";
 import { AuditProvider } from "@/lib/audit-context";
 
 export const metadata: Metadata = {
@@ -16,7 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuditProvider>{children}</AuditProvider>
+        <AuditProvider>
+          <GlobalNav />
+          {children}
+        </AuditProvider>
       </body>
     </html>
   );

@@ -917,7 +917,7 @@ vi.mock("next/navigation", () => ({
 
 const project = (over = {}) => ({
   id: 7, name: "example.com", domain: "example.com", audit_schedule: null, audit_options: {},
-  rank_schedule: "daily", alert_settings: {}, audit_count: 3,
+  rank_schedule: "daily" as const, alert_settings: {}, audit_count: 3,
   latest_audit: { id: 30, finished_at: "2026-10-24T10:00:00+00:00", health_score: 72.5 }, ...over,
 });
 
