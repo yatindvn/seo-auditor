@@ -58,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--delay", type=float, default=0.0, help="Delay in seconds between requests per worker (politeness)")
     p.add_argument("--ignore-robots", action="store_true", help="Do not respect robots.txt disallow rules")
     p.add_argument("--skip-external-links", action="store_true", help="Skip checking external link status codes")
+    p.add_argument("--fresh", action="store_true",
+                   help="Ignore the page cache and re-analyse every page")
     p.add_argument("--max-external-links", type=int, default=100, help="Max external links to status-check")
     # Accepted and ignored: near-duplicate detection is unconditional since the
     # quadratic implementation was replaced (commit 8d29bcd), so opting in is
@@ -105,6 +107,7 @@ def _run_audit(args, progress_callback=None) -> dict:
         external_link_check_limit=0 if args.skip_external_links else args.max_external_links,
         psi_key=args.psi_key,
         psi_strategy=args.psi_strategy,
+        fresh=args.fresh,
     )
 
 

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS pages (
   internal_links_count INTEGER, external_links_count INTEGER,
   images_count INTEGER, missing_alt_count INTEGER,
   meta_robots TEXT, lang TEXT, error TEXT, issue_count INTEGER DEFAULT 0,
-  meta_json TEXT, alias_of TEXT, duplicate_of TEXT, found_via TEXT
+  meta_json TEXT, alias_of TEXT, duplicate_of TEXT, found_via TEXT, cache_status TEXT
 );
 CREATE TABLE IF NOT EXISTS issues (url TEXT, severity TEXT, code TEXT, message TEXT);
 CREATE TABLE IF NOT EXISTS links (src TEXT, dst TEXT, internal INTEGER);
@@ -53,7 +53,7 @@ PAGE_COLUMNS = [
     "title", "meta_description", "h1", "canonical", "word_count", "char_count",
     "internal_links_count", "external_links_count", "images_count",
     "missing_alt_count", "meta_robots", "lang", "error",
-    "alias_of", "duplicate_of", "found_via", "issue_count",
+    "alias_of", "duplicate_of", "found_via", "cache_status", "issue_count",
 ]
 
 # issue_count is derived from the issues written alongside the row, never read
@@ -76,7 +76,7 @@ class SessionDB:
         # EXISTS leaves an existing table alone, so add them here or the
         # history panel cannot reopen an older audit.
         existing = {row["name"] for row in self._conn.execute("PRAGMA table_info(pages)")}
-        for column in ("alias_of", "duplicate_of", "found_via"):
+        for column in ("alias_of", "duplicate_of", "found_via", "cache_status"):
             if column not in existing:
                 self._conn.execute(f"ALTER TABLE pages ADD COLUMN {column} TEXT")
         self._conn.commit()

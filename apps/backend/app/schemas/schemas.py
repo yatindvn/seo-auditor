@@ -36,6 +36,9 @@ class AuditRequestParams(BaseModel):
     enable_competitor_gap: Optional[bool] = False
     target_keywords: Optional[List[str]] = None
     rank_targets: Optional[List[RankTarget]] = None
+    # Ignore the page cache and analyse every page afresh (results are still
+    # written back to it).
+    fresh: Optional[bool] = False
 
 
 class HealthScore(BaseModel):
