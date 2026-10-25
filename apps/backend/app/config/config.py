@@ -24,6 +24,9 @@ CRAWL_CONCURRENCY = int(os.getenv("CRAWL_CONCURRENCY", "32"))
 # maps here in deploy/oracle/docker-compose.yml so audit history outlives a
 # container rebuild -- it used to be an in-memory list, lost on every deploy.
 SESSION_DIR = Path(os.getenv("SESSION_DIR", "./sessions"))
+# A cached page analysis older than this is redone even if the server says the
+# page is unchanged -- a bound on trusting servers that misreport changes.
+PAGE_CACHE_MAX_AGE_DAYS = int(os.getenv("PAGE_CACHE_MAX_AGE_DAYS", "30"))
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 GOOGLE_CSE_DAILY_QUOTA = int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100"))

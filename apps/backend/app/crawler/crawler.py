@@ -110,6 +110,17 @@ class PageResult:
     found_via: str = "link"
 
 
+@dataclass
+class Validators:
+    """What a previous audit learned about a URL, enough to ask the server
+    whether it changed: its validators, its body hash, and its headers (a 304
+    carries few headers of its own, so the stored ones are merged under it)."""
+    etag: Optional[str] = None
+    last_modified: Optional[str] = None
+    body_hash: Optional[str] = None
+    headers: Dict = field(default_factory=dict)
+
+
 class Crawler:
     def __init__(
         self,
