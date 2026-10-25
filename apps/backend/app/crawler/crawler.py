@@ -293,8 +293,14 @@ class Crawler:
         return PageResult(url=url, final_url=url, status_code=None, error=str(last_exc))
 
     def _fetch_paced(self, url: str) -> PageResult:
-        """The worker's entry point. Calls self._fetch at call time, so a test
-        that replaces _fetch on the instance is still honoured."""
+        """The worker's entry point: this worker's politeness delay, then the fetch.
+
+        The delay used to sleep on the crawl loop's own thread, which paused
+        admission for every worker. Calls self._fetch at call time, so a test
+        that replaces _fetch on the instance is still honoured.
+        """
+        if self.delay:
+            time.sleep(self.delay)
         return self._fetch(url)
 
     # ---------------------------------------------------------------- crawl
@@ -340,6 +346,7 @@ class Crawler:
         sequence = itertools.count()
         frontier = [(0, next(sequence), self.start_url, None, "link")]
         self.queued.add(self.start_url)
+        self._seed_sitemap(frontier, sequence)
 
         in_flight = {}
         in_flight_urls: Set[str] = set()
@@ -369,6 +376,14 @@ class Crawler:
                         # the frontier must survive reaching the cap.
                         if self._admitted >= self.max_pages or self._fetched >= self.fetch_ceiling:
                             break
+                    # Heap order alone cannot put sitemap entries last: at the
+                    # start the heap holds only the start URL and the sitemap.
+                    # So a sitemap entry waits until no link fetch is in flight,
+                    # since any of them may yet discover pages that go first.
+                    if frontier[0][4] == "sitemap" and any(
+                        entry[3] == "link" for entry in in_flight.values()
+                    ):
+                        break
                     priority, _, url, referrer, via = heapq.heappop(frontier)
                     # A URL can sit in the heap twice (a sitemap entry and a
                     # later link entry); whichever pops second is stale.
@@ -458,6 +473,20 @@ class Crawler:
             self.aliases[final] = url
             self.queued.add(final)
         return None
+
+    def _seed_sitemap(self, frontier, sequence) -> None:
+        """Queue sitemap-listed pages behind every link-discovered page.
+
+        Priority max_depth + 1 sorts them after anything a link can reach, so
+        sitemap-only pages -- often the orphans an audit exists to find -- fill
+        whatever cap remains instead of displacing linked pages.
+        """
+        for url in sorted(self.sitemap_urls):
+            if url in self.queued or not same_registrable_domain(url, self.root_netloc):
+                continue
+            self.queued.add(url)
+            self._sitemap_pending.add(url)
+            heapq.heappush(frontier, (self.max_depth + 1, next(sequence), url, None, "sitemap"))
 
     def _handle_result(self, future, url, depth, referrer, via, frontier, sequence,
                        progress_callback, on_page):

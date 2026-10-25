@@ -761,7 +761,16 @@ In `apps/backend/app/crawler/crawler.py`:
         self._seed_sitemap(frontier, sequence)
 ```
 
-3. Replace `_fetch_paced` with:
+3. In `crawl`'s admission loop, directly after the cap/ceiling check and before `heapq.heappop`, add the guard below. Heap order alone cannot put sitemap entries last: at the start the heap holds only the start URL and the sitemap entries.
+
+```python
+                    if frontier[0][4] == "sitemap" and any(
+                        entry[3] == "link" for entry in in_flight.values()
+                    ):
+                        break
+```
+
+4. Replace `_fetch_paced` with:
 
 ```python
     def _fetch_paced(self, url: str) -> PageResult:
