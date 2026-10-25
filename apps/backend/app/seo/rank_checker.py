@@ -14,6 +14,9 @@ from urllib.parse import urlparse
 
 import requests
 
+from app.providers import registry, spend
+from app.providers.serp import ProviderSkipped, SerpQuery
+
 CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1"
 
 logger = logging.getLogger("seo_auditor")
@@ -26,13 +29,12 @@ _NOTES = {
 
 
 class _RankCheckState:
-    """In-memory cache + daily quota counter, mirroring session_model.py's
-    SessionStore pattern: no DB, no persistence beyond process lifetime."""
+    """Per-process cache of CSE results. The daily quota lives in the database
+    (app/providers/spend.py) so it survives restarts and is shared with the
+    rank tracker."""
 
     def __init__(self) -> None:
         self._cache: Dict[Tuple[str, str], Dict] = {}
-        self._quota_date = None
-        self._quota_used = 0
 
     def get_cached(self, key: Tuple[str, str], ttl_hours: int) -> Optional[List[str]]:
         entry = self._cache.get(key)
@@ -45,25 +47,9 @@ class _RankCheckState:
     def set_cached(self, key: Tuple[str, str], urls: List[str]) -> None:
         self._cache[key] = {"urls": urls, "cached_at": datetime.now(timezone.utc)}
 
-    def _reset_quota_if_new_day(self) -> None:
-        today = datetime.now(timezone.utc).date()
-        if self._quota_date != today:
-            self._quota_date = today
-            self._quota_used = 0
-
-    def can_query(self, daily_quota: int) -> bool:
-        self._reset_quota_if_new_day()
-        return self._quota_used < daily_quota
-
-    def record_query(self) -> None:
-        self._reset_quota_if_new_day()
-        self._quota_used += 1
-
     def reset(self) -> None:
-        """Test-only: clear cache and quota usage."""
+        """Test-only: clear the cache (as a restart would)."""
         self._cache.clear()
-        self._quota_date = None
-        self._quota_used = 0
 
 
 _state = _RankCheckState()
@@ -83,6 +69,19 @@ def _domain(url: str) -> str:
     return netloc
 
 
+def fetch_cse_urls(keyword: str, config, gl: Optional[str] = None, num: int = 10) -> List[str]:
+    """The one Google CSE request, used by audits and by GoogleCseProvider.
+    Raises on failure; callers must not log the exception text (it contains
+    the request URL, and so the API key)."""
+    params = {"key": config.GOOGLE_CSE_API_KEY, "cx": config.GOOGLE_CSE_CX, "q": keyword, "num": num}
+    if gl:
+        params["gl"] = gl
+    resp = requests.get(CSE_ENDPOINT, params=params, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    return [item["link"] for item in data.get("items", []) if "link" in item]
+
+
 def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional[List[str]], Optional[str]]:
     """Cache-or-live CSE lookup for one keyword.
 
@@ -94,6 +93,9 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
     check_rankings() and keyword_suggestions.py's competitor-gap path call
     this directly rather than duplicating the logic.
     """
+    if (getattr(config, "SERP_PROVIDER", "") or "") == "dataforseo":
+        return _get_provider_results(keyword, target_domain, config)
+
     if not config.GOOGLE_CSE_API_KEY or not config.GOOGLE_CSE_CX:
         return None, "not_configured"
 
@@ -102,18 +104,13 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
     if cached is not None:
         return cached, None
 
-    if not _state.can_query(config.GOOGLE_CSE_DAILY_QUOTA):
+    try:
+        spend.reserve("google_cse", config.GOOGLE_CSE_DAILY_QUOTA)
+    except ProviderSkipped:
         return None, "quota_reached"
 
     try:
-        resp = requests.get(
-            CSE_ENDPOINT,
-            params={"key": config.GOOGLE_CSE_API_KEY, "cx": config.GOOGLE_CSE_CX, "q": keyword, "num": 10},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        urls = [item["link"] for item in data.get("items", []) if "link" in item]
+        urls = fetch_cse_urls(keyword, config)
     except Exception as exc:
         # Never log `exc` (or exc_info) directly here: requests.raise_for_status()
         # embeds the full request URL — including the `key=<API key>` query
@@ -127,7 +124,32 @@ def _get_cse_results(keyword: str, target_domain: str, config) -> Tuple[Optional
         )
         return None, "error"
 
-    _state.record_query()
+    _state.set_cached(cache_key, urls)
+    return urls, None
+
+
+def _get_provider_results(keyword: str, target_domain: str, config):
+    """The same contract through the provider layer (DataForSEO). A dry-run
+    provider counts as not configured: an audit report must never show a
+    made-up position."""
+    cache_key = (keyword, target_domain)
+    cached = _state.get_cached(cache_key, config.GOOGLE_CSE_CACHE_TTL_HOURS)
+    if cached is not None:
+        return cached, None
+    try:
+        provider = registry.get_serp_provider()
+    except ProviderSkipped:
+        return None, "not_configured"
+    if not registry.is_live(provider):
+        return None, "not_configured"
+    try:
+        result = provider.search(SerpQuery(keyword, depth=10))
+    except ProviderSkipped:
+        return None, "quota_reached"
+    except Exception as exc:
+        logger.error("SERP lookup failed for keyword %r: %s", keyword, type(exc).__name__)
+        return None, "error"
+    urls = [item.url for item in result.items]
     _state.set_cached(cache_key, urls)
     return urls, None
 
