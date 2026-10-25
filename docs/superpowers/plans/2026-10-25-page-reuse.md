@@ -1591,7 +1591,7 @@ Create `apps/frontend/components/__tests__/fresh-audit.test.tsx`:
 /**
  * "Re-check every page" asks the API to ignore its page cache for one audit.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -1627,6 +1627,8 @@ async function submitWith(recheck: boolean) {
 }
 
 describe("Re-check every page", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
   it("is off by default, so unchanged pages are reused", async () => {
     expect(await submitWith(false)).toMatchObject({ fresh: false });
   });

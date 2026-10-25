@@ -195,6 +195,11 @@ export function PagesTable({ sessionId }: PagesTableProps) {
                             SITEMAP
                           </span>
                         )}
+                        {page.cache_status && (
+                          <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 text-[9px] font-semibold border border-sky-500/20" title={page.cache_status === "not_modified" ? "Not modified since the last audit" : "Same HTML as the last audit"}>
+                            UNCHANGED
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

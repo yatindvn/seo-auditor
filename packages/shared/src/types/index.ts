@@ -122,6 +122,7 @@ export interface PageItem {
   alias_of?: string | null;
   duplicate_of?: string | null;
   found_via?: "link" | "sitemap" | null;
+  cache_status?: "not_modified" | "same_hash" | null;
 }
 
 export interface Duplicates {
@@ -192,6 +193,12 @@ export interface DedupSummary {
   sitemap_only: number;
 }
 
+export interface ReuseSummary {
+  not_modified: number;
+  same_hash: number;
+  analysed: number;
+}
+
 export interface AuditResponse {
   executive_summary: ExecutiveSummary;
   pages: PageItem[];
@@ -204,6 +211,7 @@ export interface AuditResponse {
   note: string;
   rank_targets?: RankTarget[];
   dedup?: DedupSummary;
+  reuse?: ReuseSummary;
 }
 
 export interface AuditRequestParams {
@@ -217,6 +225,7 @@ export interface AuditRequestParams {
   enable_competitor_gap?: boolean;
   rank_targets?: RankTarget[];
   target_keywords?: string[];
+  fresh?: boolean;
 }
 
 export interface CrawlPage {

@@ -39,6 +39,28 @@ function envelope(items: unknown[], total: number) {
 describe("PagesTable", () => {
   beforeEach(() => vi.restoreAllMocks());
 
+  it("marks a page whose analysis was reused from the last audit", async () => {
+    vi.spyOn(ApiService, "getPages").mockResolvedValue(
+      envelope([row(0, { cache_status: "not_modified" })], 1),
+    );
+
+    render(<PagesTable sessionId="sess_1" />);
+
+    const badge = await screen.findByText("UNCHANGED");
+    expect(badge).toHaveAttribute("title", "Not modified since the last audit");
+  });
+
+  it("says why a same-hash page was reused", async () => {
+    vi.spyOn(ApiService, "getPages").mockResolvedValue(
+      envelope([row(0, { cache_status: "same_hash" })], 1),
+    );
+
+    render(<PagesTable sessionId="sess_1" />);
+
+    const badge = await screen.findByText("UNCHANGED");
+    expect(badge).toHaveAttribute("title", "Same HTML as the last audit");
+  });
+
   it("marks a URL that redirects onto another crawled page", async () => {
     vi.spyOn(ApiService, "getPages").mockResolvedValue(
       envelope([row(0, { alias_of: "https://example.com/p9" })], 1),
