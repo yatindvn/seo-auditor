@@ -7,6 +7,7 @@ import { AsyncState, EmptyState } from "@/components/platform/async-state";
 import { AuditDiffView } from "@/components/platform/audit-diff";
 import { DeltaBadge } from "@/components/platform/delta-badge";
 import { PageHeader } from "@/components/platform/page-header";
+import { VitalsTable } from "@/components/platform/vitals-table";
 import { useApi } from "@/lib/use-api";
 import { Platform } from "@/services/platform";
 
@@ -25,6 +26,7 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
   }, [items, selected, against]);
 
   const diff = useApi(selected !== null && against !== null ? () => Platform.auditDiff(selected, against) : null, [selected, against]);
+  const vitals = useApi(selected !== null ? () => Platform.auditVitals(selected) : null, [selected]);
 
   return (
     <div className="space-y-6">
@@ -64,6 +66,11 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
                 </tbody>
               </table>
             </div>
+
+            <section className="rounded-[18px] border bg-card p-5">
+              <h2 className="mb-3 font-semibold tracking-tight">Core Web Vitals</h2>
+              <AsyncState state={vitals}>{(v) => <VitalsTable rows={v.items} status={v.status} />}</AsyncState>
+            </section>
 
             {items.length < 2 ? (
               <EmptyState title="Run a second audit to compare" text="Each new audit of this site can be compared with any earlier one." />

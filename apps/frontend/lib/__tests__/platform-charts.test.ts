@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { averagePosition, biggestMoves, healthTrend, rankSeries } from "@/lib/platform-charts";
+import { formatVitalsMetric, vitalsScoreTrend } from "@/lib/platform-charts";
 
 const audit = (id: number, finished: string, score: number | null) => ({
   id, session_id: `s${id}`, status: "completed" as const, trigger: "manual" as const,
@@ -54,5 +55,26 @@ describe("keyword summaries", () => {
 
   it("biggest moves are by absolute change", () => {
     expect(biggestMoves([kw(1, 4, 1), kw(2, 9, -5), kw(3, 3, 3), kw(4, 5, null)], 2).map((k) => k.id)).toEqual([2, 3]);
+  });
+});
+
+describe("Core Web Vitals helpers", () => {
+  it("formats each metric in its own unit", () => {
+    expect(formatVitalsMetric("lcp_ms", 4810)).toBe("4.8 s");
+    expect(formatVitalsMetric("inp_ms", 182.4)).toBe("182 ms");
+    expect(formatVitalsMetric("tbt_ms", 90)).toBe("90 ms");
+    expect(formatVitalsMetric("cls", 0.123)).toBe("0.12");
+    expect(formatVitalsMetric("lcp_ms", null)).toBe("—");
+  });
+
+  it("charts the performance score per audit, gaps as null", () => {
+    const point = (id: number, score: number | null) => ({
+      audit_id: id, finished_at: `2026-10-2${id}T10:00:00+00:00`, url: "u", source: "psi" as const,
+      data_kind: "lab" as const, performance_score: score, lcp_ms: null, inp_ms: null, cls: null,
+      tbt_ms: null, rating: null, metric_ratings: { lcp_ms: null, inp_ms: null, cls: null, tbt_ms: null },
+    });
+    const data = vitalsScoreTrend([point(1, 71), point(2, null)]);
+    expect(data.map((d) => d.score)).toEqual([71, null]);
+    expect(data[0].label).toBeTruthy();
   });
 });
