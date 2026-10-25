@@ -27,7 +27,7 @@ function Metric({ row, metric }: { row: VitalsRow; metric: "lcp_ms" | "inp_ms" |
   const value = row[metric];
   if (value == null) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className="flex flex-wrap items-center gap-1.5 tabular-nums">
+    <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
       {formatVitalsMetric(metric, value)} <RatingPill rating={row.metric_ratings[metric]} />
     </span>
   );
@@ -54,7 +54,7 @@ export function VitalsTable({ rows, status }: { rows: VitalsRow[]; status: Vital
         <tbody className="divide-y">
           {rows.map((r) => (
             <tr key={r.url} className="align-top">
-              <td className="sticky left-0 max-w-[260px] break-all bg-card py-2 pr-4">{r.url}</td>
+              <td className="sticky left-0 max-w-[140px] break-all bg-card py-2 pr-4 sm:max-w-[260px]">{r.url}</td>
               {r.error ? (
                 <td colSpan={6} className="py-2 text-muted-foreground">Not measured: {r.error}</td>
               ) : (
