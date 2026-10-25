@@ -30,7 +30,7 @@ project-scoped store.
 ### 1. Database layer — `app/db/`
 
 - `app/db/engine.py`: one SQLAlchemy 2.x `Engine` and `sessionmaker`, built
-  from `DATABASE_URL`. The default is `sqlite:///<SESSION_DIR>/platform.db`, on
+  from `DATABASE_URL`. The default is `sqlite:///<SESSION_DIR>/central/platform.db`, on
   the existing sessions volume. Postgres URLs use the `postgresql+psycopg://`
   driver. SQLite connections get `PRAGMA foreign_keys=ON` and WAL mode.
 - `app/db/models.py`: declarative models (below).

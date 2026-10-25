@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Branch `feat/foundation`. Baseline: backend 342 passed, frontend 57 passed.
-- `DATABASE_URL` defaults to `sqlite:///<SESSION_DIR>/platform.db`. Postgres URLs use `postgresql+psycopg://`.
+- `DATABASE_URL` defaults to `sqlite:///<SESSION_DIR>/central/platform.db`. Postgres URLs use `postgresql+psycopg://`.
 - The schema comes **only** from the Alembic migration. Tests build DBs from it, and a test asserts models and migration agree.
 - No test writes outside `tmp_path`. An autouse fixture points `DATABASE_URL` at a per-test copy of a migrated template DB.
 - A central-DB failure never fails an audit (`persisted: false`).
@@ -59,7 +59,7 @@ In `apps/backend/app/config/config.py`, after `PAGE_CACHE_MAX_AGE_DAYS`:
 ```python
 # The central database: projects, audits, rank checks. SQLite on the sessions
 # volume unless pointed at Postgres (postgresql+psycopg://user:pass@host/db).
-DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{(SESSION_DIR / 'platform.db').as_posix()}"
+DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{(SESSION_DIR / 'central' / 'platform.db').as_posix()}"
 # POST /api/cron/run requires this as a bearer token; unset disables the route.
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 # Run due scheduled audits from inside the API process every 15 minutes.
@@ -515,7 +515,10 @@ def _migrated_template(tmp_path_factory):
 def isolated_database(tmp_path, monkeypatch, _migrated_template):
     """Every test gets its own migrated central DB under tmp_path, so nothing
     writes platform.db into the repository."""
-    path = tmp_path / "platform.db"
+    # A subdirectory, as in production: tests that use tmp_path itself as a
+    # session dir must not see the central DB as a session.
+    path = tmp_path / "central" / "platform.db"
+    path.parent.mkdir()
     shutil.copy(_migrated_template, path)
     url = f"sqlite:///{path.as_posix()}"
     monkeypatch.setattr(app_config, "DATABASE_URL", url)
@@ -1491,7 +1494,7 @@ def test_sessions_are_imported_once(tmp_path):
     _saved_session(sessions, "sess_1", "https://example.com/", 1_790_000_000_000_000_000)
     _saved_session(sessions, "sess_2", "https://other.org/", 1_790_000_100_000_000_000)
     (sessions / "page_cache").mkdir()          # not a session: must be ignored
-    (sessions / "platform.db").write_bytes(b"")  # the central DB itself: never imported
+    (sessions / "central").mkdir()             # the central DB's directory: ignored too
     factory = get_session_factory()
 
     assert import_all(sessions, factory) == {"imported": 2, "skipped": 0, "failed": 0}
@@ -1553,9 +1556,9 @@ def import_all(session_dir: Path, factory) -> Dict[str, int]:
     with factory() as session:
         known = set(session.scalars(select(Audit.session_id)).all())
 
-    # platform.db (the central DB) lives in the same directory and matches the
-    # glob; opening it as a SessionDB would create session tables inside it.
-    for path in sorted(p for p in Path(session_dir).glob("*.db") if p.name != "platform.db"):
+    # Session files only: the central DB lives in central/, page caches in
+    # page_cache/, and the glob does not descend into either.
+    for path in sorted(Path(session_dir).glob("*.db")):
         session_id = path.stem
         if session_id in known:
             counts["skipped"] += 1
@@ -1976,7 +1979,7 @@ Run: `docker run -d --name pg-test -e POSTGRES_PASSWORD=test -p 55432:5432 postg
 `apps/backend/.env.example`: append
 
 ```
-# Central database. Unset = SQLite at $SESSION_DIR/platform.db.
+# Central database. Unset = SQLite at $SESSION_DIR/central/platform.db.
 DATABASE_URL=
 # Bearer token for POST /api/cron/run. Unset = route disabled.
 CRON_SECRET=

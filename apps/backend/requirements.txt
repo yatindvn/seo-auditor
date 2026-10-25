@@ -23,3 +23,10 @@ networkx>=3.0
 # more than half the per-page CPU budget for one feature. Prebuilt aarch64
 # wheels exist for 3.12, which matters: this image is ARM (see the FROM line).
 numpy>=1.26
+
+# Central database (Phase 1). SQLite by default; Postgres through psycopg 3.
+sqlalchemy>=2.0
+alembic>=1.13
+psycopg[binary]>=3.1
+# Scheduled audits in-process (SCHEDULER_ENABLED); 4.x is a different API.
+apscheduler>=3.10,<4

@@ -30,3 +30,35 @@ def isolated_session_dir(tmp_path, monkeypatch):
             monkeypatch.setattr(module, "session_store", store)
 
     return store
+
+
+import shutil
+
+from app.config import config as app_config
+from app.db import engine as db_engine
+
+
+@pytest.fixture(scope="session")
+def _migrated_template(tmp_path_factory):
+    """Migrate once per test run; each test gets a copy. Running the migration
+    per test would add a minute to the suite."""
+    path = tmp_path_factory.mktemp("db") / "template.db"
+    db_engine.run_migrations(f"sqlite:///{path.as_posix()}")
+    db_engine.dispose_all()
+    return path
+
+
+@pytest.fixture(autouse=True)
+def isolated_database(tmp_path, monkeypatch, _migrated_template):
+    """Every test gets its own migrated central DB under tmp_path, so nothing
+    writes platform.db into the repository."""
+    # A subdirectory, as in production: tests that use tmp_path itself as a
+    # session dir must not see the central DB as a session.
+    path = tmp_path / "central" / "platform.db"
+    path.parent.mkdir()
+    shutil.copy(_migrated_template, path)
+    url = f"sqlite:///{path.as_posix()}"
+    monkeypatch.setattr(app_config, "DATABASE_URL", url)
+    db_engine.mark_migrated(url)
+    yield url
+    db_engine.dispose_all()
