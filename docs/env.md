@@ -30,6 +30,15 @@
 | `PAGE_CACHE_MAX_AGE_DAYS` | A cached page analysis older than this is redone even if the server reports the page unchanged | `30` |
 | `CRAWL_CONCURRENCY` | Concurrent fetches a crawl starts with | `32` |
 | `CRAWL_MAX_CONCURRENCY` | Ceiling adaptive concurrency may grow to while the site responds well | `64` |
+| `SERP_PROVIDER` | Rank data source: `dataforseo`, `google_cse` or `dry_run`. Unset: `google_cse` when its key is set, otherwise `dry_run` | `""` |
+| `SERP_DRY_RUN` | Paid providers return made-up results (never stored) until this is exactly `false` | `true` |
+| `SERP_DAILY_CAP` | Hard daily cap on paid SERP calls (DataForSEO), counted in the database | `50` |
+| `RANK_DEPTH` | Results requested per tracked keyword (DataForSEO max 200; Google CSE returns at most 10) | `100` |
+| `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO API credentials | `""` |
+| `GOOGLE_CSE_DAILY_QUOTA` | Daily cap on Google CSE calls, now counted in the database and shared by audits and rank tracking | `100` |
+| `SLACK_WEBHOOK_URL` | Slack incoming webhook for rank alerts | `""` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP server for email alerts (STARTTLS) | `""` / `587` |
+| `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO` | Sender, and comma-separated recipients, of email alerts | `""` |
 
 ### Getting a free Google CSE API key + CX
 

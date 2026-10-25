@@ -30,6 +30,20 @@ services:
       # Bearer token for POST /api/cron/run; unset leaves the route disabled.
       CRON_SECRET: ${CRON_SECRET:-}
       SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
+      # Rank tracking. Paid providers stay in dry run until SERP_DRY_RUN=false.
+      SERP_PROVIDER: ${SERP_PROVIDER:-}
+      SERP_DRY_RUN: ${SERP_DRY_RUN:-true}
+      SERP_DAILY_CAP: ${SERP_DAILY_CAP:-50}
+      RANK_DEPTH: ${RANK_DEPTH:-100}
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
     # Deliberately NOT published to the host: only Caddy may reach it, so the
     # plaintext port is never exposed to the internet.
     expose:

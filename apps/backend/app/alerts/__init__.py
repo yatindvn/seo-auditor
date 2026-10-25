@@ -1,0 +1,1 @@
+"""Rank change alerts."""

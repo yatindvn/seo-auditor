@@ -32,6 +32,8 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     audit_schedule: Schedule = None
     audit_options: Optional[Dict[str, Any]] = None
+    rank_schedule: Optional[Literal["daily"]] = None
+    alert_settings: Optional[Dict[str, Any]] = None
 
 
 def _factory():
@@ -59,6 +61,7 @@ def _project_json(session, project: Project) -> Dict[str, Any]:
     return {
         "id": project.id, "name": project.name, "domain": project.domain,
         "audit_schedule": project.audit_schedule, "audit_options": project.audit_options_json,
+        "rank_schedule": project.rank_schedule, "alert_settings": project.alert_settings_json or {},
         "audit_count": count,
         "latest_audit": None if latest is None else {
             "id": latest.id, "finished_at": as_utc(latest.finished_at).isoformat(),
@@ -102,6 +105,10 @@ def update_project(project_id: int, body: ProjectUpdate):
             project.audit_schedule = fields["audit_schedule"]
         if fields.get("audit_options") is not None:
             project.audit_options_json = fields["audit_options"]
+        if "rank_schedule" in fields:
+            project.rank_schedule = fields["rank_schedule"]
+        if fields.get("alert_settings") is not None:
+            project.alert_settings_json = fields["alert_settings"]
         session.flush()
         return _project_json(session, project)
 

@@ -3,10 +3,13 @@ migration in apps/backend/alembic; tests assert the two agree."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text,
+    UniqueConstraint, true,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -35,6 +38,9 @@ class Project(Base):
     audit_schedule: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     audit_options_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     last_scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    rank_schedule: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    last_rank_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    alert_settings_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     audits = relationship("Audit", back_populates="project")
 
@@ -98,6 +104,9 @@ class Keyword(Base):
     country: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     device: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     target_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=True)
 
 
 class RankCheck(Base):
@@ -111,6 +120,8 @@ class RankCheck(Base):
     position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     ranking_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    serp_json: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
+    competitor_positions_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
 
 class Competitor(Base):
@@ -138,3 +149,28 @@ class AiVisibilityRun(Base):
     provider: Mapped[str] = mapped_column(String(32))
     prompt: Mapped[str] = mapped_column(Text)
     result_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ProviderUsage(Base):
+    """Paid-call counter per provider per UTC day: what the spend guard caps."""
+    __tablename__ = "provider_usage"
+    __table_args__ = (UniqueConstraint("provider", "day", name="uq_provider_usage_provider_day"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    day: Mapped[date] = mapped_column(Date)
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Alert(Base):
+    """One alert per (rank check, kind, channel): inserted before sending, so
+    the unique constraint makes a repeated run unable to send it twice."""
+    __tablename__ = "alerts"
+    __table_args__ = (UniqueConstraint("rank_check_id", "kind", "channel", name="uq_alerts_check_kind_channel"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    keyword_id: Mapped[int] = mapped_column(ForeignKey("keywords.id"))
+    rank_check_id: Mapped[int] = mapped_column(ForeignKey("rank_checks.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    channel: Mapped[str] = mapped_column(String(16))
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)

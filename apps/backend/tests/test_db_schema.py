@@ -51,3 +51,15 @@ def test_audits_of_one_site_share_a_project():
         other = get_or_create_project(session, "https://other.org/")
         assert first.id == second.id != other.id
         assert first.name == "example.com"
+
+def test_migration_0002_adds_rank_tracker_schema(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'm2.db').as_posix()}"
+    db_engine.run_migrations(url)
+    insp = inspect(create_engine(url))
+
+    assert {"provider_usage", "alerts"} <= set(insp.get_table_names())
+    assert {"language", "enabled", "created_at"} <= {c["name"] for c in insp.get_columns("keywords")}
+    assert {"serp_json", "competitor_positions_json"} <= {c["name"] for c in insp.get_columns("rank_checks")}
+    assert {"rank_schedule", "last_rank_checked_at", "alert_settings_json"} <= {
+        c["name"] for c in insp.get_columns("projects")
+    }
