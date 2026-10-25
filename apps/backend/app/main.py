@@ -62,6 +62,8 @@ from app.api.projects import router as projects_router  # noqa: E402
 app.include_router(projects_router, prefix="/api")
 from app.api.rank import router as rank_router  # noqa: E402
 app.include_router(rank_router, prefix="/api")
+from app.api.keywords import router as keywords_router  # noqa: E402
+app.include_router(keywords_router, prefix="/api")
 
 from app.api.cron import router as cron_router  # noqa: E402
 app.include_router(cron_router, prefix="/api")

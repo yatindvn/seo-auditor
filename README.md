@@ -112,3 +112,31 @@ curl -s -X POST -H 'Content-Type: application/json' -d '{"keywords":[{"phrase":"
 curl -s -X POST localhost:5055/api/projects/1/rank-checks/run                 # dry-run preview
 curl -s -o /dev/null -w '%{http_code}\n' -X POST "localhost:5055/api/projects/1/rank-checks/run?dry_run=false"   # 409 until a live provider is set
 ```
+
+---
+
+## Keywords Explorer & Content Gap (Phase 3)
+
+- **Explore a keyword:** `POST /api/keywords/explore {"seed": "..."}`. You get
+  ideas (Autocomplete + People Also Ask), volume, difficulty, a traffic
+  estimate, and optional clusters. CSV via `GET /api/keywords/explore.csv?seed=...`.
+- **Content gap:** `POST /api/projects/{id}/content-gap` returns keywords your
+  competitors rank for (top 20) that you don't (top 100), ranked by
+  opportunity. CSV via `GET /api/projects/{id}/content-gap.csv`.
+- **Cost control:** dry run until DataForSEO is live
+  (`SERP_PROVIDER=dataforseo`, credentials, `SERP_DRY_RUN=false`).
+  `DATAFORSEO_LABS_DAILY_CAP` (default 20) is a hard daily limit, and cached
+  answers are free.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_explorer.py tests/test_content_gap.py tests/test_keywords_api.py -v
+uvicorn app.main:app --port 5057 &
+curl -s -X POST -H 'Content-Type: application/json' -d '{"seed":"espresso machine"}' localhost:5057/api/keywords/explore
+curl -s "localhost:5057/api/keywords/explore.csv?seed=espresso%20machine" | head -3   # starts with '# DRY RUN'
+curl -s -X POST -H 'Content-Type: application/json' -d '{"domain":"example.com"}' localhost:5057/api/projects
+curl -s -X POST -H 'Content-Type: application/json' -d '{"domain":"rival.org"}' localhost:5057/api/projects/1/competitors
+curl -s -X POST -H 'Content-Type: application/json' -d '{}' localhost:5057/api/projects/1/content-gap
+```

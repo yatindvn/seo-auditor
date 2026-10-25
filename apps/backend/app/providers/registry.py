@@ -36,3 +36,16 @@ def get_serp_provider(cfg=config) -> SerpProvider:
         return SpendGuard(GoogleCseProvider(cfg), cap=cfg.GOOGLE_CSE_DAILY_QUOTA)
 
     return DryRunProvider()
+
+def get_keyword_provider(cfg=config):
+    """DataForSEO only when fully live (provider chosen, dry run off, credentials
+    set); otherwise made-up preview data. The DataForSEO adapter enforces its
+    own cap after its cache, so a cache hit spends nothing."""
+    from app.providers.dry_run_keywords import DryRunKeywordProvider
+
+    if (cfg.SERP_PROVIDER == "dataforseo" and not cfg.SERP_DRY_RUN
+            and cfg.DATAFORSEO_LOGIN and cfg.DATAFORSEO_PASSWORD):
+        from app.providers.dataforseo_keywords import DataForSeoKeywordProvider
+        return DataForSeoKeywordProvider(cfg.DATAFORSEO_LOGIN, cfg.DATAFORSEO_PASSWORD,
+                                         cap=cfg.DATAFORSEO_LABS_DAILY_CAP)
+    return DryRunKeywordProvider()

@@ -1,0 +1,7 @@
+{"status_code": 20000, "status_message": "Ok.", "tasks": [{"status_code": 20000, "status_message": "Ok.",
+  "result": [
+    {"keyword": "espresso machine", "search_volume": 74000, "cpc": 1.2, "competition": "HIGH", "competition_index": 100,
+     "monthly_searches": [{"year": 2026, "month": 9, "search_volume": 74000}]},
+    {"keyword": "espresso grinder", "search_volume": 12100, "cpc": 0.9, "competition": "MEDIUM", "competition_index": 55},
+    {"keyword": "latte art", "search_volume": null, "cpc": null, "competition": null, "competition_index": null}
+  ]}]}

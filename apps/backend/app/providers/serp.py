@@ -29,6 +29,7 @@ class SerpResult:
     items: List[SerpItem] = field(default_factory=list)
     provider: str = ""
     note: Optional[str] = None
+    questions: List[str] = field(default_factory=list)   # People Also Ask
 
 
 class SerpProvider(Protocol):

@@ -174,3 +174,17 @@ class Alert(Base):
     channel: Mapped[str] = mapped_column(String(16))
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class ProviderCache(Base):
+    """A provider response, reused until it expires so a repeat costs nothing."""
+    __tablename__ = "provider_cache"
+    __table_args__ = (
+        UniqueConstraint("provider", "endpoint", "request_hash", name="uq_provider_cache_request"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    endpoint: Mapped[str] = mapped_column(String(128))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    response_json: Mapped[Any] = mapped_column(JSON)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

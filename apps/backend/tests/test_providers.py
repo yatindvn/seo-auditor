@@ -134,3 +134,27 @@ def test_registry_goes_live_only_with_dry_run_off_and_credentials():
 
 def test_registry_defaults_to_dry_run_without_any_provider():
     assert registry.get_serp_provider(_cfg()).name == "dry_run"
+
+def test_dataforseo_reads_people_also_ask_questions():
+    payload = json.loads(FIXTURE.read_text())
+    payload["tasks"][0]["result"][0]["items"].append({
+        "type": "people_also_ask", "rank_group": 1, "rank_absolute": 6,
+        "items": [
+            {"type": "people_also_ask_element", "title": "Is an espresso machine worth it?"},
+            {"type": "people_also_ask_element", "title": "  How long do espresso machines last?  "},
+            {"type": "people_also_ask_element"},
+        ],
+    })
+    result = DataForSeoProvider("l", "p", http=_http(payload)).search(SerpQuery("espresso machine"))
+    assert result.questions == ["Is an espresso machine worth it?", "How long do espresso machines last?"]
+
+
+def test_no_people_also_ask_means_no_questions():
+    result = DataForSeoProvider("l", "p", http=_http(json.loads(FIXTURE.read_text()))).search(SerpQuery("x"))
+    assert result.questions == []
+
+
+def test_post_task_returns_the_first_task():
+    from app.providers.dataforseo import post_task
+    task = post_task(_http(json.loads(FIXTURE.read_text())), ("l", "p"), "/v3/x", {"keyword": "a"})
+    assert task["status_code"] == 20000 and task["result"][0]["keyword"] == "espresso machine"
