@@ -201,3 +201,46 @@ check** shows dry-run positions but doesn't save them.
 > baked in at build time. For a local `next build`/`next start`, override it:
 > `NEXT_PUBLIC_API_URL=http://127.0.0.1:5000 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:5000/ws npx next build`.
 
+---
+
+## Core Web Vitals (Phase 5.1)
+
+Every audit measures Core Web Vitals (LCP, INP, CLS, plus lab TBT and a
+performance score). It measures the start URL plus the most important pages
+by internal PageRank, up to `PSI_MAX_PAGES` (default 5), mobile.
+
+- **Sources:** PageSpeed Insights when `PSI_API_KEY` is set (hard daily cap
+  `PSI_DAILY_CAP`, default 50), then local Lighthouse when
+  `LIGHTHOUSE_ENABLED=true`. With neither, audits run as before and the UI says
+  "not measured".
+- **Rating:** Google's thresholds. Real-user (field) data when Google has it
+  for the page, otherwise lab data, labelled. Poor values add warnings that
+  count in the health score.
+- **Where it shows:**
+  - the Core Web Vitals card on the project Overview (homepage trend)
+  - the per-page table on the Site Audit tab
+  - the report's Performance tab
+- **CLI:** `--psi-key KEY` (overrides `PSI_API_KEY`) and `--psi-max-pages N`.
+  The CLI used to call PSI for every page; it now measures the top N.
+- **Lighthouse setup (once):** `npm i -g lighthouse@12`. Chrome is
+  auto-detected, or set `CHROME_PATH`. Not available on the Oracle VM yet
+  (no Chrome in the image); that comes with Playwright in Phase 5.2.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_vitals_rating.py tests/test_vitals_psi.py tests/test_vitals_lighthouse.py \
+  tests/test_vitals_runner.py tests/test_vitals_storage.py tests/test_vitals_pipeline.py tests/test_vitals_api.py -q
+
+# Local Lighthouse (one-time install, uses your installed Chrome)
+npm i -g lighthouse@12
+export LIGHTHOUSE_ENABLED=true SESSION_DIR=/tmp/seo-cwv
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links --psi-max-pages 2 --json \
+  | python -c "import sys,json; d=json.load(sys.stdin); print(d['web_vitals_status']); [print(v['url'], v['source'], v['lcp_ms'], v['rating'], v['error']) for v in d['web_vitals']]"
+```
+
+Expected: `measured`, then two lines showing `lighthouse`, an LCP in ms and a
+rating. Then start the backend (same `SESSION_DIR` and `LIGHTHOUSE_ENABLED`)
+and the frontend as in the Phase 4 section. Open the project's Overview to see
+the Core Web Vitals card.
