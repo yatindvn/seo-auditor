@@ -1875,14 +1875,9 @@ In `app/main.py`, after the projects router:
 ```python
 from app.api.cron import router as cron_router  # noqa: E402
 app.include_router(cron_router, prefix="/api")
-
-
-@app.on_event("startup")
-def _start_scheduler():
-    if config.SCHEDULER_ENABLED:
-        from app.scheduler.jobs import start_scheduler
-        app.state.scheduler = start_scheduler()
 ```
+
+and start the scheduler from a `lifespan` handler passed to `FastAPI(...)`. `on_event` is deprecated. The handler starts `start_scheduler()` when `config.SCHEDULER_ENABLED` is true, and calls `scheduler.shutdown(wait=False)` on exit.
 
 - [ ] **Step 4: Verify and commit**
 
