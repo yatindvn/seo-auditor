@@ -39,6 +39,29 @@ DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{(SESSION_DIR / 'central
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 # Run due scheduled audits from inside the API process every 15 minutes.
 SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "").lower() in ("1", "true", "yes")
+# --- SERP providers (rank tracking) ---------------------------------------
+# dataforseo | google_cse | dry_run. Unset: google_cse when its key is set,
+# otherwise dry_run.
+SERP_PROVIDER = os.getenv("SERP_PROVIDER", "").strip().lower()
+# Paid providers stay in dry-run until this is exactly "false" -- the first
+# live DataForSEO call is an explicit decision, never a default.
+SERP_DRY_RUN = os.getenv("SERP_DRY_RUN", "true").strip().lower() != "false"
+# Hard daily cap on paid SERP calls (DataForSEO). Google CSE is capped by
+# GOOGLE_CSE_DAILY_QUOTA. Both are counted in the provider_usage table.
+SERP_DAILY_CAP = int(os.getenv("SERP_DAILY_CAP", "50"))
+# Results requested per tracked keyword (DataForSEO allows up to 200).
+RANK_DEPTH = int(os.getenv("RANK_DEPTH", "100"))
+DATAFORSEO_LOGIN = os.getenv("DATAFORSEO_LOGIN", "")
+DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD", "")
+
+# --- Rank alerts -------------------------------------------------------------
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+ALERT_EMAIL_FROM = os.getenv("ALERT_EMAIL_FROM", "")
+ALERT_EMAIL_TO = [a.strip() for a in os.getenv("ALERT_EMAIL_TO", "").split(",") if a.strip()]
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 GOOGLE_CSE_DAILY_QUOTA = int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100"))
