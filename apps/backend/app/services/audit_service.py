@@ -3,11 +3,14 @@ import logging
 import os
 import time
 import asyncio
+from datetime import datetime, timezone
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any, Dict, List, Optional
 from app.crawler.crawler import Crawler, Validators
 from app.auditor import checks
 from app.models import page_cache
+from app.db import audit_store
+from app.db.engine import get_session_factory
 from app.analysis import analysis
 from app.ai import ai_suggestions
 from app.utils import performance, report
@@ -105,6 +108,7 @@ def run_full_audit(
     target_keywords: Optional[List[str]] = None,
     rank_targets: Optional[List[Any]] = None,
     fresh: bool = False,
+    trigger: str = "manual",
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -123,7 +127,7 @@ def run_full_audit(
             url, crawler, progress_callback, event_callback,
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
-            session_id=session_id, fresh=fresh,
+            session_id=session_id, fresh=fresh, trigger=trigger,
         )
     finally:
         unregister_crawler(session_id)
@@ -145,10 +149,12 @@ def _build_audit_result(
     psi_strategy: str = "mobile",
     session_id: Optional[str] = None,
     fresh: bool = False,
+    trigger: str = "manual",
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
     started_at = time.monotonic()
+    started_wall = datetime.now(timezone.utc)
 
     all_page_issues = {}
     page_meta = {}
@@ -551,6 +557,19 @@ def _build_audit_result(
     # auditResult is still carried whole because the history panel restores a
     # past audit from it; it stops being stored here once the endpoints read
     # rows instead.
+    # The central DB is the durable, project-scoped record. It must never cost
+    # the audit: on any failure the audit stands, marked as not persisted.
+    try:
+        audit_id, project_id = audit_store.record_audit(
+            get_session_factory(), db, result_data,
+            session_id=session_id, start_url=url, trigger=trigger,
+            started_at=started_wall,
+        )
+        result_data.update(audit_id=audit_id, project_id=project_id, persisted=True)
+    except Exception as exc:
+        logger.error("Audit %s not recorded in the central DB: %s", session_id, exc, exc_info=exc)
+        result_data.update(audit_id=None, project_id=None, persisted=False)
+
     db.set_summary({
         "url": url,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
