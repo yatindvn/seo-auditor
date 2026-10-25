@@ -334,8 +334,10 @@ def _build_audit_result(
             event_callback=event_callback,
             on_page=on_page,
         )
-        for url, outcome in list(pending.items()):
-            _resolve(url, outcome)
+        # pending_url, not url: binding the function's `url` here saved every
+        # pooled audit under its last-resolved page instead of the audited site.
+        for pending_url, outcome in list(pending.items()):
+            _resolve(pending_url, outcome)
         pending.clear()
         # URLs the crawl recognised as a page it already had. They get a row
         # saying which page represents them -- that is an SEO finding -- but
