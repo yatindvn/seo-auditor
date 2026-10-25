@@ -18,8 +18,8 @@ import re
 from typing import Dict, List, Optional
 
 import requests
-from bs4 import BeautifulSoup
 
+from app.auditor import checks
 from app.auditor.checks import issue
 
 PSI_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
@@ -27,12 +27,8 @@ PSI_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
 def html_weight(page) -> Dict:
     """The parts of page weight read from the HTML -- cacheable with it."""
-    soup = None
-    if page.html:
-        try:
-            soup = BeautifulSoup(page.html, "lxml")
-        except Exception:
-            soup = None
+    # The checks' shared parse of this same HTML: read-only here.
+    soup = checks._soup(page.html)
 
     scripts = soup.find_all("script") if soup else []
     styles = soup.find_all("link", rel="stylesheet") if soup else []

@@ -278,9 +278,8 @@ def test_a_page_is_parsed_once(monkeypatch):
         parses.append(1)
         return original(*args, **kwargs)
 
+    # Every parse goes through checks: html_weight reads checks' shared tree.
     monkeypatch.setattr(checks, "BeautifulSoup", counting)
-    import app.utils.performance as performance
-    monkeypatch.setattr(performance, "BeautifulSoup", counting)
 
     page_pipeline.analyze_page(PagePayload(
         url="https://example.com/", final_url="https://example.com/", status_code=200,

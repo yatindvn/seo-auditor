@@ -324,17 +324,39 @@ def check_url_structure(page_url: str) -> List[Dict]:
 
 
 # ------------------------------------------------------------------- content
+_NON_CONTENT_TAGS = frozenset({"script", "style", "noscript"})
+
+
+def _visible_text(soup) -> str:
+    """The text get_text(" ", strip=True) returns once script, style and
+    noscript are removed -- read from the shared tree instead of a private copy.
+
+    get_text is `separator.join(self._all_strings(strip, types=default))`. This
+    walks the same strings unstripped (so each still knows its parents), skips
+    any inside a non-content tag, and applies the same strip-and-drop-empty rule,
+    so the output is identical and the cached tree is never mutated. bs4 already
+    leaves script and style text out of these strings; noscript is the one this
+    filter actually removes.
+    """
+    parts = []
+    for string in soup._all_strings(False, types=soup.default):
+        if any(parent.name in _NON_CONTENT_TAGS for parent in string.parents):
+            continue
+        stripped = string.strip()
+        if stripped:
+            parts.append(stripped)
+    return " ".join(parts)
+
+
 def check_content(page):
     out = []
-    # mutable: this strips script/style/noscript below, so it must not share the
-    # cached tree that later checks read.
-    soup = _soup(page.html, mutable=True)
+    # The shared parse: _visible_text skips script/style/noscript without
+    # removing them, so later checks that count <script> tags still see them.
+    soup = _soup(page.html)
     stats = {"word_count": 0, "text": ""}
     if not soup:
         return out, stats
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-    text = soup.get_text(" ", strip=True)
+    text = _visible_text(soup)
     words = re.findall(r"[A-Za-z']+", text.lower())
     word_count = len(words)
     stats["word_count"] = word_count
