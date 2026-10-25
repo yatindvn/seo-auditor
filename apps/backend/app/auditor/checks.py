@@ -135,22 +135,31 @@ def check_canonical(page, page_url: str):
     return out, canonical_href
 
 
-def check_indexability(page) -> List[Dict]:
-    out = []
+def meta_robots_content(page) -> str:
+    """The page's robots meta directives, lowercased; "" when absent."""
     soup = _soup(page.html)
-    robots_header = page.headers.get("X-Robots-Tag", "") if page.headers else ""
-    meta_robots = ""
     if soup:
         tag = soup.find("meta", attrs={"name": re.compile("robots", re.I)})
         if tag and tag.get("content"):
-            meta_robots = tag["content"].lower()
+            return tag["content"].lower()
+    return ""
 
+
+def robots_issues(robots_header: str, meta_robots: str) -> List[Dict]:
+    """Indexability from both robots sources together, so a page that says
+    noindex in its header *and* its meta tag is reported once."""
+    out = []
     combined = f"{robots_header.lower()} {meta_robots}"
     if "noindex" in combined:
         out.append(issue("warning", "NOINDEX", "Page is set to noindex"))
     if "nofollow" in combined:
         out.append(issue("info", "NOFOLLOW", "Page is set to nofollow"))
     return out
+
+
+def check_indexability(page) -> List[Dict]:
+    robots_header = page.headers.get("X-Robots-Tag", "") if page.headers else ""
+    return robots_issues(robots_header, meta_robots_content(page))
 
 
 # -------------------------------------------------------------------- onpage
