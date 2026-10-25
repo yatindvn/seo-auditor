@@ -13,12 +13,15 @@ from app.db import audit_store
 from app.db.engine import get_session_factory
 from app.analysis import analysis
 from app.ai import ai_suggestions
-from app.utils import performance, report
+from app.utils import report
 from app.models.session_model import session_store
 from app.websocket.ws_manager import ws_manager
 from app.config import config
 from app.seo import rank_checker, keyword_suggestions
 from app.services import page_pipeline
+from app.vitals import runner as vitals_runner
+from app.vitals.model import vitals_issues
+from app.vitals.providers import build_vitals_provider
 
 # Same logger name the API layer uses (app/api/routes.py), so audit failures and
 # crawl failures land in one stream rather than two.
@@ -109,6 +112,7 @@ def run_full_audit(
     rank_targets: Optional[List[Any]] = None,
     fresh: bool = False,
     trigger: str = "manual",
+    enable_web_vitals: bool = True,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -128,6 +132,7 @@ def run_full_audit(
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
             session_id=session_id, fresh=fresh, trigger=trigger,
+            enable_web_vitals=enable_web_vitals,
         )
     finally:
         unregister_crawler(session_id)
@@ -150,6 +155,9 @@ def _build_audit_result(
     session_id: Optional[str] = None,
     fresh: bool = False,
     trigger: str = "manual",
+    enable_web_vitals: bool = True,
+    vitals_max_pages: Optional[int] = None,
+    vitals_provider=None,
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
@@ -159,7 +167,6 @@ def _build_audit_result(
     all_page_issues = {}
     page_meta = {}
     page_data_for_dupes = []
-    psi_results: Dict[str, Any] = {}
     signatures: Dict[str, bytes] = {}
     # Decided from the page cap, not the realised count: each page is signed (or
     # not) as it is analysed, long before the crawl's final size is known.
@@ -379,10 +386,10 @@ def _build_audit_result(
 
     partial = bool(getattr(crawler, "is_stopped", False))
 
-    for page_url, page in crawler.results.items():
+    for page_url in crawler.results:
         # Stage 2 already ran, during the crawl. What is left here is what must
-        # not be multiplied across worker processes: the quota'd Google APIs and
-        # PageSpeed Insights.
+        # not be multiplied across worker processes: the quota'd Google APIs.
+        # (Core Web Vitals run once, after this loop.)
         analysis_result = analyses.get(page_url)
         if analysis_result is None:
             # A page the crawl recorded but never handed over -- a stop landing
@@ -401,14 +408,6 @@ def _build_audit_result(
         if analysis_result.signature:
             signatures[page_url] = analysis_result.signature
         keyword_data = analysis_result.keyword_data
-
-        # PageSpeed Insights is a quota'd Google API and a per-page network
-        # round trip, so it runs only when a key is supplied -- never by
-        # default, and never for a page that did not return 200.
-        if psi_key and page.status_code == 200:
-            psi_results[page_url] = performance.fetch_psi_metrics(
-                page_url, psi_key, strategy=psi_strategy
-            )
 
         # Rank checks fire only on pages the user nominated. With enable_rank_check
         # on but nothing nominated, spend is zero rather than one query per keyword
@@ -463,6 +462,34 @@ def _build_audit_result(
 
 
     site_wide = analysis.build_link_graph_stats(crawler)
+    # Core Web Vitals: once, after the crawl, for the pages that matter most
+    # (internal PageRank). PSI is a quota'd Google API and Lighthouse runs a
+    # Chrome, so this is never per page, and never fatal to the audit.
+    provider = None
+    if enable_web_vitals:
+        provider = vitals_provider or build_vitals_provider(psi_key)
+    web_vitals_status = "disabled" if not enable_web_vitals else ("measured" if provider else "not_configured")
+    vitals_results = []
+    if provider is not None:
+        vitals_pages = vitals_runner.select_vitals_pages(
+            getattr(crawler, "start_url", None) or url,
+            site_wide.get("top_pages_by_importance") or [],
+            crawler.results,
+            config.PSI_MAX_PAGES if vitals_max_pages is None else vitals_max_pages,
+        )
+
+        def _vitals_progress(done: int, total: int, page_url: str) -> None:
+            if event_callback:
+                event_callback("web_vitals", {"done": done, "total": total, "url": page_url})
+
+        vitals_results = vitals_runner.measure_pages(
+            provider, vitals_pages, psi_strategy, on_progress=_vitals_progress)
+        for measured in vitals_results:
+            found = vitals_issues(measured)
+            if found:
+                all_page_issues.setdefault(measured.url, []).extend(found)
+                db.add_issues(measured.url, found)
+
     duplicates = analysis.find_duplicates(page_data_for_dupes)
     skipped_results = getattr(crawler, "skipped", {})
     analysis.add_skipped_duplicates(
@@ -544,7 +571,11 @@ def _build_audit_result(
             "links": arch_links,
         },
         "page_issues_detail": {u: v for u, v in all_page_issues.items()},
-        "psi_metrics": psi_results,
+        "web_vitals": [r.to_dict() for r in vitals_results],
+        "web_vitals_status": web_vitals_status,
+        # Kept for readers of the pre-5.1 JSON: PSI-measured pages only.
+        "psi_metrics": {r.url: {k: v for k, v in r.to_dict().items() if k != "url"}
+                        for r in vitals_results if r.source == "psi" and not r.error},
         "robots_txt": crawler.robots_txt_content,
         "sitemaps_found": crawler.sitemaps_found,
         "sitemap_urls": list(crawler.sitemap_urls),

@@ -68,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Deprecated: near-duplicate detection always runs")
     p.add_argument("--psi-key", help="Google PageSpeed Insights API key for real Core Web Vitals data")
     p.add_argument("--psi-strategy", choices=["mobile", "desktop"], default="mobile", help="PSI strategy (default: mobile)")
+    p.add_argument("--psi-max-pages", type=int, default=None,
+                   help="Pages to measure Core Web Vitals on (default: PSI_MAX_PAGES, 5)")
     p.add_argument("--no-keyword-analysis", dest="enable_keyword_analysis", action="store_false", default=True,
                    help="Skip on-page keyword extraction")
     p.add_argument("--enable-keyword-suggestions", action="store_true", default=False,
@@ -107,6 +109,7 @@ def _run_audit(args, progress_callback=None) -> dict:
         external_link_check_limit=0 if args.skip_external_links else args.max_external_links,
         psi_key=args.psi_key,
         psi_strategy=args.psi_strategy,
+        vitals_max_pages=args.psi_max_pages,
         fresh=args.fresh,
     )
 

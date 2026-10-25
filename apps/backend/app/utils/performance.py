@@ -1,15 +1,12 @@
 """
-performance.py — Performance auditing.
+performance.py — Performance proxies.
 
-Full Core Web Vitals (LCP/CLS/INP/FCP/TBT) require a real browser (Lighthouse /
-Chrome DevTools Protocol) which isn't available in a lightweight CLI without a
-Chrome install. This module:
+Lightweight metrics computed from the raw response: TTFB (response time),
+transfer size, DOM size, counts of render-blocking resources, JS/CSS byte
+counts, compression and cache header checks.
 
-1. Always computes lightweight proxy metrics from the raw response: TTFB
-   (response time), transfer size, DOM size, counts of render-blocking
-   resources, JS/CSS byte counts, compression + cache header checks.
-2. Optionally calls the Google PageSpeed Insights API (if --psi-key is
-   supplied) to fetch real lab + field Core Web Vitals data.
+Real Core Web Vitals (PageSpeed Insights, or local Lighthouse) live in
+app/vitals/ and run once per audit for the top pages, not here per page.
 """
 
 from __future__ import annotations
@@ -17,12 +14,8 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-import requests
-
 from app.auditor import checks
 from app.auditor.checks import issue
-
-PSI_ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
 
 def html_weight(page) -> Dict:
@@ -84,39 +77,3 @@ def check_performance_proxies(page, weight: Dict) -> List[Dict]:
     if "cache-control" not in headers_lower:
         out.append(issue("info", "NO_CACHE_HEADER", "No Cache-Control header set"))
     return out
-
-
-def fetch_psi_metrics(url: str, api_key: str, strategy: str = "mobile", timeout: int = 30) -> Optional[Dict]:
-    """Call Google PageSpeed Insights API for real Core Web Vitals data (lab + field)."""
-    try:
-        resp = requests.get(
-            PSI_ENDPOINT,
-            params={"url": url, "key": api_key, "strategy": strategy, "category": "performance"},
-            timeout=timeout,
-        )
-        if resp.status_code != 200:
-            return {"error": f"PSI API returned {resp.status_code}: {resp.text[:200]}"}
-        data = resp.json()
-        lighthouse = data.get("lighthouseResult", {})
-        audits = lighthouse.get("audits", {})
-        categories = lighthouse.get("categories", {})
-        field = data.get("loadingExperience", {}).get("metrics", {})
-
-        def audit_val(key):
-            a = audits.get(key, {})
-            return a.get("displayValue") or a.get("numericValue")
-
-        return {
-            "performance_score": (categories.get("performance", {}).get("score") or 0) * 100,
-            "lab_lcp": audit_val("largest-contentful-paint"),
-            "lab_cls": audit_val("cumulative-layout-shift"),
-            "lab_fcp": audit_val("first-contentful-paint"),
-            "lab_tbt": audit_val("total-blocking-time"),
-            "lab_speed_index": audit_val("speed-index"),
-            "field_lcp": field.get("LARGEST_CONTENTFUL_PAINT_MS", {}).get("percentile"),
-            "field_cls": field.get("CUMULATIVE_LAYOUT_SHIFT_SCORE", {}).get("percentile"),
-            "field_inp": field.get("INTERACTION_TO_NEXT_PAINT", {}).get("percentile"),
-            "field_fcp": field.get("FIRST_CONTENTFUL_PAINT_MS", {}).get("percentile"),
-        }
-    except requests.RequestException as exc:
-        return {"error": str(exc)}
