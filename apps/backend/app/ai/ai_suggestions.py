@@ -19,6 +19,9 @@ IMPACT_WEIGHTS = {
     "POSSIBLE_CSR_ONLY": 5, "NO_COMPRESSION": 4, "RENDER_BLOCKING_CSS": 3,
     "RENDER_BLOCKING_JS": 3, "TITLE_TOO_LONG": 2, "TITLE_TOO_SHORT": 2,
     "META_DESC_TOO_LONG": 2, "META_DESC_TOO_SHORT": 2,
+    "CWV_LCP_POOR": 7, "CWV_INP_POOR": 7, "CWV_CLS_POOR": 7, "CWV_TBT_POOR": 5,
+    "CWV_LCP_NEEDS_IMPROVEMENT": 3, "CWV_INP_NEEDS_IMPROVEMENT": 3,
+    "CWV_CLS_NEEDS_IMPROVEMENT": 3, "CWV_TBT_NEEDS_IMPROVEMENT": 2,
 }
 
 RECOMMENDATION_TEXT = {
@@ -63,6 +66,14 @@ RECOMMENDATION_TEXT = {
     "A11Y_UNLABELED_FORM_FIELD": "Associate a <label> or aria-label with every form field.",
     "A11Y_MISSING_LANG": "Add a lang attribute to the <html> tag.",
     "SLOW_TTFB": "Improve server response time (caching, CDN, backend optimization).",
+    "CWV_LCP_POOR": "Speed up the largest element: optimise the hero image, preload it, and cut server response time.",
+    "CWV_LCP_NEEDS_IMPROVEMENT": "Speed up the largest element: optimise the hero image, preload it, and cut server response time.",
+    "CWV_INP_POOR": "Break up long JavaScript tasks and defer non-critical scripts so the page responds to input quickly.",
+    "CWV_INP_NEEDS_IMPROVEMENT": "Break up long JavaScript tasks and defer non-critical scripts so the page responds to input quickly.",
+    "CWV_CLS_POOR": "Reserve space for images, ads and embeds (width/height or aspect-ratio) so the layout doesn't shift.",
+    "CWV_CLS_NEEDS_IMPROVEMENT": "Reserve space for images, ads and embeds (width/height or aspect-ratio) so the layout doesn't shift.",
+    "CWV_TBT_POOR": "Reduce main-thread JavaScript work (split bundles, remove unused code) to unblock the page.",
+    "CWV_TBT_NEEDS_IMPROVEMENT": "Reduce main-thread JavaScript work (split bundles, remove unused code) to unblock the page.",
     "LARGE_DOM": "Reduce DOM complexity/size to improve rendering performance.",
     "RENDER_BLOCKING_CSS": "Defer or inline critical CSS to reduce render-blocking resources.",
     "RENDER_BLOCKING_JS": "Add async/defer to non-critical scripts.",
