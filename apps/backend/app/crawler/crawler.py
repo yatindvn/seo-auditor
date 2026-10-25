@@ -29,6 +29,9 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+
+from app.crawler.throttle import AdaptiveLimit
 
 DEFAULT_HEADERS = {
     "User-Agent": "SEOAuditorBot/1.0 (+https://example.com/bot)"
@@ -112,6 +115,10 @@ class PageResult:
     # body identical to the cached one; None for anything to analyse afresh.
     cache_status: Optional[str] = None
     body_hash: Optional[str] = None
+    # True when the site answered 429/503 at any point while fetching this
+    # page (even if a retry then succeeded) -- the signal the limit cuts on.
+    throttled: bool = False
+    retry_after: Optional[float] = None
 
 
 @dataclass
@@ -123,6 +130,18 @@ class Validators:
     last_modified: Optional[str] = None
     body_hash: Optional[str] = None
     headers: Dict = field(default_factory=dict)
+
+
+THROTTLE_CODES = {429, 503}
+
+
+def _retry_after_seconds(response) -> Optional[float]:
+    """Retry-After in its seconds form; the HTTP-date form is ignored."""
+    value = response.headers.get("Retry-After") if response is not None else None
+    try:
+        return max(float(value), 0.0) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _merge_headers(stored: Dict, fresh) -> Dict:
@@ -150,6 +169,7 @@ class Crawler:
         max_depth: int = 5,
         respect_robots: bool = True,
         concurrency: int = 8,
+        max_concurrency: Optional[int] = None,
         timeout: int = 15,
         retries: int = 2,
         delay: float = 0.0,
@@ -162,6 +182,9 @@ class Crawler:
         self.max_depth = max_depth
         self.respect_robots = respect_robots
         self.concurrency = concurrency
+        # Never above an explicit concurrency unless a ceiling was given: the
+        # CLI's --concurrency and tests mean exactly that number.
+        self.max_concurrency = max(max_concurrency or concurrency, concurrency)
         self.timeout = timeout
         self.retries = retries
         self.delay = delay
@@ -170,6 +193,12 @@ class Crawler:
 
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+        # requests' default pool keeps 10 connections per host; with more
+        # workers than that, every surplus request opened (and TLS-shook) a
+        # new connection and threw it away.
+        adapter = HTTPAdapter(pool_connections=4, pool_maxsize=self.max_concurrency)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
 
         self.visited: Set[str] = set()
         self.queued: Set[str] = set()
@@ -223,6 +252,13 @@ class Crawler:
                 rp = robotparser.RobotFileParser()
                 rp.parse(resp.text.splitlines())
                 self.robots_parser = rp
+                # The site's stated rate wins over adaptivity.
+                if self.respect_robots:
+                    crawl_delay = rp.crawl_delay(self.headers["User-Agent"])
+                    if crawl_delay:
+                        self.delay = max(self.delay, float(crawl_delay))
+                        self.concurrency = 1
+                        self.max_concurrency = 1
                 # discover sitemap declarations
                 for line in resp.text.splitlines():
                     if line.lower().startswith("sitemap:"):
@@ -279,6 +315,8 @@ class Crawler:
                 request_headers["If-Modified-Since"] = validators.last_modified
 
         redirect_chain = []
+        throttled = False
+        retry_after = None
         attempt = 0
         last_exc = None
         while attempt <= self.retries:
@@ -301,6 +339,14 @@ class Crawler:
                         html="", headers=headers,
                         cache_status="not_modified", body_hash=validators.body_hash,
                     )
+
+                if resp.status_code in THROTTLE_CODES:
+                    throttled = True
+                    retry_after = _retry_after_seconds(resp)
+                    if attempt < self.retries:
+                        attempt += 1
+                        time.sleep(min(retry_after if retry_after is not None else 0.5 * attempt, 60.0))
+                        continue
 
                 current_url = url
                 current_resp = resp
@@ -351,6 +397,8 @@ class Crawler:
                     headers=dict(current_resp.headers),
                     cache_status=cache_status,
                     body_hash=body_hash,
+                    throttled=throttled,
+                    retry_after=retry_after,
                 )
             except requests.RequestException as exc:
                 last_exc = exc
@@ -432,11 +480,12 @@ class Crawler:
         # check before any of them has recorded a result, and the crawl would
         # overshoot the cap.
         lock = threading.Lock()
-        # Bounded so the frontier cannot run far ahead of the work, which is
-        # what keeps un-analysed HTML from accumulating.
-        max_in_flight = max(self.concurrency * 2, 1)
+        # The in-flight bound adapts to the site (see throttle.py). It also
+        # keeps the frontier from running far ahead of the work, which is what
+        # keeps un-analysed HTML from accumulating.
+        self.limit = AdaptiveLimit(initial=self.concurrency, maximum=self.max_concurrency)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.concurrency) as pool:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_concurrency) as pool:
             while frontier or in_flight:
                 if self.is_stopped:
                     break
@@ -444,7 +493,8 @@ class Crawler:
                     time.sleep(0.5)
                     continue
 
-                while frontier and len(in_flight) < max_in_flight:
+                while (frontier and len(in_flight) < self.limit.limit
+                       and time.monotonic() >= self.limit.paused_until):
                     with lock:
                         # Checked before popping: an in-flight result may yet
                         # turn out to be a duplicate and hand its slot back, so
@@ -474,6 +524,12 @@ class Crawler:
                     in_flight_urls.add(url)
 
                 if not in_flight:
+                    wait = self.limit.paused_until - time.monotonic()
+                    if frontier and wait > 0:
+                        # Paused by Retry-After with nothing outstanding: wait
+                        # out the pause rather than ending the crawl.
+                        time.sleep(min(wait, 1.0))
+                        continue
                     # Nothing outstanding and nothing admissible: the crawl is
                     # done, whether the frontier emptied or the cap was reached.
                     break
@@ -484,6 +540,14 @@ class Crawler:
                 for future in done:
                     url, depth, referrer, via = in_flight.pop(future)
                     in_flight_urls.discard(url)
+                    fetched = future.result()
+                    self.limit.record(
+                        fetched.response_time_ms,
+                        fetched.throttled or fetched.status_code is None
+                        or fetched.status_code in THROTTLE_CODES,
+                        fetched.retry_after,
+                        time.monotonic(),
+                    )
                     self._handle_result(
                         future, url, depth, referrer, via, frontier, sequence,
                         progress_callback, on_page,

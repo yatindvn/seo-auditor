@@ -112,6 +112,7 @@ def run_full_audit(
         max_depth=max_depth,
         respect_robots=not ignore_robots,
         concurrency=config.CRAWL_CONCURRENCY,
+        max_concurrency=config.CRAWL_MAX_CONCURRENCY,
         timeout=10,
         retries=1,
     )

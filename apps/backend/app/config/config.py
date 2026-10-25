@@ -20,6 +20,9 @@ CRAWL_TIMEOUT = int(os.getenv("CRAWL_TIMEOUT", "10"))
 # sets how many connections a crawl opens against someone else's site at
 # once, which is why it is configurable rather than a constant.
 CRAWL_CONCURRENCY = int(os.getenv("CRAWL_CONCURRENCY", "32"))
+# Ceiling for adaptive concurrency: the crawl starts at CRAWL_CONCURRENCY and
+# grows toward this while the site responds well (app/crawler/throttle.py).
+CRAWL_MAX_CONCURRENCY = int(os.getenv("CRAWL_MAX_CONCURRENCY", "64"))
 # Where per-session SQLite files live, one per audit. A named Docker volume
 # maps here in deploy/oracle/docker-compose.yml so audit history outlives a
 # container rebuild -- it used to be an in-memory list, lost on every deploy.
