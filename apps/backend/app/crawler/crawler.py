@@ -16,6 +16,7 @@ Handles:
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
 import heapq
 import itertools
 import threading
@@ -101,6 +102,12 @@ class PageResult:
     referrers: Set[str] = field(default_factory=set)
     error: Optional[str] = None
     fetched_at: float = field(default_factory=time.time)
+    # Set when this URL turned out to be a page already represented by another:
+    # alias_of after a redirect landed on a claimed URL, duplicate_of after the
+    # body matched one already seen byte for byte.
+    alias_of: Optional[str] = None
+    duplicate_of: Optional[str] = None
+    found_via: str = "link"
 
 
 class Crawler:
@@ -153,6 +160,19 @@ class Crawler:
         self.robots_parser: Optional[robotparser.RobotFileParser] = None
         self.sitemap_urls: Set[str] = set()
         self.sitemaps_found: List[str] = []
+
+        # Dedup state. All three are touched only from the crawl loop's own
+        # thread (_handle_result), never from a fetch worker, so need no lock.
+        self.aliases: Dict[str, str] = {}      # url -> url whose result represents it
+        self.claimed: Dict[str, str] = {}      # normalised final url -> first url to reach it
+        self.body_owner: Dict[str, str] = {}   # sha256 of html -> first url serving it
+        self.skipped: Dict[str, PageResult] = {}
+        # A site that is all duplicates (endless calendar params, say) frees
+        # every slot it takes; this bounds the fetches regardless.
+        self.fetch_ceiling = max_pages * 2
+        self._sitemap_pending: Set[str] = set()
+        self._admitted = 0
+        self._fetched = 0
 
         self._load_robots()
         self._load_sitemaps()
@@ -272,6 +292,11 @@ class Crawler:
             
         return PageResult(url=url, final_url=url, status_code=None, error=str(last_exc))
 
+    def _fetch_paced(self, url: str) -> PageResult:
+        """The worker's entry point. Calls self._fetch at call time, so a test
+        that replaces _fetch on the instance is still honoured."""
+        return self._fetch(url)
+
     # ---------------------------------------------------------------- crawl
     def _extract_links(self, base_url: str, html: str) -> List[str]:
         links = []
@@ -306,14 +331,20 @@ class Crawler:
         this parse is 11% of a page's analysis while the parallelism it would
         forfeit is worth about 50%, so the duplicate parse is the cheaper half
         of the trade.
+
+        A URL whose result turns out to be an alias or duplicate gives its
+        admission back, so `max_pages` counts unique pages; `fetch_ceiling`
+        bounds the total.
         """
         self.event_callback = event_callback
         sequence = itertools.count()
-        frontier = [(0, next(sequence), self.start_url, None)]
+        frontier = [(0, next(sequence), self.start_url, None, "link")]
         self.queued.add(self.start_url)
 
         in_flight = {}
-        admitted = 0
+        in_flight_urls: Set[str] = set()
+        self._admitted = 0
+        self._fetched = 0
         # Admission is counted under a lock rather than from len(self.visited):
         # with many fetches outstanding, each could pass a `visited < max_pages`
         # check before any of them has recorded a result, and the crawl would
@@ -332,15 +363,25 @@ class Crawler:
                     continue
 
                 while frontier and len(in_flight) < max_in_flight:
-                    depth, _, url, referrer = heapq.heappop(frontier)
-                    if url in self.visited or not self._allowed(url):
-                        continue
                     with lock:
-                        if admitted >= self.max_pages:
-                            frontier.clear()
+                        # Checked before popping: an in-flight result may yet
+                        # turn out to be a duplicate and hand its slot back, so
+                        # the frontier must survive reaching the cap.
+                        if self._admitted >= self.max_pages or self._fetched >= self.fetch_ceiling:
                             break
-                        admitted += 1
-                    in_flight[pool.submit(self._fetch, url)] = (url, depth, referrer)
+                    priority, _, url, referrer, via = heapq.heappop(frontier)
+                    # A URL can sit in the heap twice (a sitemap entry and a
+                    # later link entry); whichever pops second is stale.
+                    if url in self.visited or url in in_flight_urls or not self._allowed(url):
+                        continue
+                    self._sitemap_pending.discard(url)
+                    with lock:
+                        self._admitted += 1
+                        self._fetched += 1
+                    # The heap priority is the depth: links are pushed at
+                    # depth + 1, sitemap entries at max_depth + 1.
+                    in_flight[pool.submit(self._fetch_paced, url)] = (url, priority, referrer, via)
+                    in_flight_urls.add(url)
 
                 if not in_flight:
                     # Nothing outstanding and nothing admissible: the crawl is
@@ -351,9 +392,10 @@ class Crawler:
                     in_flight, return_when=concurrent.futures.FIRST_COMPLETED
                 )
                 for future in done:
-                    url, depth, referrer = in_flight.pop(future)
+                    url, depth, referrer, via = in_flight.pop(future)
+                    in_flight_urls.discard(url)
                     self._handle_result(
-                        future, url, depth, referrer, frontier, sequence,
+                        future, url, depth, referrer, via, frontier, sequence,
                         progress_callback, on_page,
                     )
 
@@ -377,19 +419,84 @@ class Crawler:
             "external_total": self._link_counts["external"],
         })
 
-    def _handle_result(self, future, url, depth, referrer, frontier, sequence,
+    def _owner_of(self, result: PageResult, url: str) -> Optional[str]:
+        """The URL already representing this result, or None if it is a new page.
+
+        Records this result's own claims when it is new. Redirect evidence is
+        checked first: it is proof from the server. The body hash is checked
+        second, and only for 200 HTML, so an error page or a binary file is
+        never declared a duplicate of another.
+        """
+        if result.error or result.status_code is None:
+            return None
+
+        final = normalize_url(result.final_url or url)
+        claimant = self.claimed.get(final)
+        if claimant is not None and claimant != url:
+            result.alias_of = claimant
+            self.aliases[url] = claimant
+            return claimant
+
+        if (
+            result.html
+            and result.status_code == 200
+            and "text/html" in (result.content_type or "")
+        ):
+            digest = hashlib.sha256(result.html.encode("utf-8", errors="ignore")).hexdigest()
+            first = self.body_owner.get(digest)
+            if first is not None:
+                result.duplicate_of = first
+                self.aliases[url] = first
+                self.claimed[final] = first
+                return first
+            self.body_owner[digest] = url
+
+        self.claimed[final] = url
+        if final != url:
+            # The redirect target is now represented by this result: a later
+            # link straight to it must not fetch it again.
+            self.aliases[final] = url
+            self.queued.add(final)
+        return None
+
+    def _handle_result(self, future, url, depth, referrer, via, frontier, sequence,
                        progress_callback, on_page):
         """Record one fetched page and push whatever it links to."""
         result = future.result()
         result.depth = depth
+        result.found_via = via
         if referrer:
             result.referrers.add(referrer)
             self.inbound_links.setdefault(url, set()).add(referrer)
         self.visited.add(url)
+
+        owner = self._owner_of(result, url)
+        if owner is not None:
+            # Already represented: give the cap slot back, credit the inbound
+            # link to the page that represents it, and stop -- no analysis,
+            # no link expansion.
+            self._admitted -= 1
+            self.skipped[url] = result
+            moved = self.inbound_links.pop(url, set())
+            if moved:
+                self.inbound_links.setdefault(owner, set()).update(moved)
+            result.html = ""
+            if self.event_callback:
+                self.event_callback("page_crawled", {
+                    "url": result.url,
+                    "status": result.status_code,
+                    "depth": result.depth,
+                    "response_time": result.response_time_ms,
+                    "timestamp": time.time() * 1000,
+                    "alias_of": result.alias_of,
+                    "duplicate_of": result.duplicate_of,
+                })
+            return
+
         self.results[url] = result
 
         if progress_callback:
-            progress_callback(len(self.visited), self.max_pages, url)
+            progress_callback(len(self.results), self.max_pages, url)
         if self.event_callback:
             self.event_callback("page_crawled", {
                 "url": result.url,
@@ -399,15 +506,14 @@ class Crawler:
                 "timestamp": time.time() * 1000,
             })
 
-        if self.delay:
-            time.sleep(self.delay)
-
         internal_links, external_links = [], []
         if result.html:
             for link in self._extract_links(result.final_url, result.html):
                 normalized = normalize_url(link)
                 if same_registrable_domain(normalized, self.root_netloc):
-                    internal_links.append(normalized)
+                    # Resolved through known aliases, so the graph points at the
+                    # page that represents the URL rather than at a skipped one.
+                    internal_links.append(self.aliases.get(normalized, normalized))
                 else:
                     external_links.append(normalized)
 
@@ -427,12 +533,19 @@ class Crawler:
         self._link_counts["external"] += len(external_links)
         self._flush_link_progress()
 
-        if depth >= self.max_depth:
+        # A sitemap-only page is analysed, but the sitemap adds the pages it
+        # lists, not a second crawl rooted at each of them.
+        if depth >= self.max_depth or via == "sitemap":
             return
         for target in internal_links:
-            if target not in self.queued and target not in self.visited:
+            if target in self._sitemap_pending:
+                # Found by a link after all: queue it again at its real depth.
+                # The sitemap entry is skipped when it pops.
+                self._sitemap_pending.discard(target)
+                heapq.heappush(frontier, (depth + 1, next(sequence), target, url, "link"))
+            elif target not in self.queued and target not in self.visited:
                 self.queued.add(target)
-                heapq.heappush(frontier, (depth + 1, next(sequence), target, url))
+                heapq.heappush(frontier, (depth + 1, next(sequence), target, url, "link"))
 
     # ------------------------------------------------------------ ext links
     def check_external_links(self, max_check: int = 100):

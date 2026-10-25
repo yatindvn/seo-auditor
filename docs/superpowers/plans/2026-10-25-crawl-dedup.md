@@ -351,8 +351,8 @@ def test_links_to_a_known_alias_resolve_to_the_page_it_represents():
     fetched on its own."""
     site = {
         HOME: "<a href='/old'>old</a>",
-        "https://example.com/b": _unique(1) + "<a href='/c'>c</a>",
-        "https://example.com/c": _unique(2) + "<a href='/b'>back</a>",
+        "https://example.com/b": "<a href='/c'>c</a>" + _unique(1),
+        "https://example.com/c": "<a href='/b'>back</a>" + _unique(2),
     }
     crawler, fetched = _crawler(site, redirects={"https://example.com/old": "https://example.com/b"})
 
