@@ -163,6 +163,9 @@ It never raises into the tracker.
 
 ### 5. Scheduling
 
+**Dry-run results are never stored as history.** When the registry yields
+the dry-run provider, `run_due_rank_checks` logs a warning and checks nothing.
+
 `jobs.run_due_rank_checks(now, runner=None)`: projects with `rank_schedule =
 "daily"`, at least one enabled keyword, and `last_rank_checked_at` null or
 ≥ 24 h old. Claimed with the same conditional `UPDATE` as audits, then
@@ -182,21 +185,33 @@ It never raises into the tracker.
   position, ranking_url, status, competitor_positions.
 - `GET/POST /api/projects/{id}/competitors`, `DELETE
   /api/projects/{id}/competitors/{competitor_id}`.
-- `POST /api/projects/{id}/rank-checks/run?dry_run=true`: runs the project now
-  in a background task. `dry_run` defaults to **true**. `dry_run=false` uses
-  the configured provider, still behind the spend guard.
+- `POST /api/projects/{id}/rank-checks/run?dry_run=true`: `dry_run` defaults
+  to **true** and returns a **preview** synchronously, built from the dry-run
+  provider. It is **never persisted and never alerts**. `dry_run=false` runs the
+  project in a background task with the configured live provider (behind the
+  spend guard). It returns 409 when no live provider is configured.
 - Alert settings and `rank_schedule` are set through the existing `PATCH
   /api/projects/{id}`.
 
 ### 7. In-audit rank checks
 
-`rank_checker.check_rankings` keeps its signature and result shape. Its
-`_get_cse_results` call is replaced by `get_serp_provider().search(SerpQuery(…,
-depth=10))`, so audits share the provider, the spend guard and the persistent
-usage counter. Exact-page matching is unchanged. The in-memory cache stays as
-a per-process de-duplicator, and the in-memory daily quota is removed (the
-spend guard replaces it). `keyword_suggestions._competitor_gap` uses the same
-provider.
+`rank_checker.check_rankings` keeps its signature and result shape, and
+`_get_cse_results` keeps its `(urls, skip_reason)` contract. That's what the
+existing rank, quota and keyword-suggestion tests exercise.
+
+- The raw CSE request moves into `rank_checker.fetch_cse_urls(keyword, config,
+  gl=None, num=10)`. **`GoogleCseProvider` calls it**, so there is exactly one
+  CSE implementation, and existing tests keep patching
+  `app.seo.rank_checker.requests.get`.
+- The in-memory daily quota is replaced by the **database spend guard** under
+  provider `google_cse`, with cap `GOOGLE_CSE_DAILY_QUOTA`. It now survives
+  restarts, and audits and the tracker share one budget per key. The in-memory
+  cache stays as a per-process de-duplicator.
+- With `SERP_PROVIDER=dataforseo` and a live (non-dry-run) provider, audits use
+  DataForSEO at depth 10.
+- **Audits never use the dry-run provider.** Fake positions in a real audit
+  report would be misleading. Without a live provider the check is skipped as
+  "not configured", as today.
 
 ### 8. Config, docs
 
