@@ -1,0 +1,95 @@
+"""Copy a finished audit from its session file into the central database."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import insert, select
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.db.models import Audit, AuditIssue, AuditPage, Keyword, RankCheck, utcnow
+from app.db.projects import get_or_create_project
+from app.services.summary_fields import SUMMARY_FIELDS
+
+BATCH_SIZE = 500
+RANK_PROVIDER = "google_cse"
+
+
+def _summary(result: Dict[str, Any]) -> Dict[str, Any]:
+    return {field: result[field] for field in SUMMARY_FIELDS if field in result}
+
+
+def _parse_time(value: Optional[str]) -> datetime:
+    try:
+        return datetime.fromisoformat(value) if value else utcnow()
+    except ValueError:
+        return utcnow()
+
+
+def _keyword(session: Session, project_id: int, phrase: str, target_url: str) -> Keyword:
+    # Looked up explicitly: country and device are NULL here, and SQL unique
+    # constraints treat NULLs as distinct, so the constraint alone would not
+    # stop a second "espresso" row.
+    keyword = session.scalar(select(Keyword).where(
+        Keyword.project_id == project_id, Keyword.phrase == phrase,
+        Keyword.country.is_(None), Keyword.device.is_(None),
+    ))
+    if keyword is None:
+        keyword = Keyword(project_id=project_id, phrase=phrase, target_url=target_url)
+        session.add(keyword)
+        session.flush()
+    return keyword
+
+
+def _record_rankings(session: Session, project_id: int, audit_id: int, pages: List[Dict]) -> None:
+    for page in pages:
+        rankings = ((page.get("keyword_analysis") or {}).get("rankings")) or []
+        for ranking in rankings:
+            keyword = _keyword(session, project_id, ranking["keyword"], page.get("url"))
+            position = ranking.get("position")
+            top = ranking.get("top_urls") or []
+            session.add(RankCheck(
+                keyword_id=keyword.id, audit_id=audit_id,
+                checked_at=_parse_time(ranking.get("checked_at")),
+                provider=RANK_PROVIDER, status=ranking.get("status") or "skipped",
+                position=position,
+                ranking_url=top[position - 1] if position and len(top) >= position else None,
+                note=ranking.get("note"),
+            ))
+
+
+def record_audit(
+    factory: sessionmaker,
+    session_db,
+    result: Dict[str, Any],
+    *,
+    session_id: str,
+    start_url: str,
+    trigger: str = "manual",
+    started_at: Optional[datetime] = None,
+) -> Tuple[int, int]:
+    """Store one audit; return (audit_id, project_id). One transaction: a
+    failure stores nothing. Raises -- the caller decides what failure means."""
+    with factory.begin() as session:
+        project = get_or_create_project(session, start_url)
+        health = ((result.get("executive_summary") or {}).get("health_score") or {}).get("score")
+        audit = Audit(
+            project_id=project.id, session_id=session_id, start_url=start_url,
+            status="partial" if result.get("partial") else "completed",
+            trigger=trigger, started_at=started_at or utcnow(), finished_at=utcnow(),
+            page_count=0, health_score=health, summary_json=_summary(result),
+        )
+        session.add(audit)
+        session.flush()
+
+        page_count = 0
+        for batch in session_db.iter_pages(BATCH_SIZE):
+            session.execute(insert(AuditPage), [{**row, "audit_id": audit.id} for row in batch])
+            page_count += len(batch)
+        for batch in session_db.iter_issues(BATCH_SIZE):
+            session.execute(insert(AuditIssue), [{**row, "audit_id": audit.id} for row in batch])
+
+        audit.page_count = page_count
+        _record_rankings(session, project.id, audit.id, result.get("pages") or [])
+        return audit.id, project.id

@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 SCHEMA = """
@@ -227,6 +227,29 @@ class SessionDB:
             (row["src"], row["dst"])
             for row in self._conn.execute("SELECT src, dst FROM links WHERE internal = 1")
         ]
+
+    _ITER_PAGE_COLUMNS = (
+        "url, final_url, status, depth, title, word_count, issue_count, "
+        "alias_of, duplicate_of, cache_status"
+    )
+
+    def iter_pages(self, batch: int) -> Iterator[List[Dict[str, Any]]]:
+        """Every page row, `batch` at a time, for copying out without holding a
+        5000-page audit in memory."""
+        cursor = self._conn.execute(f"SELECT {self._ITER_PAGE_COLUMNS} FROM pages ORDER BY rowid")
+        while True:
+            rows = cursor.fetchmany(batch)
+            if not rows:
+                return
+            yield [dict(row) for row in rows]
+
+    def iter_issues(self, batch: int) -> Iterator[List[Dict[str, Any]]]:
+        cursor = self._conn.execute("SELECT url, severity, code, message FROM issues ORDER BY rowid")
+        while True:
+            rows = cursor.fetchmany(batch)
+            if not rows:
+                return
+            yield [dict(row) for row in rows]
 
     def close(self) -> None:
         self._conn.close()
