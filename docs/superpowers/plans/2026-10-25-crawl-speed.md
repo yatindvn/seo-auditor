@@ -566,13 +566,17 @@ class AdaptiveLimit:
         self.growth = growth
         self.paused_until = 0.0
         self._baseline: Optional[float] = None
+        # Separate from _baseline, which stays None when responses carry no
+        # timing: "measured nothing" must not read as "not measured yet".
+        self._have_baseline = False
         self._times: List[float] = []
         self._count = 0
         self._failed_in_window = False
-        # Responses seen since the last cut. Until as many responses as the
-        # post-cut limit have come back, failures still belong to requests
-        # sent before the cut and must not cut again.
+        # Responses seen since the last cut, and how many were in flight when
+        # it happened. Until that many have come back, a failure may belong to
+        # a request sent before the cut and must not cut again.
         self._since_cut: Optional[int] = None
+        self._in_flight_at_cut = 0
 
     def record(self, response_ms: Optional[float], failed: bool,
                retry_after: Optional[float], now: float) -> None:
@@ -584,7 +588,7 @@ class AdaptiveLimit:
 
         if failed:
             self._failed_in_window = True
-            if self._since_cut is None or self._since_cut > self.limit:
+            if self._since_cut is None or self._since_cut > self._in_flight_at_cut:
                 self._cut()
                 return
 
@@ -596,8 +600,9 @@ class AdaptiveLimit:
 
     def _close_window(self) -> None:
         median = statistics.median(self._times) if self._times else None
-        if self._baseline is None:
+        if not self._have_baseline:
             self._baseline = median
+            self._have_baseline = True
         elif median is not None and self._baseline and median > SLOW_RATIO * self._baseline:
             self._cut()
             return
@@ -608,6 +613,7 @@ class AdaptiveLimit:
         self._reset_window()
 
     def _cut(self) -> None:
+        self._in_flight_at_cut = self.limit
         self.limit = max(self.limit // 2, self.minimum)
         self._since_cut = 0
         self._reset_window()
