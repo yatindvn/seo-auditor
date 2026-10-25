@@ -1,0 +1,15 @@
+{"status_code": 20000, "status_message": "Ok.", "tasks": [{"status_code": 20000, "status_message": "Ok.",
+  "result": [{"se_type": "google", "target": "rival.org", "location_code": 2840, "language_code": "en",
+    "total_count": 2, "items_count": 2,
+    "items": [
+      {"se_type": "google",
+       "keyword_data": {"keyword": "best espresso machine", "keyword_info": {"search_volume": 9900},
+                        "keyword_properties": {"keyword_difficulty": 48}},
+       "ranked_serp_element": {"serp_item": {"type": "organic", "rank_group": 3, "rank_absolute": 4,
+                                             "url": "https://rival.org/best"}}},
+      {"se_type": "google",
+       "keyword_data": {"keyword": "espresso vs coffee", "keyword_info": {"search_volume": 2400},
+                        "keyword_properties": {"keyword_difficulty": null}},
+       "ranked_serp_element": {"serp_item": {"type": "organic", "rank_group": 15, "rank_absolute": 17,
+                                             "url": "https://rival.org/vs"}}}
+    ]}]}]}

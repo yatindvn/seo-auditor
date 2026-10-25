@@ -1,0 +1,6 @@
+{"status_code": 20000, "status_message": "Ok.", "tasks": [{"status_code": 20000, "status_message": "Ok.",
+  "result": [{"se_type": "google", "location_code": 2840, "language_code": "en", "total_count": 2, "items_count": 2,
+    "items": [
+      {"se_type": "google", "keyword": "espresso machine", "keyword_difficulty": 62},
+      {"se_type": "google", "keyword": "espresso grinder", "keyword_difficulty": 41}
+    ]}]}]}
