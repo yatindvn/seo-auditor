@@ -23,6 +23,13 @@
 | `GOOGLE_CSE_DAILY_QUOTA` | Max Google CSE queries per UTC day before rank checks start returning "quota reached" | `100` |
 | `GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE` | Max *automatically extracted* keywords ranked per page (caps quota spend from extraction only — a user's explicit `rank_targets` keywords are never dropped by this cap) | `3` |
 | `GOOGLE_CSE_CACHE_TTL_HOURS` | How long a (keyword, domain) rank result is cached before re-querying | `24` |
+| `SESSION_DIR` | Directory for per-audit SQLite files; also holds `central/` (the default central DB) and `page_cache/` | `./sessions` |
+| `DATABASE_URL` | Central database for projects, audit history and rank checks. `postgresql+psycopg://user:pass@host:5432/db` for Postgres | `sqlite:///$SESSION_DIR/central/platform.db` |
+| `CRON_SECRET` | Bearer token required by `POST /api/cron/run`. Unset disables the route (404) | `""` |
+| `SCHEDULER_ENABLED` | Run due scheduled audits inside the API process every 15 minutes | `false` |
+| `PAGE_CACHE_MAX_AGE_DAYS` | A cached page analysis older than this is redone even if the server reports the page unchanged | `30` |
+| `CRAWL_CONCURRENCY` | Concurrent fetches a crawl starts with | `32` |
+| `CRAWL_MAX_CONCURRENCY` | Ceiling adaptive concurrency may grow to while the site responds well | `64` |
 
 ### Getting a free Google CSE API key + CX
 

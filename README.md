@@ -45,3 +45,38 @@ Runs automated unit and integration tests.
 - [REST API Specification](docs/api.md)
 - [WebSocket Events Specification](docs/websocket.md)
 - [Environment Variables Guide](docs/env.md)
+
+---
+
+## Projects & history (Phase 1)
+
+Every finished audit is stored in a central database (SQLite by default,
+Postgres via `DATABASE_URL`) under a project per domain, so runs can be listed
+and compared. See [REST API](docs/api.md#projects--audit-history-central-database)
+and [Environment](docs/env.md).
+
+- **Import existing audits once:** `cd apps/backend && python -m app.db.import_sessions`
+  (safe to re-run).
+- **Scheduled audits:** set a project's `audit_schedule` to `daily`/`weekly`,
+  then either set `SCHEDULER_ENABLED=true` or have a cron service call
+  `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<backend>/api/cron/run`.
+- **Where crawls run:** on the always-on backend (the Oracle VM in
+  `deploy/oracle`). Vercel serverless functions time out long before a crawl
+  finishes, so they must never run audits.
+- **Postgres in production:** `docker compose --profile postgres up -d` and set
+  `DATABASE_URL=postgresql+psycopg://seo:<POSTGRES_PASSWORD>@postgres/seo`.
+
+### How to verify (about 5 minutes)
+
+```bash
+cd apps/backend
+python -m pytest -q                                   # all tests pass
+# two audits of one site
+python -m app.cli https://books.toscrape.com/ --max-pages 20 --max-depth 2 --skip-external-links --json | grep -o '"persisted": [a-z]*'
+python -m app.cli https://books.toscrape.com/ --max-pages 20 --max-depth 2 --skip-external-links --json | grep -o '"audit_id": [0-9]*'
+uvicorn app.main:app --port 5055 &
+curl -s localhost:5055/api/projects                   # books.toscrape.com, audit_count 2
+curl -s localhost:5055/api/projects/1/audits          # two audits, newest first
+curl -s localhost:5055/api/audits/2/diff              # diff against audit 1
+```
+
