@@ -222,3 +222,67 @@ Runs audits for projects whose schedule is due. Requires
 audits running in the background. A project is claimed before its audit starts,
 so this and the in-process scheduler never start the same audit twice.
 
+---
+
+## Rank tracking
+
+Keywords belong to a project and are checked daily (once a project has a
+keyword, its `rank_schedule` becomes `daily`). Each check stores my position
+(the best result on the project's domain or a subdomain), the URL that ranks,
+each competitor's position, and the top results. Endpoints answer **503**
+when the central database is unavailable.
+
+### `POST /api/projects/{id}/keywords`
+
+```json
+{"keywords": [{"phrase": "espresso machine"},
+              {"phrase": "espresso machine", "country": "GB", "device": "mobile", "language": "en"}]}
+```
+
+→ `{"created": 2, "skipped": 0}`. Phrases are lowercased and whitespace-collapsed;
+an existing (phrase, country, device) is skipped. `country` defaults to `US`,
+`device` to `desktop` (`desktop` | `mobile`).
+
+### `GET /api/projects/{id}/keywords`
+
+```json
+{"items": [{"id": 1, "phrase": "espresso machine", "country": "US", "device": "desktop",
+            "language": "en", "enabled": true, "change": -5,
+            "latest": {"position": 9, "ranking_url": "https://example.com/e", "status": "ranked",
+                       "checked_at": "2026-10-25T10:00:00+00:00", "note": null,
+                       "competitor_positions": {"rival.org": 3}}}]}
+```
+
+`change` is previous minus latest position: positive means it improved.
+
+### `PATCH /api/keywords/{id}` `{"enabled": false}` · `DELETE /api/keywords/{id}` → 204
+
+### `GET /api/keywords/{id}/history?days=90`
+
+Checks oldest first, each shaped like `latest` above.
+
+### Competitors
+
+- `GET /api/projects/{id}/competitors`
+- `POST /api/projects/{id}/competitors` `{"domain": "rival.org"}` → 201, or 409 if already added
+- `DELETE /api/projects/{id}/competitors/{competitor_id}` → 204
+
+### `POST /api/projects/{id}/rank-checks/run?dry_run=true`
+
+`dry_run` defaults to **true**: returns a preview from made-up results, which is
+never stored and never alerts:
+`{"dry_run": true, "results": [{"phrase", "position", "ranking_url", "competitor_positions"}]}`.
+`dry_run=false` runs the project now with the live provider in the background
+(`{"dry_run": false, "status": "accepted"}`), or **409** if no live provider is
+configured.
+
+### Alert settings
+
+Via `PATCH /api/projects/{id}`:
+`{"rank_schedule": "daily", "alert_settings": {"drop_threshold": 3, "top10_alerts": true, "gain_threshold": null}}`.
+Alerts fire for a drop of at least `drop_threshold` positions, leaving the top 10,
+no longer ranking, and (if set) gains of at least `gain_threshold`. One digest per
+project run goes to each configured channel (Slack, email); the same change is
+never sent twice.
+
+`POST /api/cron/run` now runs due audits **and** due rank checks.

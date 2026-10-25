@@ -80,3 +80,35 @@ curl -s localhost:5055/api/projects/1/audits          # two audits, newest first
 curl -s localhost:5055/api/audits/2/diff              # diff against audit 1
 ```
 
+---
+
+## Rank tracking (Phase 2)
+
+Track keywords per project, daily, with competitor positions and alerts. See
+[REST API](docs/api.md#rank-tracking) and [Environment](docs/env.md).
+
+1. **Add keywords and competitors:** `POST /api/projects/{id}/keywords`,
+   `POST /api/projects/{id}/competitors`.
+2. **Preview for free:** `POST /api/projects/{id}/rank-checks/run` returns a
+   dry-run preview. It's made-up data, never stored.
+3. **Go live** when you choose to spend:
+   - DataForSEO: `SERP_PROVIDER=dataforseo`, `DATAFORSEO_LOGIN`,
+     `DATAFORSEO_PASSWORD`, then `SERP_DRY_RUN=false`. `SERP_DAILY_CAP` (default 50)
+     is a hard daily limit.
+   - Google CSE: `GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_CX`, capped by
+     `GOOGLE_CSE_DAILY_QUOTA`. Top 10 only; no device targeting.
+4. **Alerts:** set `SLACK_WEBHOOK_URL` and/or the `SMTP_*` + `ALERT_EMAIL_*` settings.
+5. **Schedule:** `SCHEDULER_ENABLED=true`, or a cron calling `/api/cron/run`.
+   Scheduled checks run only with a live provider: dry-run data never becomes history.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_rank_schedule.py -v   # daily checks write history; a drop alerts once
+uvicorn app.main:app --port 5055 &
+curl -s -X POST -H 'Content-Type: application/json' -d '{"domain":"example.com"}' localhost:5055/api/projects
+curl -s -X POST -H 'Content-Type: application/json' -d '{"keywords":[{"phrase":"espresso"}]}' localhost:5055/api/projects/1/keywords
+curl -s -X POST localhost:5055/api/projects/1/rank-checks/run                 # dry-run preview
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "localhost:5055/api/projects/1/rank-checks/run?dry_run=false"   # 409 until a live provider is set
+```
