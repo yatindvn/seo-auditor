@@ -57,11 +57,15 @@ class VitalsProvider(Protocol):
   becomes `error="daily cap of N psi calls reached"`. Timeout 60 s. A non-200
   response becomes an error carrying the status and the start of the body
   (the key is never echoed).
-- **`LighthouseProvider(chrome_path)`** runs `npx --yes lighthouse@12 <url>
-  --output=json --output-path=stdout --only-categories=performance
-  --chrome-flags="--headless=new --no-sandbox" --quiet` via `subprocess.run`
-  with a list argv (no shell) and a 90 s timeout. `CHROME_PATH` is passed in
-  the environment. It is lab only: TBT stands in for INP and is labelled.
+- **`LighthouseProvider(chrome_path, cli_path, node_path)`** runs
+  `[node, <global npm root>/lighthouse/cli/index.js, <url>, --output=json,
+  --output-path=stdout, --only-categories=performance, --quiet,
+  --chrome-flags=--headless=new --no-sandbox]` through `subprocess.run`, with a
+  list argv (no shell) and a 90 s timeout. It never goes through `npx` or a
+  `.cmd` shim: on Windows those are batch files, and `cmd.exe` would interpret
+  `&` in a crawled URL. One-time setup: `npm i -g lighthouse@12`
+  (`LIGHTHOUSE_CLI` overrides the path). `CHROME_PATH` goes in the
+  environment. It is lab only: TBT stands in for INP and is labelled.
 - **`FallbackChain([psi, lighthouse])`** returns the first result without
   `error`. If every provider fails, the result is `source="not_measured"` with
   the joined reasons.
@@ -103,7 +107,7 @@ Google's thresholds (good / poor boundary):
   - and when PageRank is empty, the shallowest pages
   - status-200 HTML pages only, deduplicated, up to `limit`
 - Measurement runs in a `ThreadPoolExecutor(max_workers=3)`.
-  `progress_callback` reports "Measuring Core Web Vitals (i/n)".
+  Progress goes to the live activity feed (event `web_vitals`): "Measuring Core Web Vitals (i/n)".
 - `AuditRequestParams.enable_web_vitals: Optional[bool] = True`. Nothing runs
   when it is false or no provider is configured.
 - **Result JSON:**
@@ -167,6 +171,7 @@ audit.
 | `PSI_MAX_PAGES` | `5` | Pages measured per audit |
 | `LIGHTHOUSE_ENABLED` | `false` | Local Lighthouse fallback |
 | `CHROME_PATH` | empty | Chrome/Chromium binary for Lighthouse (auto-detected if empty) |
+| `LIGHTHOUSE_CLI` | empty | Lighthouse `cli/index.js` (found via `npm root -g` if empty) |
 
 These go into `.env.example`, `docs/env.md` and the docker-compose env.
 
