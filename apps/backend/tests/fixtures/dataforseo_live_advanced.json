@@ -1,0 +1,37 @@
+{
+  "version": "0.1.20251020",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "1.2 sec.",
+  "cost": 0.002,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [{
+    "id": "10251010-0000-0066-0000-ffdb7bc95d9f",
+    "status_code": 20000,
+    "status_message": "Ok.",
+    "cost": 0.002,
+    "result_count": 1,
+    "path": ["v3", "serp", "google", "organic", "live", "advanced"],
+    "data": {"api": "serp", "function": "live", "se": "google", "se_type": "organic",
+             "keyword": "espresso machine", "location_name": "United States",
+             "language_code": "en", "device": "desktop", "depth": 100},
+    "result": [{
+      "keyword": "espresso machine",
+      "type": "organic",
+      "se_domain": "google.com",
+      "location_code": 2840,
+      "language_code": "en",
+      "check_url": "https://www.google.com/search?q=espresso+machine",
+      "datetime": "2026-10-25 10:00:00 +00:00",
+      "items_count": 5,
+      "items": [
+        {"type": "paid", "rank_group": 1, "rank_absolute": 1, "domain": "ads.example", "url": "https://ads.example/", "title": "Ad"},
+        {"type": "organic", "rank_group": 1, "rank_absolute": 2, "domain": "www.coffee.com", "url": "https://www.coffee.com/espresso", "title": "Espresso machines"},
+        {"type": "people_also_ask", "rank_group": 1, "rank_absolute": 3},
+        {"type": "organic", "rank_group": 2, "rank_absolute": 4, "domain": "shop.example.com", "url": "https://shop.example.com/machines", "title": "Our machines"},
+        {"type": "organic", "rank_group": 3, "rank_absolute": 5, "domain": "rival.org", "url": "https://rival.org/best", "title": "Best"}
+      ]
+    }]
+  }]
+}
