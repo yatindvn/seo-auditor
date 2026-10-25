@@ -164,6 +164,7 @@ export default function DashboardPage() {
   }
 
   const { executive_summary: es, recommendations, duplicates, broken_links, elapsed_seconds, note } = auditData;
+  const skippedUrls = (auditData.dedup?.aliases ?? 0) + (auditData.dedup?.duplicates ?? 0);
   // The audit payload is a summary now: page rows live behind /api/pages. The
   // panels below summarise across pages rather than listing them, so they read
   // a bounded sample and say so when the crawl was larger than it.
@@ -257,7 +258,7 @@ export default function DashboardPage() {
     "performance": <PerformancePanel pages={pages} />,
     "security": <SecurityAccessibilityPanel pages={pages} />,
     "duplicates": <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4"/>Duplicate Content Analysis</CardTitle></CardHeader><CardContent><DuplicatesPanel duplicates={duplicates} /></CardContent></Card>,
-    "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages</CardTitle></CardHeader><CardContent><PagesTable sessionId={activeSessionId!} /></CardContent></Card>,
+    "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages{skippedUrls > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{skippedUrls} duplicate URLs skipped</span>}</CardTitle></CardHeader><CardContent><PagesTable sessionId={activeSessionId!} /></CardContent></Card>,
   };
 
   return (

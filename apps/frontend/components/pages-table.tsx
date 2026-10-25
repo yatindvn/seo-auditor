@@ -180,6 +180,21 @@ export function PagesTable({ sessionId }: PagesTableProps) {
                             CANON
                           </span>
                         )}
+                        {page.alias_of && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[9px] font-semibold border border-amber-500/20" title={`Redirects to ${page.alias_of}`}>
+                            ALIAS
+                          </span>
+                        )}
+                        {page.duplicate_of && (
+                          <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 text-[9px] font-semibold border border-rose-500/20" title={`Duplicate of ${page.duplicate_of}`}>
+                            DUPLICATE
+                          </span>
+                        )}
+                        {page.found_via === "sitemap" && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[9px] font-semibold border border-emerald-500/20" title="Found only in the sitemap, not by following links">
+                            SITEMAP
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

@@ -117,6 +117,11 @@ export interface PageItem {
   security_headers?: Record<string, string | boolean>;
   seo_score?: number;
   keyword_analysis?: KeywordAnalysis;
+
+  // Set when the crawl recognised this URL as a page it already had.
+  alias_of?: string | null;
+  duplicate_of?: string | null;
+  found_via?: "link" | "sitemap" | null;
 }
 
 export interface Duplicates {
@@ -181,6 +186,12 @@ export interface SiteArchitecture {
   tree: any;
 }
 
+export interface DedupSummary {
+  aliases: number;
+  duplicates: number;
+  sitemap_only: number;
+}
+
 export interface AuditResponse {
   executive_summary: ExecutiveSummary;
   pages: PageItem[];
@@ -192,6 +203,7 @@ export interface AuditResponse {
   elapsed_seconds: number;
   note: string;
   rank_targets?: RankTarget[];
+  dedup?: DedupSummary;
 }
 
 export interface AuditRequestParams {

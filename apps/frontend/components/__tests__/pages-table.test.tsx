@@ -39,6 +39,49 @@ function envelope(items: unknown[], total: number) {
 describe("PagesTable", () => {
   beforeEach(() => vi.restoreAllMocks());
 
+  it("marks a URL that redirects onto another crawled page", async () => {
+    vi.spyOn(ApiService, "getPages").mockResolvedValue(
+      envelope([row(0, { alias_of: "https://example.com/p9" })], 1),
+    );
+
+    render(<PagesTable sessionId="sess_1" />);
+
+    const badge = await screen.findByText("ALIAS");
+    expect(badge).toHaveAttribute("title", "Redirects to https://example.com/p9");
+  });
+
+  it("marks a URL whose HTML duplicates another page", async () => {
+    vi.spyOn(ApiService, "getPages").mockResolvedValue(
+      envelope([row(0, { duplicate_of: "https://example.com/p9" })], 1),
+    );
+
+    render(<PagesTable sessionId="sess_1" />);
+
+    const badge = await screen.findByText("DUPLICATE");
+    expect(badge).toHaveAttribute("title", "Duplicate of https://example.com/p9");
+  });
+
+  it("marks a page found only through the sitemap", async () => {
+    vi.spyOn(ApiService, "getPages").mockResolvedValue(
+      envelope([row(0, { found_via: "sitemap" })], 1),
+    );
+
+    render(<PagesTable sessionId="sess_1" />);
+
+    expect(await screen.findByText("SITEMAP")).toBeInTheDocument();
+  });
+
+  it("shows no dedup badge on an ordinary page", async () => {
+    vi.spyOn(ApiService, "getPages").mockResolvedValue(envelope([row(0)], 1));
+
+    render(<PagesTable sessionId="sess_1" />);
+
+    await screen.findByText("https://example.com/p0");
+    expect(screen.queryByText("ALIAS")).toBeNull();
+    expect(screen.queryByText("DUPLICATE")).toBeNull();
+    expect(screen.queryByText("SITEMAP")).toBeNull();
+  });
+
   it("renders the window the server returned", async () => {
     vi.spyOn(ApiService, "getPages").mockResolvedValue(
       envelope([row(0), row(1)], 4213),
