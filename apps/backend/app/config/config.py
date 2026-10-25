@@ -53,6 +53,10 @@ SERP_DAILY_CAP = int(os.getenv("SERP_DAILY_CAP", "50"))
 RANK_DEPTH = int(os.getenv("RANK_DEPTH", "100"))
 DATAFORSEO_LOGIN = os.getenv("DATAFORSEO_LOGIN", "")
 DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD", "")
+# Hard daily cap on DataForSEO keyword-data calls (search volume, difficulty,
+# ranked keywords). Separate from SERP_DAILY_CAP: these endpoints price
+# differently. Cache hits cost nothing and are not counted.
+DATAFORSEO_LABS_DAILY_CAP = int(os.getenv("DATAFORSEO_LABS_DAILY_CAP", "20"))
 
 # --- Rank alerts -------------------------------------------------------------
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
