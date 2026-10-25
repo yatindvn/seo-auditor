@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.config import config  # noqa: E402
 from app.crawler.crawler import Crawler  # noqa: E402
 from app.services import audit_service  # noqa: E402
 
@@ -64,8 +65,36 @@ def _page_html(index: int, total: int, links_per_page: int = 12) -> bytes:
 
 class _SiteHandler(http.server.BaseHTTPRequestHandler):
     total_pages = 1000
+    # Simulated server behaviour: a real site takes time to answer, and a
+    # struggling one answers 429 when too many requests arrive at once.
+    latency_ms = 0
+    throttle_at = 0
+    throttled_count = 0
+    _active = 0
+    _lock = threading.Lock()
 
     def do_GET(self):  # noqa: N802 - name fixed by BaseHTTPRequestHandler
+        cls = type(self)
+        with cls._lock:
+            cls._active += 1
+            over = bool(cls.throttle_at) and cls._active > cls.throttle_at
+            if over:
+                cls.throttled_count += 1
+        try:
+            if over:
+                self.send_response(429)
+                self.send_header("Retry-After", "1")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if cls.latency_ms:
+                time.sleep(cls.latency_ms / 1000)
+            self._serve()
+        finally:
+            with cls._lock:
+                cls._active -= 1
+
+    def _serve(self):
         if self.path in ("/", "/index.html"):
             body = _page_html(0, self.total_pages)
         elif self.path.startswith("/page") and self.path.endswith(".html"):
@@ -167,9 +196,17 @@ def main(argv=None) -> int:
     # the pool width is settable and the default matches the VM.
     parser.add_argument("--workers", type=int, default=2,
                         help="process pool width (default 2, the deployed shape)")
+    parser.add_argument("--latency-ms", type=int, default=0,
+                        help="simulated server response time per request")
+    parser.add_argument("--throttle-at", type=int, default=0,
+                        help="answer 429 above this many concurrent requests (0 = never)")
+    parser.add_argument("--fixed", action="store_true",
+                        help="disable adaptive concurrency (max = initial)")
     args = parser.parse_args(argv)
 
     _SiteHandler.total_pages = args.pages
+    _SiteHandler.latency_ms = args.latency_ms
+    _SiteHandler.throttle_at = args.throttle_at
     socketserver.TCPServer.allow_reuse_address = True
     server = socketserver.ThreadingTCPServer(("127.0.0.1", args.port), _SiteHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -178,11 +215,17 @@ def main(argv=None) -> int:
     start_url = f"http://127.0.0.1:{args.port}/"
     print(f"Serving {args.pages} synthetic pages at {start_url}")
 
+    # Built the way the API builds it (run_full_audit), so the harness measures
+    # what production runs.
     crawler = Crawler(
         start_url=start_url,
         max_pages=args.pages,
         max_depth=args.depth,
         respect_robots=False,
+        concurrency=config.CRAWL_CONCURRENCY,
+        max_concurrency=None if args.fixed else config.CRAWL_MAX_CONCURRENCY,
+        timeout=10,
+        retries=3,
     )
 
     print(f"analysis pool width {args.workers} (this machine has {os.cpu_count()} cores)")
@@ -214,6 +257,8 @@ def main(argv=None) -> int:
           f"   (ceiling {PEAK_RSS_CEILING_MB}MB)")
     print(f"duplicate mode      {result['near_duplicate_mode']}")
     print(f"degraded            {result['degraded']}")
+    print(f"final concurrency   {crawler.limit.limit} (max {crawler.max_concurrency})")
+    print(f"429s served         {_SiteHandler.throttled_count}")
 
     failures = []
     if elapsed > budget:
