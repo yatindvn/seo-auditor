@@ -60,6 +60,8 @@ app.add_middleware(CORSMiddleware, **_cors_options())
 app.include_router(api_router, prefix="/api")
 from app.api.projects import router as projects_router  # noqa: E402
 app.include_router(projects_router, prefix="/api")
+from app.api.rank import router as rank_router  # noqa: E402
+app.include_router(rank_router, prefix="/api")
 
 from app.api.cron import router as cron_router  # noqa: E402
 app.include_router(cron_router, prefix="/api")
