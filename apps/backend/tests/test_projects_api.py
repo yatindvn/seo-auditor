@@ -63,3 +63,13 @@ def test_a_database_outage_is_a_503(client, monkeypatch):
 
     monkeypatch.setattr(db_engine, "get_session_factory", down)
     assert client.get("/api/projects").status_code == 503
+
+
+def test_timestamps_are_explicitly_utc(client, two_runs):  # noqa: F811
+    """SQLite hands back naive datetimes; a client reading one as local time
+    would place every audit hours off."""
+    project = client.get("/api/projects").json()["items"][0]
+    audits = client.get(f"/api/projects/{project['id']}/audits").json()["items"]
+
+    assert project["latest_audit"]["finished_at"].endswith("+00:00")
+    assert all(a["started_at"].endswith("+00:00") and a["finished_at"].endswith("+00:00") for a in audits)

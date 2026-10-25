@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db import engine as db_engine
 from app.db.diff import diff_audits, previous_audit_id
-from app.db.models import Audit, Project
+from app.db.models import Audit, Project, as_utc
 from app.db.projects import project_domain
 
 router = APIRouter()
@@ -46,7 +46,8 @@ def _audit_json(audit: Audit) -> Dict[str, Any]:
     return {
         "id": audit.id, "session_id": audit.session_id, "status": audit.status,
         "trigger": audit.trigger, "start_url": audit.start_url,
-        "started_at": audit.started_at.isoformat(), "finished_at": audit.finished_at.isoformat(),
+        "started_at": as_utc(audit.started_at).isoformat(),
+        "finished_at": as_utc(audit.finished_at).isoformat(),
         "page_count": audit.page_count, "health_score": audit.health_score,
     }
 
@@ -60,7 +61,7 @@ def _project_json(session, project: Project) -> Dict[str, Any]:
         "audit_schedule": project.audit_schedule, "audit_options": project.audit_options_json,
         "audit_count": count,
         "latest_audit": None if latest is None else {
-            "id": latest.id, "finished_at": latest.finished_at.isoformat(),
+            "id": latest.id, "finished_at": as_utc(latest.finished_at).isoformat(),
             "health_score": latest.health_score,
         },
     }
