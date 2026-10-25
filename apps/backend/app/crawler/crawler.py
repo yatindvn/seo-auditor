@@ -25,7 +25,7 @@ import urllib.parse as up
 import urllib.robotparser as robotparser
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import requests
 from bs4 import BeautifulSoup
@@ -108,6 +108,10 @@ class PageResult:
     alias_of: Optional[str] = None
     duplicate_of: Optional[str] = None
     found_via: str = "link"
+    # "not_modified" when the server answered 304, "same_hash" when it sent a
+    # body identical to the cached one; None for anything to analyse afresh.
+    cache_status: Optional[str] = None
+    body_hash: Optional[str] = None
 
 
 @dataclass
@@ -119,6 +123,23 @@ class Validators:
     last_modified: Optional[str] = None
     body_hash: Optional[str] = None
     headers: Dict = field(default_factory=dict)
+
+
+def _merge_headers(stored: Dict, fresh) -> Dict:
+    """A 304's headers laid over the stored response's (RFC 9111 4.3.4).
+
+    Case-insensitive: the store and the 304 may spell a field differently, and
+    a plain dict merge would then hold both, with checks reading the stale one.
+    """
+    merged = dict(stored or {})
+    by_lower = {key.lower(): key for key in merged}
+    for key, value in dict(fresh).items():
+        existing = by_lower.get(key.lower())
+        if existing is not None:
+            del merged[existing]
+        merged[key] = value
+        by_lower[key.lower()] = key
+    return merged
 
 
 class Crawler:
@@ -184,6 +205,10 @@ class Crawler:
         self._sitemap_pending: Set[str] = set()
         self._admitted = 0
         self._fetched = 0
+        # Set by the audit from its page cache before crawl(). validators is
+        # read by fetch workers but never written during a crawl.
+        self.validators: Dict[str, Validators] = {}
+        self.cached_links: Optional[Callable[[str], Optional[Tuple[List[str], List[str]]]]] = None
 
         self._load_robots()
         self._load_sitemaps()
@@ -244,15 +269,38 @@ class Crawler:
                 continue
 
     # --------------------------------------------------------------- fetch
-    def _fetch(self, url: str) -> PageResult:
+    def _fetch(self, url: str, conditional: bool = True) -> PageResult:
+        validators = self.validators.get(url) if conditional else None
+        request_headers = {}
+        if validators is not None:
+            if validators.etag:
+                request_headers["If-None-Match"] = validators.etag
+            if validators.last_modified:
+                request_headers["If-Modified-Since"] = validators.last_modified
+
         redirect_chain = []
         attempt = 0
         last_exc = None
         while attempt <= self.retries:
             try:
                 start = time.time()
-                resp = self.session.get(url, timeout=self.timeout, allow_redirects=False)
+                resp = self.session.get(url, timeout=self.timeout, allow_redirects=False,
+                                        headers=request_headers or None)
                 elapsed = (time.time() - start) * 1000
+
+                if resp.status_code == 304 and validators is not None:
+                    # Unchanged: no body, and few headers of its own. The page is
+                    # the cached one, with today's headers laid over yesterday's.
+                    headers = _merge_headers(validators.headers, resp.headers)
+                    content_type = next(
+                        (v for k, v in headers.items() if k.lower() == "content-type"), ""
+                    )
+                    return PageResult(
+                        url=url, final_url=url, status_code=200,
+                        response_time_ms=round(elapsed, 1), content_type=content_type,
+                        html="", headers=headers,
+                        cache_status="not_modified", body_hash=validators.body_hash,
+                    )
 
                 current_url = url
                 current_resp = resp
@@ -277,6 +325,15 @@ class Crawler:
                     current_resp.encoding = current_resp.encoding or "utf-8"
                     html = current_resp.text
 
+                body_hash = (
+                    hashlib.sha256(html.encode("utf-8", errors="ignore")).hexdigest() if html else None
+                )
+                cache_status = (
+                    "same_hash"
+                    if validators is not None and body_hash and body_hash == validators.body_hash
+                    else None
+                )
+
                 if self.event_callback:
                     if current_resp.status_code >= 400:
                         self.event_callback("broken_link", {"url": url, "status": current_resp.status_code})
@@ -292,6 +349,8 @@ class Crawler:
                     content_type=content_type,
                     html=html,
                     headers=dict(current_resp.headers),
+                    cache_status=cache_status,
+                    body_hash=body_hash,
                 )
             except requests.RequestException as exc:
                 last_exc = exc
@@ -313,6 +372,11 @@ class Crawler:
         if self.delay:
             time.sleep(self.delay)
         return self._fetch(url)
+
+    def fetch_unconditional(self, url: str) -> PageResult:
+        """A full fetch, never answered with a 304: for a page whose cached
+        analysis turned out to be missing."""
+        return self._fetch(url, conditional=False)
 
     # ---------------------------------------------------------------- crawl
     def _extract_links(self, base_url: str, html: str) -> List[str]:
@@ -464,11 +528,15 @@ class Crawler:
             return claimant
 
         if (
-            result.html
+            (result.html or result.body_hash)
             and result.status_code == 200
             and "text/html" in (result.content_type or "")
         ):
-            digest = hashlib.sha256(result.html.encode("utf-8", errors="ignore")).hexdigest()
+            # A 304 has no body, but carries the hash of the body it stands for.
+            digest = result.body_hash or hashlib.sha256(
+                result.html.encode("utf-8", errors="ignore")
+            ).hexdigest()
+            result.body_hash = digest
             first = self.body_owner.get(digest)
             if first is not None:
                 result.duplicate_of = first
@@ -503,6 +571,13 @@ class Crawler:
                        progress_callback, on_page):
         """Record one fetched page and push whatever it links to."""
         result = future.result()
+        cached = None
+        if result.cache_status == "not_modified":
+            cached = self.cached_links(url) if self.cached_links else None
+            if cached is None:
+                # A 304 with nothing behind it in the cache: there is no body
+                # to analyse and no links to follow, so fetch it properly.
+                result = self.fetch_unconditional(url)
         result.depth = depth
         result.found_via = via
         if referrer:
@@ -547,7 +622,11 @@ class Crawler:
             })
 
         internal_links, external_links = [], []
-        if result.html:
+        if cached is not None:
+            cached_internal, cached_external = cached
+            internal_links = [self.aliases.get(link, link) for link in cached_internal]
+            external_links = list(cached_external)
+        elif result.html:
             for link in self._extract_links(result.final_url, result.html):
                 normalized = normalize_url(link)
                 if same_registrable_domain(normalized, self.root_netloc):
