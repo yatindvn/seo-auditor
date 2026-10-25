@@ -26,12 +26,7 @@ logger = logging.getLogger("seo_auditor")
 # per-page issue detail, the architecture graph -- is read from its own
 # paginated endpoint. Sending all of it at once was tens of megabytes at 5000
 # pages, more than the dashboard could store or parse.
-SUMMARY_FIELDS = (
-    "executive_summary", "site_wide_analysis", "recommendations",
-    "issue_frequency", "duplicates", "redirects", "rank_targets",
-    "near_duplicate_mode", "elapsed_seconds", "degraded", "partial", "dedup", "reuse",
-    "robots_txt", "sitemaps_found", "psi_metrics", "note",
-)
+from app.services.summary_fields import SUMMARY_FIELDS  # noqa: E402
 
 
 def _require_session(session_id: str):

@@ -159,3 +159,66 @@ since the other clusters are still collapsed and have no node to land on.
 Clustering rules: the start URL is always its own `home` node; a URL with no
 path segment joins it; a cluster standing for a single page is returned as that
 page (`is_page: true`); beyond 60 clusters the tail collapses into one `other`.
+
+---
+
+## Projects & audit history (central database)
+
+Every finished audit is stored in the central database under a project, one
+project per domain (`www.` and ports ignored). Audit results carry `audit_id`,
+`project_id` and `persisted` (`false` if the database was unavailable; the
+audit itself still succeeds). Endpoints below answer **503** when the central
+database is unavailable.
+
+### `GET /api/projects`
+
+```json
+{"items": [{"id": 1, "name": "example.com", "domain": "example.com",
+            "audit_schedule": "weekly", "audit_options": {"max_pages": 50},
+            "audit_count": 2,
+            "latest_audit": {"id": 7, "finished_at": "2026-10-25T10:00:00+00:00", "health_score": 72.5}}]}
+```
+
+### `POST /api/projects` → 201, or 409 if the domain already has a project
+
+```json
+{"domain": "https://www.example.com/", "name": "My site",
+ "audit_schedule": "daily", "audit_options": {"max_pages": 100, "max_depth": 3, "ignore_robots": false}}
+```
+
+`audit_schedule` is `null`, `"daily"` or `"weekly"` (anything else is 422).
+
+### `PATCH /api/projects/{id}`
+
+Any of `name`, `audit_schedule`, `audit_options`.
+
+### `GET /api/projects/{id}/audits?offset=0&limit=20`
+
+Newest first: `{"items": [{"id", "session_id", "status", "trigger", "start_url",
+"started_at", "finished_at", "page_count", "health_score"}], "total", "offset", "limit"}`.
+`trigger` is `manual`, `scheduled` or `import`.
+
+### `GET /api/audits/{id}/diff?against={old_id}&limit=500`
+
+`against` defaults to the previous audit of the same project (404 if none).
+Audits of different projects → 400.
+
+```json
+{"old_audit_id": 6, "new_audit_id": 7, "health_score_change": -4.5,
+ "issues": {"new": [{"url": "/b", "code": "STATUS_404", "severity": "warning", "message": "..."}],
+            "fixed": [], "new_count": 1, "fixed_count": 0, "persisting_count": 12},
+ "pages": {"added": ["/fresh"], "removed": ["/gone"],
+           "status_changed": [{"url": "/b", "old_status": 200, "new_status": 404}],
+           "added_count": 1, "removed_count": 1, "status_changed_count": 1}}
+```
+
+Lists are truncated at `limit`; the `*_count` fields are always exact.
+
+### `POST /api/cron/run`
+
+Runs audits for projects whose schedule is due. Requires
+`Authorization: Bearer <CRON_SECRET>`; **404** when `CRON_SECRET` is unset,
+**401** on a wrong token, otherwise **202** `{"status": "accepted"}` with the
+audits running in the background. A project is claimed before its audit starts,
+so this and the in-process scheduler never start the same audit twice.
+

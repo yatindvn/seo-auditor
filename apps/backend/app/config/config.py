@@ -30,6 +30,15 @@ SESSION_DIR = Path(os.getenv("SESSION_DIR", "./sessions"))
 # A cached page analysis older than this is redone even if the server says the
 # page is unchanged -- a bound on trusting servers that misreport changes.
 PAGE_CACHE_MAX_AGE_DAYS = int(os.getenv("PAGE_CACHE_MAX_AGE_DAYS", "30"))
+# The central database: projects, audits, rank checks. SQLite on the sessions
+# volume unless pointed at Postgres (postgresql+psycopg://user:pass@host/db).
+# In a subdirectory, never beside the session files: SessionStore treats every
+# *.db there as an audit, and its retention would delete this one first.
+DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{(SESSION_DIR / 'central' / 'platform.db').as_posix()}"
+# POST /api/cron/run requires this as a bearer token; unset disables the route.
+CRON_SECRET = os.getenv("CRON_SECRET", "")
+# Run due scheduled audits from inside the API process every 15 minutes.
+SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "").lower() in ("1", "true", "yes")
 GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "")
 GOOGLE_CSE_CX = os.getenv("GOOGLE_CSE_CX", "")
 GOOGLE_CSE_DAILY_QUOTA = int(os.getenv("GOOGLE_CSE_DAILY_QUOTA", "100"))

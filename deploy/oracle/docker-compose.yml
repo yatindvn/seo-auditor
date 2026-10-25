@@ -24,6 +24,12 @@ services:
       # volume so it survives a container rebuild -- history used to be an
       # in-memory list and every deploy erased it.
       SESSION_DIR: /data/sessions
+      # Central DB (projects, audit history). Unset = SQLite in the sessions
+      # volume; set to the postgres service below to use Postgres.
+      DATABASE_URL: ${DATABASE_URL:-}
+      # Bearer token for POST /api/cron/run; unset leaves the route disabled.
+      CRON_SECRET: ${CRON_SECRET:-}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
     # Deliberately NOT published to the host: only Caddy may reach it, so the
     # plaintext port is never exposed to the internet.
     expose:
@@ -37,6 +43,24 @@ services:
     # not, which is the half that breaks.)
     deploy:
       replicas: 1
+
+  # Optional. Start with: docker compose --profile postgres up -d
+  # and set DATABASE_URL=postgresql+psycopg://seo:${POSTGRES_PASSWORD}@postgres/seo
+  # Without it the backend keeps using SQLite on the sessions volume.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: seo
+      POSTGRES_DB: seo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seo"]
+      interval: 10s
+      retries: 5
 
   caddy:
     image: caddy:2-alpine
@@ -55,5 +79,6 @@ services:
 
 volumes:
   sessions:
+  pgdata:
   caddy_data:
   caddy_config:
