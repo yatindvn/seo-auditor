@@ -432,3 +432,43 @@ The audit result (and `GET /api/audit/latest`) carries:
 
 A page that failed to render has `"status": "failed"` and the reason in
 `error`. It raises no issues.
+
+---
+
+## Accessibility (axe-core)
+
+`POST /api/audit` accepts `"accessibility": true` (default `false`). The
+sampled pages (the same pages and `RENDER_MAX_PAGES` cap as `render_js`) are
+scanned with axe-core 4.14.0 against WCAG 2.2 A and AA. When both options are
+on, each page is loaded once and both use that load.
+
+The audit result (and `GET /api/audit/latest`) carries:
+- `accessibility`: one scan per page
+- `accessibility_status`: `scanned`, `disabled` or `unavailable`
+- `accessibility_unavailable_reason`
+- `axe_version`
+
+**Score** (per page, 0–100): 100 minus 10 / 7 / 3 / 1 for each failed rule
+whose impact is critical / serious / moderate / minor. Automated checks catch
+about a third of accessibility problems, so this is not a full WCAG audit.
+
+**Issues:** one per failed rule per page, coded `A11Y_<RULE>` (e.g.
+`A11Y_COLOR_CONTRAST`):
+- critical/serious → `warning`
+- moderate/minor → `info`
+- `image-alt`, `label` and `html-has-lang` are stored in the scan but not
+  raised as issues, because the raw HTML checks already report them on every
+  page
+
+### `GET /api/audits/{id}/accessibility`
+
+```json
+{"audit_id": 12, "status": "scanned", "reason": null, "axe_version": "4.14.0", "items": [
+  {"url": "https://a.com/", "status": "scanned", "error": null, "score": 97,
+   "counts": {"critical": 0, "serious": 0, "moderate": 1, "minor": 0},
+   "violations": [{"id": "region", "impact": "moderate", "help": "All page content should be contained by landmarks",
+                   "help_url": "https://dequeuniversity.com/rules/axe/4.14/region", "wcag": [],
+                   "nodes_count": 1, "targets": ["main"]}]}]}
+```
+
+A page that couldn't be scanned has `"status": "failed"` and the reason in `error`.
