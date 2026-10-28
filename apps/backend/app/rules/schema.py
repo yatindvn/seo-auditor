@@ -101,7 +101,8 @@ class SelectorCheck(BaseModel):
         try:
             soupsieve.compile(self.selector)
         except Exception as exc:
-            raise ValueError(f"Invalid CSS selector: {exc}")
+            first_line = (str(exc).splitlines() or [""])[0]
+            raise ValueError(f"Invalid CSS selector: {first_line}")
         if self.op in VALUELESS_OPS:
             self.value = None
         elif self.value is None or self.value == "":
