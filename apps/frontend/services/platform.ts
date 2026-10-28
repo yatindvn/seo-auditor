@@ -1,6 +1,6 @@
 import type {
   AuditDiff, AuditListItem, CompetitorDomain, ExploreResult, GapResult, PageList,
-  ProjectSummary, RankCheckView, RankPreview, TrackedKeyword, AlertSettings, AuditVitals, VitalsTrend, AuditRendering,
+  ProjectSummary, RankCheckView, RankPreview, TrackedKeyword, AlertSettings, AuditVitals, VitalsTrend, AuditRendering, AuditAccessibility,
 } from "@seo-auditor/shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -54,6 +54,7 @@ export const Platform = {
     request<AuditDiff>(`/audits/${auditId}/diff${against != null ? `?against=${against}` : ""}`),
   auditVitals: (auditId: number) => request<AuditVitals>(`/audits/${auditId}/vitals`),
   auditRendering: (auditId: number) => request<AuditRendering>(`/audits/${auditId}/rendering`),
+  auditAccessibility: (auditId: number) => request<AuditAccessibility>(`/audits/${auditId}/accessibility`),
   vitalsTrend: (id: number, limit = 30) => request<VitalsTrend>(`/projects/${id}/vitals/trend?limit=${limit}`),
 
   listKeywords: (id: number) => request<{ items: TrackedKeyword[] }>(`/projects/${id}/keywords`),

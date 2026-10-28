@@ -1,4 +1,4 @@
-import type { RenderComparison, RenderStatus, VitalsRow, VitalsStatus } from "./platform";
+import type { A11yResult, A11yStatus, RenderComparison, RenderStatus, VitalsRow, VitalsStatus } from "./platform";
 
 export interface Recommendation {
   code: string;
@@ -222,6 +222,10 @@ export interface AuditResponse {
   rendering?: RenderComparison[];
   render_status?: RenderStatus;
   render_unavailable_reason?: string | null;
+  accessibility?: A11yResult[];
+  accessibility_status?: A11yStatus;
+  accessibility_unavailable_reason?: string | null;
+  axe_version?: string | null;
 }
 
 export interface AuditRequestParams {
@@ -238,6 +242,7 @@ export interface AuditRequestParams {
   fresh?: boolean;
   enable_web_vitals?: boolean;
   render_js?: boolean;
+  accessibility?: boolean;
 }
 
 export interface CrawlPage {

@@ -8,6 +8,7 @@ import { AuditDiffView } from "@/components/platform/audit-diff";
 import { DeltaBadge } from "@/components/platform/delta-badge";
 import { PageHeader } from "@/components/platform/page-header";
 import { RenderingTable } from "@/components/platform/rendering-table";
+import { AccessibilityTable } from "@/components/platform/accessibility-table";
 import { VitalsTable } from "@/components/platform/vitals-table";
 import { useApi } from "@/lib/use-api";
 import { Platform } from "@/services/platform";
@@ -29,6 +30,7 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
   const diff = useApi(selected !== null && against !== null ? () => Platform.auditDiff(selected, against) : null, [selected, against]);
   const vitals = useApi(selected !== null ? () => Platform.auditVitals(selected) : null, [selected]);
   const rendering = useApi(selected !== null ? () => Platform.auditRendering(selected) : null, [selected]);
+  const accessibility = useApi(selected !== null ? () => Platform.auditAccessibility(selected) : null, [selected]);
 
   return (
     <div className="space-y-6">
@@ -76,6 +78,10 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
             <section className="rounded-[18px] border bg-card p-5">
               <h2 className="mb-3 font-semibold tracking-tight">JavaScript rendering</h2>
               <AsyncState state={rendering}>{(r) => <RenderingTable rows={r.items} status={r.status} reason={r.reason} />}</AsyncState>
+            </section>
+            <section className="rounded-[18px] border bg-card p-5">
+              <h2 className="mb-3 font-semibold tracking-tight">Accessibility</h2>
+              <AsyncState state={accessibility}>{(a) => <AccessibilityTable rows={a.items} status={a.status} reason={a.reason} />}</AsyncState>
             </section>
 
             {items.length < 2 ? (
