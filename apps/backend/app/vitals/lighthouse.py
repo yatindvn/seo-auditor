@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.rendering.playwright_renderer import playwright_chromium
 from app.vitals.model import VitalsResult, rate
 from app.vitals.psi import parse_lab
 
@@ -39,7 +40,9 @@ def find_chrome(explicit: str = "") -> Optional[str]:
         found = shutil.which(name)
         if found:
             return found
-    return None
+    # Last resort: Playwright's own Chromium (the WITH_BROWSER server image has
+    # no system Chrome, only this one).
+    return playwright_chromium()
 
 
 def find_lighthouse_cli(explicit: str = "") -> Optional[str]:
