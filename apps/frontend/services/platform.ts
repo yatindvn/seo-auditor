@@ -1,6 +1,7 @@
 import type {
   AuditDiff, AuditListItem, CompetitorDomain, ExploreResult, GapResult, PageList,
   ProjectSummary, RankCheckView, RankPreview, TrackedKeyword, AlertSettings, AuditVitals, VitalsTrend, AuditRendering, AuditAccessibility,
+  CustomRule, NewRule, RuleTestResult, RuleSummary,
 } from "@seo-auditor/shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -55,6 +56,14 @@ export const Platform = {
   auditVitals: (auditId: number) => request<AuditVitals>(`/audits/${auditId}/vitals`),
   auditRendering: (auditId: number) => request<AuditRendering>(`/audits/${auditId}/rendering`),
   auditAccessibility: (auditId: number) => request<AuditAccessibility>(`/audits/${auditId}/accessibility`),
+  listRules: (id: number) => request<{ items: CustomRule[] }>(`/projects/${id}/rules`),
+  createRule: (id: number, rule: NewRule) => request<CustomRule>(`/projects/${id}/rules`, post(rule)),
+  updateRule: (ruleId: number, patchBody: Partial<NewRule> & { enabled?: boolean }) =>
+    request<CustomRule>(`/rules/${ruleId}`, patch(patchBody)),
+  deleteRule: (ruleId: number) => request<void>(`/rules/${ruleId}`, { method: "DELETE" }),
+  testRule: (id: number, url: string, rule: NewRule) =>
+    request<RuleTestResult>(`/projects/${id}/rules/test`, post({ url, rule })),
+  auditCustomRules: (auditId: number) => request<{ audit_id: number; items: RuleSummary[] }>(`/audits/${auditId}/custom-rules`),
   vitalsTrend: (id: number, limit = 30) => request<VitalsTrend>(`/projects/${id}/vitals/trend?limit=${limit}`),
 
   listKeywords: (id: number) => request<{ items: TrackedKeyword[] }>(`/projects/${id}/keywords`),

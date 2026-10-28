@@ -44,6 +44,7 @@ FINGERPRINT_SOURCES = (
     "utils/performance.py",
     "seo/keyword_extraction.py",
     "analysis/minhash.py",
+    "rules/engine.py",
 )
 
 
@@ -55,17 +56,20 @@ def analyzer_fingerprint(
     enable_keyword_analysis: bool,
     target_keywords: Optional[List[str]],
     compute_signature: bool,
+    rules_digest: str = "",
 ) -> str:
     digest = hashlib.sha256()
     for rel in FINGERPRINT_SOURCES:
         digest.update(rel.encode())
         digest.update(_read_source(rel))
-    options = json.dumps({
+    options = {
         "keyword_analysis": bool(enable_keyword_analysis),
         "target_keywords": sorted(target_keywords or []),
         "signature": bool(compute_signature),
-    }, sort_keys=True)
-    digest.update(options.encode())
+    }
+    if rules_digest:
+        options["rules"] = rules_digest
+    digest.update(json.dumps(options, sort_keys=True).encode())
     return digest.hexdigest()
 
 

@@ -22,6 +22,8 @@ from app.services import page_pipeline
 from app.accessibility.axe import AXE_VERSION, axe_available
 from app.accessibility.scoring import a11y_issues
 from app.analysis.sampling import select_pages
+from app.rules import store as rules_store
+from app.rules.engine import rules_digest, summarize as summarize_rules
 from app.rendering.compare import rendering_issues
 from app.rendering.playwright_renderer import PlaywrightRenderer, renderer_available
 from app.rendering.runner import run_browser_pass
@@ -190,9 +192,12 @@ def _build_audit_result(
 
     # Pages whose HTML is unchanged since the last audit of this site reuse
     # that audit's HTML analysis; only the response checks run again.
+    # The audited site's custom rules travel to the page workers in each payload.
+    custom_rules = rules_store.load_enabled_rules(url)
     cache = page_cache.PageCache.open(
         session_store.page_cache_dir, url,
-        page_cache.analyzer_fingerprint(enable_keyword_analysis, target_keywords, compute_signature),
+        page_cache.analyzer_fingerprint(enable_keyword_analysis, target_keywords, compute_signature,
+                                       rules_digest=rules_digest(custom_rules)),
     )
     reuse_counts = {"not_modified": 0, "same_hash": 0, "analysed": 0}
     if cache is not None and not fresh and hasattr(crawler, "validators"):
@@ -308,6 +313,7 @@ def _build_audit_result(
             enable_keyword_analysis=enable_keyword_analysis,
             target_keywords=target_keywords,
             compute_signature=compute_signature,
+            custom_rules=custom_rules,
         )
         html_part = None
         if cache is not None and not fresh and result.cache_status:
@@ -547,6 +553,12 @@ def _build_audit_result(
                 all_page_issues.setdefault(page_url, []).extend(found)
                 db.add_issues(page_url, found)
 
+    rules_summary = summarize_rules(
+        custom_rules,
+        {u: (a.meta or {}).get("custom_rules_checked", []) for u, a in analyses.items() if a is not None and not a.failed},
+        all_page_issues,
+    ) if custom_rules else []
+
     duplicates = analysis.find_duplicates(page_data_for_dupes)
     skipped_results = getattr(crawler, "skipped", {})
     analysis.add_skipped_duplicates(
@@ -637,6 +649,7 @@ def _build_audit_result(
         "accessibility_status": a11y_status,
         "accessibility_unavailable_reason": a11y_reason,
         "axe_version": AXE_VERSION if a11y_status == "scanned" else None,
+        "custom_rules": rules_summary,
         # Kept for readers of the pre-5.1 JSON: PSI-measured pages only.
         "psi_metrics": {r.url: {k: v for k, v in r.to_dict().items() if k != "url"}
                         for r in vitals_results if r.source == "psi" and not r.error},

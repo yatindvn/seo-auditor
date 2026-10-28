@@ -8,6 +8,6 @@ SUMMARY_FIELDS = (
     "near_duplicate_mode", "elapsed_seconds", "degraded", "partial", "dedup", "reuse",
     "robots_txt", "sitemaps_found", "psi_metrics", "web_vitals", "web_vitals_status", "rendering", "render_status",
     "render_unavailable_reason", "accessibility", "accessibility_status",
-    "accessibility_unavailable_reason", "axe_version", "note",
+    "accessibility_unavailable_reason", "axe_version", "custom_rules", "note",
     "audit_id", "project_id", "persisted",
 )

@@ -330,3 +330,45 @@ Expected: `scanned 4.14.0`, then one line per page with a score and the
 failed rule ids. Then start the backend (same `SESSION_DIR`) and the
 frontend, open the project's **Site Audit** tab, and scroll to
 "Accessibility".
+
+---
+
+## Custom rules (Phase 5.4)
+
+Your own checks for a site, run on every page of every audit. Add them in
+the project's **Custom Rules** tab:
+- a **page field** (title, meta description, H1, canonical, robots, word
+  count, links, status, response time)
+- **page text** (visible text or raw HTML contains / doesn't contain a phrase)
+- a **CSS selector** (exists, doesn't exist, appears N times)
+
+Each rule can be limited to a URL pattern like `/blog/*`.
+
+- **Test on a URL** before saving: it fetches that page and shows whether the
+  rule passes and what it saw.
+- A page that breaks a rule gets an ordinary issue (`CUSTOM_<id>`) with the
+  severity you chose, so it shows up in issue lists, diffs, alerts and the
+  health score. The Site Audit tab shows failed / checked pages per rule.
+- Editing rules re-checks every page on the next audit. Pages aren't reused
+  from the cache against old rules.
+- Declarative only (no regex, no code), with up to 50 rules per project.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_rules_engine.py tests/test_rules_store.py tests/test_rules_pipeline.py tests/test_rules_api.py -q
+export SESSION_DIR=/tmp/seo-rules
+python -m uvicorn app.main:app --port 5000 &
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links   # creates project 1
+curl -s -X POST -H 'Content-Type: application/json' localhost:5000/api/projects/1/rules \
+  -d '{"name":"Long enough","severity":"warning","check":{"type":"field","field":"word_count","op":"gte","value":500}}'
+curl -s -X POST -H 'Content-Type: application/json' localhost:5000/api/projects/1/rules/test \
+  -d '{"url":"https://books.toscrape.com/","rule":{"name":"Price shown","check":{"type":"selector","selector":".price_color","op":"exists"}}}'
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links --json \
+  | python -c "import sys,json; [print(r) for r in json.load(sys.stdin)['custom_rules']]"
+```
+
+Expected: the test prints `"passed": true` with `"observed": 20` (prices on
+the homepage), and the second audit's summary shows "Long enough" failing on
+most pages. Then open the project's **Custom Rules** tab.

@@ -36,3 +36,7 @@ apscheduler>=3.10,<4
 # Dockerfile's WITH_BROWSER build arg, and without it rendering reports
 # "unavailable" instead of failing the audit.
 playwright>=1.48
+
+# Custom rules (Phase 5.4) compile CSS selectors when a rule is saved. Always
+# installed with beautifulsoup4, but imported directly, so declared directly.
+soupsieve>=2.5

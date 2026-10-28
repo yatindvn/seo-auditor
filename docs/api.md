@@ -475,3 +475,48 @@ about a third of accessibility problems, so this is not a full WCAG audit.
 ```
 
 A page that couldn't be scanned has `"status": "failed"` and the reason in `error`.
+
+---
+
+## Custom rules
+
+Your own checks, stored per project and run on every page of every audit of
+that site. Rules are declarative (no regex, no code). Each one has a
+`severity` (`critical` / `warning` / `info`), an optional `message`, an
+optional `url_pattern` (an `fnmatch` glob on the URL path, e.g. `/blog/*`),
+and one `check`:
+
+| `type` | Shape | Operators |
+| --- | --- | --- |
+| `field` | `{"field", "op", "value"}`. Text fields: `title`, `meta_description`, `h1`, `canonical`, `meta_robots`. Numbers: `word_count`, `internal_links_count`, `external_links_count`, `status`, `response_time_ms` | text: `equals`, `not_equals`, `contains`, `not_contains`, `starts_with`, `ends_with`, `is_empty`, `is_not_empty`, `length_gte`, `length_lte`; numbers: `eq`, `gte`, `lte` |
+| `text` | `{"scope": "visible"\|"html", "op", "value", "case_sensitive"}` | `contains`, `not_contains` |
+| `selector` | `{"selector", "op", "value"}` (CSS, checked when saved) | `exists`, `not_exists`, `count_eq`, `count_gte`, `count_lte` |
+
+A page that breaks a rule gets an issue coded `CUSTOM_<rule id>` with the
+rule's severity and the message `"{name}: {message}"`. It counts in the health
+score like any built-in issue. Each audit result (and `/api/audit/latest`)
+has `custom_rules`, a per-rule summary with `pages_checked`, `pages_failed`
+and `example_urls`.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/projects/{id}/rules` | `{items: [rule]}` |
+| POST | `/api/projects/{id}/rules` | 201. 422 for an invalid rule (readable `detail`), 409 beyond 50 rules |
+| PATCH | `/api/rules/{id}` | any of `name, enabled, severity, message, url_pattern, check` |
+| DELETE | `/api/rules/{id}` | 204 |
+| POST | `/api/projects/{id}/rules/test` | `{url, rule}` → `{applies, passed, observed, issue}`. The URL must be on the project's domain (400); a fetch failure is 502 |
+| GET | `/api/audits/{id}/custom-rules` | `{audit_id, items: [summary]}` |
+
+```json
+POST /api/projects/1/rules
+{"name": "Brand in title", "severity": "warning", "url_pattern": "/blog/*",
+ "check": {"type": "field", "field": "title", "op": "contains", "value": "| Brand"}}
+
+→ 201 {"id": 3, "project_id": 1, "name": "Brand in title", "enabled": true, "severity": "warning",
+       "message": "", "url_pattern": "/blog/*", "check": {...}, "description": "Title contains '| Brand'", ...}
+
+POST /api/projects/1/rules/test
+{"url": "https://shop.com/blog/x", "rule": {"name": "Brand", "check": {"type": "field", "field": "title", "op": "contains", "value": "| Brand"}}}
+
+→ {"applies": true, "passed": false, "observed": "Shop", "issue": {"severity": "warning", "code": "CUSTOM_0", "message": "Brand: Title contains '| Brand'", ...}}
+```

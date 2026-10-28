@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
 from app.analysis import analysis, minhash
+from app.rules import engine as rules_engine
 from app.auditor import checks
 from app.crawler.crawler import normalize_url, same_registrable_domain
 from app.seo import keyword_extraction
@@ -46,6 +47,7 @@ class PagePayload:
     enable_keyword_analysis: bool = True
     target_keywords: Optional[List[str]] = None
     compute_signature: bool = False
+    custom_rules: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -278,6 +280,14 @@ def analyze_html(payload: PagePayload) -> HtmlAnalysis:
         "text": text,
     }
 
+    # Custom rules (Phase 5.4), on this parse: cached with the HTML half, so a
+    # rule edit changes the analyzer fingerprint and re-analyses the page.
+    rule_issues, rules_checked = rules_engine.evaluate(payload.custom_rules, rules_engine.PageFacts(
+        url=page_url, meta=meta, text=text, html=payload.html or "", soup=soup), "html")
+    issues += rule_issues
+    if payload.custom_rules:
+        meta["custom_rules_checked"] = rules_checked
+
     return HtmlAnalysis(
         issues=issues,
         meta=meta,
@@ -317,7 +327,14 @@ def analyze_response(payload: PagePayload, html_part: HtmlAnalysis) -> PageAnaly
                        "x-frame-options", "x-content-type-options", "referrer-policy"):
             security_headers[header] = headers_lower.get(header, False)
 
+    response_issues, response_checked = rules_engine.evaluate(payload.custom_rules, rules_engine.PageFacts(
+        url=payload.url, status=payload.status_code, response_time_ms=payload.response_time_ms), "response")
+    issues += response_issues
+
     meta = {**html_part.meta, "performance": weight, "security_headers": security_headers}
+    # Only with rules, so an audit without any keeps byte-identical output.
+    if payload.custom_rules:
+        meta["custom_rules_checked"] = [*html_part.meta.get("custom_rules_checked", []), *response_checked]
 
     return PageAnalysis(
         url=payload.url,
