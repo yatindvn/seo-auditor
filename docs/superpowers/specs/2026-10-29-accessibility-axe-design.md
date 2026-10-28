@@ -24,7 +24,7 @@ of pages in Chromium.
   - axe critical/serious → `warning`
   - moderate/minor → `info`
   - each page gets an accessibility score (0–100)
-- **axe-core is vendored.** axe-core 4.10.x `axe.min.js` (MPL-2.0) is
+- **axe-core is vendored.** axe-core 4.14.0 `axe.min.js` (MPL-2.0) is
   committed under `app/accessibility/vendor/` with its version and licence.
   It works offline and needs no extra install in Docker.
 
@@ -34,8 +34,8 @@ of pages in Chromium.
 
 - Vendored files:
   - `app/accessibility/vendor/axe.min.js`
-  - `vendor/VERSION` (e.g. `4.10.3`)
-  - `vendor/LICENSE` (MPL-2.0 text, from the package)
+  - `vendor/VERSION` (`4.14.0`)
+  - `vendor/LICENSE` (MPL-2.0 text) and `vendor/LICENSE-3RD-PARTY.txt`, both from the package
   - `vendor/README.md` (source and how to upgrade)
 - `AXE_VERSION`: read from `VERSION`.
 - `axe_source()`: reads `axe.min.js` once and caches it.
