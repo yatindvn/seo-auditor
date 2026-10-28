@@ -14,6 +14,20 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Optional browser (Phase 5.2): Chromium for JavaScript rendering, plus Node and
+# Lighthouse for the Core Web Vitals fallback, which uses the same Chromium.
+# Off by default -- it adds a few hundred MB. Build with --build-arg WITH_BROWSER=true.
+ARG WITH_BROWSER=false
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN if [ "$WITH_BROWSER" = "true" ]; then \
+        python -m playwright install --with-deps chromium \
+        && apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+        && npm install -g lighthouse@12 \
+        && rm -rf /var/lib/apt/lists/* /root/.npm \
+        && chmod -R a+rX /ms-playwright; \
+    fi
+ENV LIGHTHOUSE_ENABLED=${WITH_BROWSER}
+
 # The FastAPI app.
 COPY app ./app
 

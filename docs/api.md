@@ -395,3 +395,40 @@ are skipped.
  "lcp_ms": 4800, "inp_ms": null, "cls": 0.05, "tbt_ms": 350, "rating": "poor",
  "metric_ratings": {"lcp_ms": "poor", "inp_ms": null, "cls": "good", "tbt_ms": "needs_improvement"}}]}
 ```
+
+---
+
+## JavaScript rendering
+
+`POST /api/audit` accepts `"render_js": true` (default `false`). After the
+crawl, up to `RENDER_MAX_PAGES` pages are opened in headless Chromium and
+compared with their raw HTML: the start URL, then pages flagged
+`POSSIBLE_CSR_ONLY`, then the top pages by internal PageRank. Links that only
+exist after JavaScript are reported, not crawled.
+
+The audit result (and `GET /api/audit/latest`) carries:
+- `rendering`: one comparison per rendered page
+- `render_status`: `rendered`, `disabled` or `unavailable`
+- `render_unavailable_reason`: why, when `unavailable` (e.g. `Playwright is not installed`)
+
+| Code | Severity | When |
+| --- | --- | --- |
+| `JS_CONTENT_DEPENDENT` | warning | rendered ≥ 2 × raw words and at least 200 more |
+| `JS_ROBOTS_CHANGED` | warning | meta robots differs after JavaScript |
+| `JS_CANONICAL_CHANGED` | warning | canonical differs |
+| `JS_TITLE_CHANGED` | warning | title differs |
+| `JS_META_DESCRIPTION_CHANGED` | info | meta description differs |
+| `JS_H1_CHANGED` | info | H1 differs |
+| `JS_ONLY_LINKS` | info | internal links exist only after JavaScript |
+
+### `GET /api/audits/{id}/rendering`
+
+```json
+{"audit_id": 12, "status": "rendered", "reason": null, "items": [{"url": "https://a.com/",
+ "status": "rendered", "error": null, "render_ms": 900.0, "raw_word_count": 40,
+ "rendered_word_count": 900, "changes": {"title": {"raw": "Loading", "rendered": "Shop"}},
+ "js_only_links": ["https://a.com/x"], "js_only_links_count": 1}]}
+```
+
+A page that failed to render has `"status": "failed"` and the reason in
+`error`. It raises no issues.
