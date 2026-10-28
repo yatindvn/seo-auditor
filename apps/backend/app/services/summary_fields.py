@@ -6,6 +6,7 @@ SUMMARY_FIELDS = (
     "executive_summary", "site_wide_analysis", "recommendations",
     "issue_frequency", "duplicates", "redirects", "rank_targets",
     "near_duplicate_mode", "elapsed_seconds", "degraded", "partial", "dedup", "reuse",
-    "robots_txt", "sitemaps_found", "psi_metrics", "web_vitals", "web_vitals_status", "note",
+    "robots_txt", "sitemaps_found", "psi_metrics", "web_vitals", "web_vitals_status", "rendering", "render_status",
+    "render_unavailable_reason", "note",
     "audit_id", "project_id", "persisted",
 )

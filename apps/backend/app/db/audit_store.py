@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Audit, AuditIssue, AuditPage, Keyword, RankCheck, WebVital, utcnow
+from app.db.models import Audit, AuditIssue, AuditPage, Keyword, RankCheck, RenderedPage, WebVital, utcnow
 from app.db.projects import get_or_create_project
 from app.services.summary_fields import SUMMARY_FIELDS
 
@@ -72,6 +72,17 @@ def _record_vitals(session: Session, audit_id: int, rows: List[Dict[str, Any]]) 
         ])
 
 
+def _record_rendering(session: Session, audit_id: int, rows: List[Dict[str, Any]]) -> None:
+    if rows:
+        session.execute(insert(RenderedPage), [{
+            "audit_id": audit_id, "url": r["url"], "status": r.get("status", "rendered"),
+            "error": r.get("error"), "render_ms": r.get("render_ms"),
+            "raw_word_count": r.get("raw_word_count"), "rendered_word_count": r.get("rendered_word_count"),
+            "changes_json": r.get("changes") or {}, "js_only_links_json": r.get("js_only_links") or [],
+            "js_only_links_count": r.get("js_only_links_count") or 0,
+        } for r in rows])
+
+
 def record_audit(
     factory: sessionmaker,
     session_db,
@@ -106,4 +117,5 @@ def record_audit(
         audit.page_count = page_count
         _record_rankings(session, project.id, audit.id, result.get("pages") or [])
         _record_vitals(session, audit.id, result.get("web_vitals") or [])
+        _record_rendering(session, audit.id, result.get("rendering") or [])
         return audit.id, project.id
