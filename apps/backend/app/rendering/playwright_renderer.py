@@ -10,6 +10,7 @@ import os
 import time
 from typing import Callable, List, Optional, Tuple
 
+from app.accessibility.axe import AXE_RUN, AXE_TAGS, axe_source
 from app.rendering.model import RenderResult
 
 logger = logging.getLogger(__name__)
@@ -70,23 +71,25 @@ class PlaywrightRenderer:
         self.timeout_ms = timeout_ms
 
     def render(self, urls: List[str],
-               on_progress: Optional[Callable[[int, int, str], None]] = None) -> List[RenderResult]:
+               on_progress: Optional[Callable[[int, int, str], None]] = None,
+               run_axe: bool = False) -> List[RenderResult]:
         """One browser for the whole batch, one page at a time (the sync API
-        is single-threaded). A page's failure is that page's error."""
+        is single-threaded). A page's failure is that page's error. With
+        `run_axe`, axe-core also scans each page once it has loaded."""
         sync_playwright, timeout_error = _load_playwright()
         results: List[RenderResult] = []
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             try:
                 for done, url in enumerate(urls, start=1):
-                    results.append(self._render_one(browser, url, timeout_error))
+                    results.append(self._render_one(browser, url, timeout_error, run_axe))
                     if on_progress:
                         on_progress(done, len(urls), url)
             finally:
                 browser.close()
         return results
 
-    def _render_one(self, browser, url: str, timeout_error) -> RenderResult:
+    def _render_one(self, browser, url: str, timeout_error, run_axe: bool = False) -> RenderResult:
         # A fresh context per page: no cookies, storage or service workers
         # carried from one page to the next, and nothing downloaded.
         context = browser.new_context(java_script_enabled=True, accept_downloads=False,
@@ -100,10 +103,20 @@ class PlaywrightRenderer:
                 page.wait_for_load_state("networkidle", timeout=NETWORK_IDLE_MS)
             except timeout_error:
                 pass  # long-polling pages never go idle; what has rendered by now counts
+            render_ms = round((time.monotonic() - started) * 1000, 1)
             html = page.content()
+            axe, axe_error = None, None
+            if run_axe:
+                # Evaluated, not injected as a <script> tag: a page's
+                # Content-Security-Policy can't block evaluation.
+                try:
+                    page.evaluate(axe_source())
+                    axe = page.evaluate(AXE_RUN, AXE_TAGS)
+                except Exception as exc:
+                    axe_error = _short(exc)
             return RenderResult(url=url, html=html, final_url=page.url,
                                 status=response.status if response else None,
-                                render_ms=round((time.monotonic() - started) * 1000, 1))
+                                render_ms=render_ms, axe=axe, axe_error=axe_error)
         except Exception as exc:
             logger.warning("Rendering %s failed: %s", url, _short(exc))
             return RenderResult(url=url, error=_short(exc))

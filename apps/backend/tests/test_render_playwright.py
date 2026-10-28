@@ -12,7 +12,7 @@ class FakeTimeout(Exception):
     pass
 
 
-def _fake_playwright(pages):
+def _fake_playwright(pages, evaluate=None):
     """pages: url -> (html, status) or an Exception to raise from goto."""
     browser = MagicMock(name="browser")
     contexts = []
@@ -34,6 +34,8 @@ def _fake_playwright(pages):
         page.goto.side_effect = goto
         page.wait_for_load_state.side_effect = FakeTimeout("network never idle")
         page.content.side_effect = lambda: pages[state["url"]][0]
+        if evaluate is not None:
+            page.evaluate.side_effect = evaluate
         ctx.new_page.return_value = page
         contexts.append(ctx)
         return ctx
@@ -114,3 +116,39 @@ def test_available_when_chromium_exists(monkeypatch, tmp_path):
     monkeypatch.setattr(pr, "_load_playwright", lambda: (sync, FakeTimeout))
     assert pr.renderer_available() == (True, "")
     assert pr.playwright_chromium() == str(chrome)
+
+
+def test_axe_runs_on_the_loaded_page_when_asked(monkeypatch):
+    calls = []
+
+    def evaluate(script, *args):
+        calls.append((script, args))
+        return {"violations": [{"id": "region"}]} if args else None
+
+    sync, _, _ = _fake_playwright({"https://a.com/": ("<p>A</p>", 200)}, evaluate=evaluate)
+    monkeypatch.setattr(pr, "_load_playwright", lambda: (sync, FakeTimeout))
+    monkeypatch.setattr(pr, "axe_source", lambda: "/*axe*/")
+    [result] = pr.PlaywrightRenderer(5000).render(["https://a.com/"], run_axe=True)
+    assert calls == [("/*axe*/", ()), (pr.AXE_RUN, (pr.AXE_TAGS,))]
+    assert result.axe == {"violations": [{"id": "region"}]} and result.axe_error is None
+    assert result.html == "<p>A</p>"
+
+
+def test_an_axe_failure_keeps_the_page(monkeypatch):
+    def evaluate(script, *args):
+        if args:
+            raise RuntimeError("axe is not defined\nstack…")
+
+    sync, _, _ = _fake_playwright({"https://a.com/": ("<p>A</p>", 200)}, evaluate=evaluate)
+    monkeypatch.setattr(pr, "_load_playwright", lambda: (sync, FakeTimeout))
+    monkeypatch.setattr(pr, "axe_source", lambda: "/*axe*/")
+    [result] = pr.PlaywrightRenderer(5000).render(["https://a.com/"], run_axe=True)
+    assert result.error is None and result.html == "<p>A</p>"
+    assert result.axe is None and result.axe_error == "RuntimeError: axe is not defined"
+
+
+def test_axe_is_not_touched_by_default(monkeypatch):
+    sync, _, contexts = _fake_playwright({"https://a.com/": ("<p>A</p>", 200)})
+    monkeypatch.setattr(pr, "_load_playwright", lambda: (sync, FakeTimeout))
+    [result] = pr.PlaywrightRenderer(5000).render(["https://a.com/"])
+    assert not contexts[0].new_page.return_value.evaluate.called and result.axe is None
