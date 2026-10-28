@@ -67,8 +67,8 @@ class Renderer(Protocol):
   - Launches one headless Chromium per `render()` call and renders the URLs
     one at a time (the sync API is single-threaded).
   - Each URL gets a fresh context: JavaScript on, `accept_downloads=False`,
-    `service_workers="block"`, no permissions, and the same User-Agent
-    family as the crawler.
+    `service_workers="block"`, no permissions, and Chromium's own
+    User-Agent (it identifies as HeadlessChrome).
   - Images, media and fonts are aborted via `route`.
   - It runs `goto(wait_until="load", timeout=timeout_ms)`, then
     `wait_for_load_state("networkidle", timeout=2000)`. A timeout of that
