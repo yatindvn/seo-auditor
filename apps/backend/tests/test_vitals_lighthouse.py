@@ -107,3 +107,10 @@ def test_lighthouse_is_skipped_when_chrome_is_missing(monkeypatch):
     monkeypatch.setattr(providers, "find_chrome", lambda explicit="": None)
     monkeypatch.setattr(providers, "find_lighthouse_cli", lambda explicit="": "C:/cli.js")
     assert build_vitals_provider() is None
+
+
+def test_find_chrome_falls_back_to_playwrights_chromium(monkeypatch):
+    monkeypatch.setattr(lighthouse, "_chrome_candidates", lambda: [])
+    monkeypatch.setattr(lighthouse.shutil, "which", lambda name: None)
+    monkeypatch.setattr(lighthouse, "playwright_chromium", lambda: "/ms-playwright/chromium/chrome")
+    assert find_chrome() == "/ms-playwright/chromium/chrome"

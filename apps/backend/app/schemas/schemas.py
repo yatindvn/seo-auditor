@@ -42,6 +42,9 @@ class AuditRequestParams(BaseModel):
     # Core Web Vitals for the top pages, when a source is configured
     # (PSI_API_KEY or LIGHTHOUSE_ENABLED). False skips them for this audit.
     enable_web_vitals: Optional[bool] = True
+    # Render a sample of pages in headless Chromium and compare with the raw
+    # HTML (Phase 5.2). Off by default: it costs about 2 s per page.
+    render_js: Optional[bool] = False
 
 
 class HealthScore(BaseModel):

@@ -173,3 +173,21 @@ export interface VitalsTrendPoint {
 }
 
 export interface VitalsTrend { url: string | null; points: VitalsTrendPoint[] }
+
+// JavaScript rendering (backend Phase 5.2).
+export type RenderStatus = "rendered" | "disabled" | "unavailable";
+export interface RenderChange { raw: string | null; rendered: string | null }
+
+export interface RenderComparison {
+  url: string;
+  status: "rendered" | "failed";
+  error: string | null;
+  render_ms: number | null;
+  raw_word_count: number | null;
+  rendered_word_count: number | null;
+  changes: Partial<Record<"title" | "meta_description" | "canonical" | "meta_robots" | "h1", RenderChange>>;
+  js_only_links: string[];
+  js_only_links_count: number;
+}
+
+export interface AuditRendering { audit_id: number; status: RenderStatus; reason: string | null; items: RenderComparison[] }

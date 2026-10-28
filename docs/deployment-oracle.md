@@ -181,3 +181,18 @@ natural next step if this becomes more than a demo.
 <!-- Deployment note: NEXT_PUBLIC_API_URL and NEXT_PUBLIC_WS_URL are inlined at
 build time, so changing them in the Vercel dashboard has no effect until a new
 production build runs. Pushing a commit is the reliable way to force one. -->
+
+## Optional browser (JavaScript rendering, Lighthouse)
+
+The default backend image has no browser. Audits run normally, rendering
+reports "unavailable", and Core Web Vitals use PageSpeed Insights only. To add
+Chromium (for `render_js`) plus Node and Lighthouse (the Core Web Vitals
+fallback, using the same Chromium):
+
+```bash
+WITH_BROWSER=true docker compose -f deploy/oracle/docker-compose.yml --env-file deploy/oracle/.env up -d --build
+```
+
+The image grows by a few hundred MB. Rendering is one page at a time, using
+about 150 MB of memory while a page renders, and 20 pages per audit by default
+(`RENDER_MAX_PAGES`).

@@ -1,34 +1,14 @@
-"""Which pages an audit measures, and measuring them a few at a time."""
+"""Measuring Core Web Vitals a few pages at a time."""
 
 from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from app.vitals.model import VitalsResult
 
 logger = logging.getLogger(__name__)
-
-
-def _measurable(page: Any) -> bool:
-    content_type = (getattr(page, "content_type", "") or "text/html").lower()
-    return page is not None and page.status_code == 200 and "html" in content_type
-
-
-def select_vitals_pages(start_url: str, top_pages: List[Dict[str, Any]],
-                        results: Dict[str, Any], limit: int) -> List[str]:
-    """The start URL, then pages by internal PageRank, then the shallowest
-    pages. Only status-200 HTML pages, each once, up to `limit`."""
-    by_depth = sorted(results, key=lambda u: (getattr(results[u], "depth", 0) or 0))
-    candidates = [start_url] + [p["url"] for p in top_pages] + by_depth
-    chosen: List[str] = []
-    for url in candidates:
-        if len(chosen) >= limit:
-            break
-        if url not in chosen and _measurable(results.get(url)):
-            chosen.append(url)
-    return chosen
 
 
 def measure_pages(provider, urls: List[str], strategy: str = "mobile",

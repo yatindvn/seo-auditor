@@ -209,3 +209,19 @@ class WebVital(Base):
     tbt_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RenderedPage(Base):
+    """One page's raw-vs-rendered comparison in one audit (Phase 5.2)."""
+    __tablename__ = "render_comparisons"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    render_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    raw_word_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rendered_word_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    changes_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    js_only_links_json: Mapped[List[str]] = mapped_column(JSON, default=list)
+    js_only_links_count: Mapped[int] = mapped_column(Integer, default=0)

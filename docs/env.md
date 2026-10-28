@@ -42,6 +42,8 @@
 | `LIGHTHOUSE_ENABLED` | Local Lighthouse fallback (needs Node, Chrome, `npm i -g lighthouse@12`) | `false` |
 | `CHROME_PATH` | Chrome binary for Lighthouse; auto-detected when empty | `""` |
 | `LIGHTHOUSE_CLI` | Path to Lighthouse's `cli/index.js`; found via `npm root -g` when empty | `""` |
+| `RENDER_MAX_PAGES` | Pages rendered in headless Chromium per audit when `render_js` is on | `20` |
+| `RENDER_TIMEOUT_MS` | Per-page navigation timeout for rendering | `20000` |
 | `GOOGLE_CSE_DAILY_QUOTA` | Daily cap on Google CSE calls, now counted in the database and shared by audits and rank tracking | `100` |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook for rank alerts | `""` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP server for email alerts (STARTTLS) | `""` / `587` |

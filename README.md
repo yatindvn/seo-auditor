@@ -244,3 +244,43 @@ Expected: `measured`, then two lines showing `lighthouse`, an LCP in ms and a
 rating. Then start the backend (same `SESSION_DIR` and `LIGHTHOUSE_ENABLED`)
 and the frontend as in the Phase 4 section. Open the project's Overview to see
 the Core Web Vitals card.
+
+---
+
+## JavaScript rendering (Phase 5.2)
+
+Off by default. When an audit asks for it, the backend opens up to
+`RENDER_MAX_PAGES` (default 20) important pages in headless Chromium and
+compares them with the raw HTML: the homepage, pages that look client-side
+rendered, then the top pages by internal PageRank. It reports what JavaScript
+changed (title, description, canonical, robots, H1, content, links), and
+the changes count as issues in the health score.
+
+- **Turn it on:**
+  - tick **Render JavaScript (slower)** under *Advanced Overrides* on the New audit form
+  - send `"render_js": true` to `POST /api/audit`
+  - pass `--render-js` to the CLI
+  - for a project's scheduled audits, set `{"render_js": true}` in its `audit_options`
+- **Where it shows:** the "JavaScript rendering" section on the Site Audit tab
+  (expand a row for raw vs rendered) and in the report.
+- **Needs a browser:** `python -m playwright install chromium` locally. On the
+  server, build with `WITH_BROWSER=true` (see `docs/deployment-oracle.md`).
+  That build also enables the Lighthouse fallback for Core Web Vitals.
+  Without a browser, audits still finish and say "Browser not available".
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_sampling.py tests/test_render_compare.py tests/test_render_playwright.py \
+  tests/test_render_storage.py tests/test_render_pipeline.py tests/test_render_api.py -q
+python -m playwright install chromium        # once
+export SESSION_DIR=/tmp/seo-render
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links --render-js --json \
+  | python -c "import sys,json; d=json.load(sys.stdin); print(d['render_status']); [print(r['url'], r['status'], r['raw_word_count'], r['rendered_word_count'], list(r['changes'])) for r in d['rendering']]"
+```
+
+Expected: `rendered`, then one line per page. This site is server-rendered,
+so the change lists are empty. Then start the backend (same `SESSION_DIR`) and
+the frontend, open the project's **Site Audit** tab, and scroll to
+"JavaScript rendering".

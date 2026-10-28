@@ -78,6 +78,10 @@ PSI_MAX_PAGES = int(os.getenv("PSI_MAX_PAGES", "5"))
 LIGHTHOUSE_ENABLED = os.getenv("LIGHTHOUSE_ENABLED", "").strip().lower() in ("1", "true", "yes")
 CHROME_PATH = os.getenv("CHROME_PATH", "")
 LIGHTHOUSE_CLI = os.getenv("LIGHTHOUSE_CLI", "")
+# JavaScript rendering (Phase 5.2): when an audit asks for it, this many pages
+# are rendered in headless Chromium and compared with their raw HTML.
+RENDER_MAX_PAGES = int(os.getenv("RENDER_MAX_PAGES", "20"))
+RENDER_TIMEOUT_MS = int(os.getenv("RENDER_TIMEOUT_MS", "20000"))
 GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE = int(os.getenv("GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE", "3"))
 GOOGLE_CSE_CACHE_TTL_HOURS = int(os.getenv("GOOGLE_CSE_CACHE_TTL_HOURS", "24"))
 

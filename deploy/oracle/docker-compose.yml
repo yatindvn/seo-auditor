@@ -9,6 +9,9 @@ services:
     build:
       context: ../../apps/backend
       dockerfile: Dockerfile
+      args:
+        # true = Chromium, Node and Lighthouse in the image (JS rendering, CWV fallback).
+        WITH_BROWSER: ${WITH_BROWSER:-false}
     restart: unless-stopped
     environment:
       PORT: 8000
@@ -41,6 +44,8 @@ services:
       PSI_API_KEY: ${PSI_API_KEY:-}
       PSI_DAILY_CAP: ${PSI_DAILY_CAP:-50}
       PSI_MAX_PAGES: ${PSI_MAX_PAGES:-5}
+      RENDER_MAX_PAGES: ${RENDER_MAX_PAGES:-20}
+      RENDER_TIMEOUT_MS: ${RENDER_TIMEOUT_MS:-20000}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

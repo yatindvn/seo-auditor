@@ -1,4 +1,4 @@
-import type { VitalsRow, VitalsStatus } from "./platform";
+import type { RenderComparison, RenderStatus, VitalsRow, VitalsStatus } from "./platform";
 
 export interface Recommendation {
   code: string;
@@ -219,6 +219,9 @@ export interface AuditResponse {
   persisted?: boolean;
   web_vitals?: VitalsRow[];
   web_vitals_status?: VitalsStatus;
+  rendering?: RenderComparison[];
+  render_status?: RenderStatus;
+  render_unavailable_reason?: string | null;
 }
 
 export interface AuditRequestParams {
@@ -234,6 +237,7 @@ export interface AuditRequestParams {
   target_keywords?: string[];
   fresh?: boolean;
   enable_web_vitals?: boolean;
+  render_js?: boolean;
 }
 
 export interface CrawlPage {

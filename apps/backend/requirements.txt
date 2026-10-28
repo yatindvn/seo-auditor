@@ -30,3 +30,9 @@ alembic>=1.13
 psycopg[binary]>=3.1
 # Scheduled audits in-process (SCHEDULER_ENABLED); 4.x is a different API.
 apscheduler>=3.10,<4
+
+# JavaScript rendering (Phase 5.2), imported lazily in app/rendering. The pip
+# package alone is ~40 MB; the browser itself is only installed by the
+# Dockerfile's WITH_BROWSER build arg, and without it rendering reports
+# "unavailable" instead of failing the audit.
+playwright>=1.48
