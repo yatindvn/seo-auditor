@@ -22,6 +22,8 @@ IMPACT_WEIGHTS = {
     "CWV_LCP_POOR": 7, "CWV_INP_POOR": 7, "CWV_CLS_POOR": 7, "CWV_TBT_POOR": 5,
     "CWV_LCP_NEEDS_IMPROVEMENT": 3, "CWV_INP_NEEDS_IMPROVEMENT": 3,
     "CWV_CLS_NEEDS_IMPROVEMENT": 3, "CWV_TBT_NEEDS_IMPROVEMENT": 2,
+    "JS_CONTENT_DEPENDENT": 6, "JS_ROBOTS_CHANGED": 8, "JS_CANONICAL_CHANGED": 7, "JS_TITLE_CHANGED": 5,
+    "JS_META_DESCRIPTION_CHANGED": 2, "JS_H1_CHANGED": 2, "JS_ONLY_LINKS": 3,
 }
 
 RECOMMENDATION_TEXT = {
@@ -74,6 +76,13 @@ RECOMMENDATION_TEXT = {
     "CWV_CLS_NEEDS_IMPROVEMENT": "Reserve space for images, ads and embeds (width/height or aspect-ratio) so the layout doesn't shift.",
     "CWV_TBT_POOR": "Reduce main-thread JavaScript work (split bundles, remove unused code) to unblock the page.",
     "CWV_TBT_NEEDS_IMPROVEMENT": "Reduce main-thread JavaScript work (split bundles, remove unused code) to unblock the page.",
+    "JS_CONTENT_DEPENDENT": "Server-render (SSR/SSG) the main content so it is in the HTML, not only after JavaScript runs.",
+    "JS_ROBOTS_CHANGED": "Set meta robots in the server HTML; changing it with JavaScript gives crawlers conflicting signals.",
+    "JS_CANONICAL_CHANGED": "Put the final canonical in the server HTML; don't change it with JavaScript.",
+    "JS_TITLE_CHANGED": "Render the real title on the server so every crawler and social preview sees it.",
+    "JS_META_DESCRIPTION_CHANGED": "Render the meta description on the server.",
+    "JS_H1_CHANGED": "Render the main heading on the server.",
+    "JS_ONLY_LINKS": "Use plain <a href> links in the server HTML so crawlers can discover these pages without JavaScript.",
     "LARGE_DOM": "Reduce DOM complexity/size to improve rendering performance.",
     "RENDER_BLOCKING_CSS": "Defer or inline critical CSS to reduce render-blocking resources.",
     "RENDER_BLOCKING_JS": "Add async/defer to non-critical scripts.",
