@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { VitalsTable } from "@/components/platform/vitals-table";
+import { RenderingTable } from "@/components/platform/rendering-table";
 import {
   Globe, AlertTriangle, AlertCircle, Link2, Copy, ArrowLeft, Clock,
   CheckCircle2, Wifi, Info, Download, LayoutDashboard, Search as SearchIcon, EyeOff, MoveUp, MoveDown, Columns, Activity
@@ -82,6 +83,7 @@ const DEFAULT_LAYOUT = [
   { id: "links", width: "full", visible: true },
   { id: "redirects", width: "full", visible: true },
   { id: "performance", width: "full", visible: true },
+  { id: "rendering", width: "full", visible: true },
   { id: "security", width: "full", visible: true },
   { id: "duplicates", width: "full", visible: true },
   { id: "pages-table", width: "full", visible: true },
@@ -219,6 +221,8 @@ export default function DashboardPage() {
     const config = layout[index];
     if (!config) return null;
     if (!config.visible && !isEditMode) return null;
+    // A panel with nothing for this audit (e.g. rendering was off) takes no grid cell.
+    if (children == null) return null;
     
     return (
       <div className={`relative transition-all duration-300 ${config.width === 'half' ? 'col-span-1' : 'col-span-1 md:col-span-2'} ${!config.visible ? 'opacity-40 grayscale' : ''}`}>
@@ -270,6 +274,10 @@ export default function DashboardPage() {
         <PerformancePanel pages={pages} />
       </div>
     ),
+    "rendering": auditData.render_status ? (
+      <Card><CardHeader className="pb-3"><CardTitle className="text-base">JavaScript rendering</CardTitle></CardHeader>
+        <CardContent><RenderingTable rows={auditData.rendering ?? []} status={auditData.render_status} reason={auditData.render_unavailable_reason ?? null} /></CardContent></Card>
+    ) : null,
     "security": <SecurityAccessibilityPanel pages={pages} />,
     "duplicates": <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4"/>Duplicate Content Analysis</CardTitle></CardHeader><CardContent><DuplicatesPanel duplicates={duplicates} /></CardContent></Card>,
     "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages{skippedUrls > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{skippedUrls} duplicate URLs skipped</span>}{unchangedPages > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{unchangedPages} pages unchanged since the last audit</span>}</CardTitle></CardHeader><CardContent><PagesTable sessionId={activeSessionId!} /></CardContent></Card>,

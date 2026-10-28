@@ -87,6 +87,7 @@ export default function LandingPage() {
   const [maxDepth, setMaxDepth] = useState(4);
   const [ignoreRobots, setIgnoreRobots] = useState(false);
   const [recheckAll, setRecheckAll] = useState(false);
+  const [renderJs, setRenderJs] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
   const [rankRows, setRankRows] = useState<RankTargetRow[]>([{ url: "", keywords: "" }]);
@@ -161,6 +162,7 @@ export default function LandingPage() {
         max_depth: Math.min(Math.max(maxDepth, 0), 15),
         ignore_robots: ignoreRobots,
         fresh: recheckAll,
+        render_js: renderJs,
         ...(rankTargets.length > 0 && {
           rank_targets: rankTargets,
           enable_rank_check: true,
@@ -351,6 +353,21 @@ export default function LandingPage() {
                   <div>
                     <p className="text-sm font-semibold">Re-check every page</p>
                     <p className="text-xs text-muted-foreground">Analyse every page again, even ones unchanged since the last audit of this site</p>
+                  </div>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 hover:bg-muted/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={renderJs}
+                    onChange={(e) => setRenderJs(e.target.checked)}
+                    className="h-4 w-4 rounded border-input bg-background text-primary focus:ring-primary"
+                    disabled={isLoading}
+                    aria-label="Render JavaScript"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">Render JavaScript (slower)</p>
+                    <p className="text-xs text-muted-foreground">Open the most important pages in a real browser and report what JavaScript changes</p>
                   </div>
                 </label>
 

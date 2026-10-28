@@ -28,6 +28,7 @@ const diff = {
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(Platform, "auditVitals").mockResolvedValue({ audit_id: 3, status: "not_configured", items: [] });
+  vi.spyOn(Platform, "auditRendering").mockResolvedValue({ audit_id: 3, status: "disabled", reason: null, items: [] });
 });
 
 describe("Site Audit page", () => {
@@ -71,6 +72,13 @@ describe("Site Audit page", () => {
     render(<SiteAuditPage params={{ id: "7" }} />);
     expect(await screen.findByText(/PSI_API_KEY/)).toBeInTheDocument();
     expect(Platform.auditVitals).toHaveBeenCalledWith(3);
+  });
+
+  it("shows JavaScript rendering for the selected audit", async () => {
+    vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(3)], total: 1, offset: 0, limit: 50 } as any);
+    render(<SiteAuditPage params={{ id: "7" }} />);
+    expect(await screen.findByText(/Run an audit with/)).toBeInTheDocument();
+    expect(Platform.auditRendering).toHaveBeenCalledWith(3);
   });
 
   it("links each audit to its full report", async () => {
