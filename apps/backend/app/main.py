@@ -68,6 +68,8 @@ from app.api.vitals import router as vitals_router  # noqa: E402
 app.include_router(vitals_router, prefix="/api")
 from app.api.rendering import router as rendering_router  # noqa: E402
 app.include_router(rendering_router, prefix="/api")
+from app.api.accessibility import router as accessibility_router  # noqa: E402
+app.include_router(accessibility_router, prefix="/api")
 
 from app.api.cron import router as cron_router  # noqa: E402
 app.include_router(cron_router, prefix="/api")
