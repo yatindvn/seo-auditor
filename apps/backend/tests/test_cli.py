@@ -70,3 +70,17 @@ def test_psi_flags_reach_the_audit_pipeline():
     kwargs = build.call_args.kwargs
     assert kwargs["psi_key"] == "k" and kwargs["vitals_max_pages"] == 7
 
+
+def test_render_js_flag_reaches_the_audit_pipeline():
+    from unittest.mock import patch
+
+    from app import cli
+
+    args = cli.build_parser().parse_args(["https://example.com/", "--render-js"])
+    with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
+        cli._run_audit(args)
+    assert build.call_args.kwargs["render_js"] is True
+    args = cli.build_parser().parse_args(["https://example.com/"])
+    with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
+        cli._run_audit(args)
+    assert build.call_args.kwargs["render_js"] is False

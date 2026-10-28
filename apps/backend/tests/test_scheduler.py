@@ -55,6 +55,17 @@ def test_project_options_are_passed_to_the_audit():
     assert calls[0]["max_pages"] == 40 and calls[0]["max_depth"] == 3 and calls[0]["ignore_robots"] is True
 
 
+def test_render_js_comes_from_the_project_options():
+    _project("render.com", "daily", options={"render_js": True})
+    _project("plain.com", "daily")
+    calls = []
+
+    jobs.run_due_audits(runner=_runner(calls))
+
+    by_url = {c["url"]: c["render_js"] for c in calls}
+    assert by_url == {"https://render.com/": True, "https://plain.com/": False}
+
+
 def test_a_project_is_claimed_once():
     project_id = _project("race.com", "daily")
     now = utcnow()

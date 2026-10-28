@@ -20,6 +20,9 @@ from app.config import config
 from app.seo import rank_checker, keyword_suggestions
 from app.services import page_pipeline
 from app.analysis.sampling import select_pages
+from app.rendering.compare import rendering_issues
+from app.rendering.playwright_renderer import PlaywrightRenderer, renderer_available
+from app.rendering.runner import render_and_compare
 from app.vitals import runner as vitals_runner
 from app.vitals.model import vitals_issues
 from app.vitals.providers import build_vitals_provider
@@ -114,6 +117,7 @@ def run_full_audit(
     fresh: bool = False,
     trigger: str = "manual",
     enable_web_vitals: bool = True,
+    render_js: bool = False,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -133,7 +137,7 @@ def run_full_audit(
             enable_keyword_analysis, enable_keyword_suggestions, enable_rank_check,
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
             session_id=session_id, fresh=fresh, trigger=trigger,
-            enable_web_vitals=enable_web_vitals,
+            enable_web_vitals=enable_web_vitals, render_js=render_js,
         )
     finally:
         unregister_crawler(session_id)
@@ -159,6 +163,9 @@ def _build_audit_result(
     enable_web_vitals: bool = True,
     vitals_max_pages: Optional[int] = None,
     vitals_provider=None,
+    render_js: bool = False,
+    renderer=None,
+    render_max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
@@ -466,6 +473,7 @@ def _build_audit_result(
     # Core Web Vitals: once, after the crawl, for the pages that matter most
     # (internal PageRank). PSI is a quota'd Google API and Lighthouse runs a
     # Chrome, so this is never per page, and never fatal to the audit.
+    start_page = getattr(crawler, "start_url", None) or url
     provider = None
     if enable_web_vitals:
         provider = vitals_provider or build_vitals_provider(psi_key)
@@ -473,7 +481,7 @@ def _build_audit_result(
     vitals_results = []
     if provider is not None:
         vitals_pages = select_pages(
-            getattr(crawler, "start_url", None) or url,
+            start_page,
             site_wide.get("top_pages_by_importance") or [],
             crawler.results,
             config.PSI_MAX_PAGES if vitals_max_pages is None else vitals_max_pages,
@@ -490,6 +498,40 @@ def _build_audit_result(
             if found:
                 all_page_issues.setdefault(measured.url, []).extend(found)
                 db.add_issues(measured.url, found)
+
+    # JavaScript rendering: opt-in, a sample of pages, compared with the raw
+    # analysis. A missing browser or a crash reports "unavailable" -- the audit
+    # stands either way.
+    render_status, render_reason, render_results = "disabled", None, []
+    if render_js:
+        active = renderer
+        if active is None:
+            available, render_reason = renderer_available()
+            active = PlaywrightRenderer(config.RENDER_TIMEOUT_MS) if available else None
+        if active is None:
+            render_status = "unavailable"
+        else:
+            def _render_progress(done: int, total: int, page_url: str) -> None:
+                if event_callback:
+                    event_callback("rendering", {"done": done, "total": total, "url": page_url})
+
+            try:
+                render_results = render_and_compare(
+                    active, start_page, site_wide.get("top_pages_by_importance") or [],
+                    crawler.results, analyses,
+                    config.RENDER_MAX_PAGES if render_max_pages is None else render_max_pages,
+                    on_progress=_render_progress)
+                render_status = "rendered"
+            except Exception as exc:
+                logger.error("JavaScript rendering failed: %s", exc, exc_info=exc)
+                first_line = (str(exc).splitlines() or [""])[0][:200]
+                render_status = "unavailable"
+                render_reason = f"{type(exc).__name__}: {first_line}" if first_line else type(exc).__name__
+            for comparison in render_results:
+                found = rendering_issues(comparison)
+                if found:
+                    all_page_issues.setdefault(comparison.url, []).extend(found)
+                    db.add_issues(comparison.url, found)
 
     duplicates = analysis.find_duplicates(page_data_for_dupes)
     skipped_results = getattr(crawler, "skipped", {})
@@ -574,6 +616,9 @@ def _build_audit_result(
         "page_issues_detail": {u: v for u, v in all_page_issues.items()},
         "web_vitals": [r.to_dict() for r in vitals_results],
         "web_vitals_status": web_vitals_status,
+        "rendering": [c.to_dict() for c in render_results],
+        "render_status": render_status,
+        "render_unavailable_reason": render_reason,
         # Kept for readers of the pre-5.1 JSON: PSI-measured pages only.
         "psi_metrics": {r.url: {k: v for k, v in r.to_dict().items() if k != "url"}
                         for r in vitals_results if r.source == "psi" and not r.error},

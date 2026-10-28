@@ -66,6 +66,7 @@ def run_due_audits(now: Optional[datetime] = None, runner=None) -> List[str]:
                 max_pages=options.get("max_pages", 100),
                 max_depth=options.get("max_depth", 3),
                 ignore_robots=bool(options.get("ignore_robots", False)),
+                render_js=bool(options.get("render_js", False)),
                 trigger="scheduled",
             )
             started.append(session_id)

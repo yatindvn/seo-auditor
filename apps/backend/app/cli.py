@@ -70,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--psi-strategy", choices=["mobile", "desktop"], default="mobile", help="PSI strategy (default: mobile)")
     p.add_argument("--psi-max-pages", type=int, default=None,
                    help="Pages to measure Core Web Vitals on (default: PSI_MAX_PAGES, 5)")
+    p.add_argument("--render-js", action="store_true",
+                   help="Render the top pages in headless Chromium and compare with the raw HTML")
     p.add_argument("--no-keyword-analysis", dest="enable_keyword_analysis", action="store_false", default=True,
                    help="Skip on-page keyword extraction")
     p.add_argument("--enable-keyword-suggestions", action="store_true", default=False,
@@ -110,6 +112,7 @@ def _run_audit(args, progress_callback=None) -> dict:
         psi_key=args.psi_key,
         psi_strategy=args.psi_strategy,
         vitals_max_pages=args.psi_max_pages,
+        render_js=args.render_js,
         fresh=args.fresh,
     )
 
