@@ -69,3 +69,9 @@ def test_to_dict_is_json_ready():
     d = compare("u", _part(), _part(title="New"), render_ms=812.5).to_dict()
     assert d["url"] == "u" and d["status"] == "rendered" and d["render_ms"] == 812.5
     assert d["changes"] == {"title": {"raw": "Shop", "rendered": "New"}}
+
+
+def test_one_js_only_link_reads_in_the_singular():
+    c = compare("u", _part(), _part(links=["https://a.com/only"]))
+    assert [i["message"] for i in rendering_issues(c) if i["code"] == "JS_ONLY_LINKS"] == [
+        "1 internal link appears only after JavaScript"]

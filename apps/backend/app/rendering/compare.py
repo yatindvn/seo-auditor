@@ -67,6 +67,7 @@ def rendering_issues(c: RenderComparison) -> List[Dict[str, str]]:
             out.append(issue(severity, code,
                              f"{label} changed by JavaScript: {_quote(change['raw'])} → {_quote(change['rendered'])}"))
     if c.js_only_links_count:
+        n = c.js_only_links_count
         out.append(issue("info", "JS_ONLY_LINKS",
-                         f"{c.js_only_links_count} internal links appear only after JavaScript"))
+                         f"{n} internal {'link appears' if n == 1 else 'links appear'} only after JavaScript"))
     return out
