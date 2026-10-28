@@ -45,6 +45,9 @@ class AuditRequestParams(BaseModel):
     # Render a sample of pages in headless Chromium and compare with the raw
     # HTML (Phase 5.2). Off by default: it costs about 2 s per page.
     render_js: Optional[bool] = False
+    # Scan the sampled pages with axe-core (WCAG 2.2 A/AA) in the same browser
+    # pass as render_js (Phase 5.3). Off by default.
+    accessibility: Optional[bool] = False
 
 
 class HealthScore(BaseModel):

@@ -19,6 +19,8 @@ from app.websocket.ws_manager import ws_manager
 from app.config import config
 from app.seo import rank_checker, keyword_suggestions
 from app.services import page_pipeline
+from app.accessibility.axe import AXE_VERSION, axe_available
+from app.accessibility.scoring import a11y_issues
 from app.analysis.sampling import select_pages
 from app.rendering.compare import rendering_issues
 from app.rendering.playwright_renderer import PlaywrightRenderer, renderer_available
@@ -118,6 +120,7 @@ def run_full_audit(
     trigger: str = "manual",
     enable_web_vitals: bool = True,
     render_js: bool = False,
+    accessibility: bool = False,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -138,6 +141,7 @@ def run_full_audit(
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
             session_id=session_id, fresh=fresh, trigger=trigger,
             enable_web_vitals=enable_web_vitals, render_js=render_js,
+            accessibility=accessibility,
         )
     finally:
         unregister_crawler(session_id)
@@ -166,6 +170,7 @@ def _build_audit_result(
     render_js: bool = False,
     renderer=None,
     render_max_pages: Optional[int] = None,
+    accessibility: bool = False,
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
@@ -499,39 +504,48 @@ def _build_audit_result(
                 all_page_issues.setdefault(measured.url, []).extend(found)
                 db.add_issues(measured.url, found)
 
-    # JavaScript rendering: opt-in, a sample of pages, compared with the raw
-    # analysis. A missing browser or a crash reports "unavailable" -- the audit
-    # stands either way.
+    # Browser pass: JavaScript rendering and/or the accessibility scan, both
+    # opt-in, sharing one Chromium load per sampled page. A missing browser or
+    # a crash reports "unavailable" -- the audit stands either way.
     render_status, render_reason, render_results = "disabled", None, []
-    if render_js:
-        active = renderer
+    a11y_status, a11y_reason, a11y_results = "disabled", None, []
+    scan_a11y = accessibility
+    if accessibility:
+        axe_ok, axe_reason = axe_available()
+        if not axe_ok:
+            scan_a11y, a11y_status, a11y_reason = False, "unavailable", axe_reason
+    if render_js or scan_a11y:
+        active, reason = renderer, None
         if active is None:
-            available, render_reason = renderer_available()
+            available, reason = renderer_available()
             active = PlaywrightRenderer(config.RENDER_TIMEOUT_MS) if available else None
-        if active is None:
-            render_status = "unavailable"
-        else:
-            def _render_progress(done: int, total: int, page_url: str) -> None:
+        if active is not None:
+            kind = "render" if render_js else "a11y"
+
+            def _browser_progress(done: int, total: int, page_url: str) -> None:
                 if event_callback:
-                    event_callback("rendering", {"done": done, "total": total, "url": page_url})
+                    event_callback("rendering", {"done": done, "total": total, "url": page_url, "kind": kind})
 
             try:
-                render_results, _ = run_browser_pass(
+                render_results, a11y_results = run_browser_pass(
                     active, start_page, site_wide.get("top_pages_by_importance") or [],
                     crawler.results, analyses,
                     config.RENDER_MAX_PAGES if render_max_pages is None else render_max_pages,
-                    render_js=True, accessibility=False, on_progress=_render_progress)
-                render_status = "rendered"
+                    render_js=render_js, accessibility=scan_a11y, on_progress=_browser_progress)
             except Exception as exc:
-                logger.error("JavaScript rendering failed: %s", exc, exc_info=exc)
+                logger.error("Browser pass failed: %s", exc, exc_info=exc)
                 first_line = (str(exc).splitlines() or [""])[0][:200]
-                render_status = "unavailable"
-                render_reason = f"{type(exc).__name__}: {first_line}" if first_line else type(exc).__name__
-            for comparison in render_results:
-                found = rendering_issues(comparison)
-                if found:
-                    all_page_issues.setdefault(comparison.url, []).extend(found)
-                    db.add_issues(comparison.url, found)
+                active, reason = None, (f"{type(exc).__name__}: {first_line}" if first_line else type(exc).__name__)
+        if render_js:
+            render_status, render_reason = ("rendered", None) if active is not None else ("unavailable", reason)
+        if scan_a11y:
+            a11y_status, a11y_reason = ("scanned", None) if active is not None else ("unavailable", reason)
+        found_by_url = [(c.url, rendering_issues(c)) for c in render_results]
+        found_by_url += [(s.url, a11y_issues(s)) for s in a11y_results]
+        for page_url, found in found_by_url:
+            if found:
+                all_page_issues.setdefault(page_url, []).extend(found)
+                db.add_issues(page_url, found)
 
     duplicates = analysis.find_duplicates(page_data_for_dupes)
     skipped_results = getattr(crawler, "skipped", {})
@@ -619,6 +633,10 @@ def _build_audit_result(
         "rendering": [c.to_dict() for c in render_results],
         "render_status": render_status,
         "render_unavailable_reason": render_reason,
+        "accessibility": [s.to_dict() for s in a11y_results],
+        "accessibility_status": a11y_status,
+        "accessibility_unavailable_reason": a11y_reason,
+        "axe_version": AXE_VERSION if a11y_status == "scanned" else None,
         # Kept for readers of the pre-5.1 JSON: PSI-measured pages only.
         "psi_metrics": {r.url: {k: v for k, v in r.to_dict().items() if k != "url"}
                         for r in vitals_results if r.source == "psi" and not r.error},

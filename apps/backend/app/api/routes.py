@@ -88,7 +88,8 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
             elif event_type == "web_vitals":
                 msg = f"Measuring Core Web Vitals ({payload['done']}/{payload['total']})"
             elif event_type == "rendering":
-                msg = f"Rendering JavaScript ({payload['done']}/{payload['total']})"
+                what = "Scanning accessibility" if payload.get("kind") == "a11y" else "Rendering JavaScript"
+                msg = f"{what} ({payload['done']}/{payload['total']})"
             elif event_type == "link_progress":
                 msg = (f"{payload['internal_total']:,} internal links found "
                        f"({payload['external_total']:,} external)")
@@ -121,6 +122,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                 fresh=params.fresh or False,
                 enable_web_vitals=params.enable_web_vitals is not False,
                 render_js=bool(params.render_js),
+                accessibility=bool(params.accessibility),
                 event_callback=event_callback,
                 progress_callback=lambda count, total, current_url: asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast("crawl:progress", {

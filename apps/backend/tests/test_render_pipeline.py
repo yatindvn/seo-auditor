@@ -59,7 +59,7 @@ def test_renders_compares_and_adds_issues():
     assert row["js_only_links"] == ["https://example.com/js-only"]
     codes = [i["code"] for i in result["page_issues_detail"]["https://example.com/"]]
     assert {"JS_TITLE_CHANGED", "JS_ROBOTS_CHANGED", "JS_CONTENT_DEPENDENT", "JS_ONLY_LINKS"} <= set(codes)
-    assert ("rendering", {"done": 1, "total": 1, "url": "https://example.com/"}) in events
+    assert ("rendering", {"done": 1, "total": 1, "url": "https://example.com/", "kind": "render"}) in events
     with get_session_factory()() as session:
         stored = session.scalars(select(RenderedPage).where(RenderedPage.audit_id == result["audit_id"])).all()
         assert [r.url for r in stored] == ["https://example.com/"]

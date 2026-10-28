@@ -66,6 +66,16 @@ def test_render_js_comes_from_the_project_options():
     assert by_url == {"https://render.com/": True, "https://plain.com/": False}
 
 
+def test_accessibility_comes_from_the_project_options():
+    _project("a11y.com", "daily", options={"accessibility": True})
+    _project("plain2.com", "daily")
+    calls = []
+
+    jobs.run_due_audits(runner=_runner(calls))
+
+    assert {c["url"]: c["accessibility"] for c in calls} == {
+        "https://a11y.com/": True, "https://plain2.com/": False}
+
 def test_a_project_is_claimed_once():
     project_id = _project("race.com", "daily")
     now = utcnow()
