@@ -7,6 +7,7 @@ SUMMARY_FIELDS = (
     "issue_frequency", "duplicates", "redirects", "rank_targets",
     "near_duplicate_mode", "elapsed_seconds", "degraded", "partial", "dedup", "reuse",
     "robots_txt", "sitemaps_found", "psi_metrics", "web_vitals", "web_vitals_status", "rendering", "render_status",
-    "render_unavailable_reason", "note",
+    "render_unavailable_reason", "accessibility", "accessibility_status",
+    "accessibility_unavailable_reason", "axe_version", "note",
     "audit_id", "project_id", "persisted",
 )

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Audit, AuditIssue, AuditPage, Keyword, RankCheck, RenderedPage, WebVital, utcnow
+from app.db.models import AccessibilityScan, Audit, AuditIssue, AuditPage, Keyword, RankCheck, RenderedPage, WebVital, utcnow
 from app.db.projects import get_or_create_project
 from app.services.summary_fields import SUMMARY_FIELDS
 
@@ -83,6 +83,16 @@ def _record_rendering(session: Session, audit_id: int, rows: List[Dict[str, Any]
         } for r in rows])
 
 
+def _record_accessibility(session: Session, audit_id: int, rows: List[Dict[str, Any]]) -> None:
+    if rows:
+        session.execute(insert(AccessibilityScan), [{
+            "audit_id": audit_id, "url": r["url"], "status": r.get("status", "scanned"),
+            "error": r.get("error"), "score": r.get("score"),
+            **{k: (r.get("counts") or {}).get(k, 0) for k in ("critical", "serious", "moderate", "minor")},
+            "violations_json": r.get("violations") or [],
+        } for r in rows])
+
+
 def record_audit(
     factory: sessionmaker,
     session_db,
@@ -118,4 +128,5 @@ def record_audit(
         _record_rankings(session, project.id, audit.id, result.get("pages") or [])
         _record_vitals(session, audit.id, result.get("web_vitals") or [])
         _record_rendering(session, audit.id, result.get("rendering") or [])
+        _record_accessibility(session, audit.id, result.get("accessibility") or [])
         return audit.id, project.id

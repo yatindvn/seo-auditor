@@ -225,3 +225,19 @@ class RenderedPage(Base):
     changes_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
     js_only_links_json: Mapped[List[str]] = mapped_column(JSON, default=list)
     js_only_links_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AccessibilityScan(Base):
+    """One page's axe-core scan in one audit (Phase 5.3)."""
+    __tablename__ = "accessibility_results"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    critical: Mapped[int] = mapped_column(Integer, default=0)
+    serious: Mapped[int] = mapped_column(Integer, default=0)
+    moderate: Mapped[int] = mapped_column(Integer, default=0)
+    minor: Mapped[int] = mapped_column(Integer, default=0)
+    violations_json: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
