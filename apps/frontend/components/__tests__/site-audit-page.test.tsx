@@ -29,6 +29,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(Platform, "auditVitals").mockResolvedValue({ audit_id: 3, status: "not_configured", items: [] });
   vi.spyOn(Platform, "auditRendering").mockResolvedValue({ audit_id: 3, status: "disabled", reason: null, items: [] });
+  vi.spyOn(Platform, "auditAccessibility").mockResolvedValue({ audit_id: 3, status: "disabled", reason: null, axe_version: null, items: [] });
 });
 
 describe("Site Audit page", () => {
@@ -77,8 +78,15 @@ describe("Site Audit page", () => {
   it("shows JavaScript rendering for the selected audit", async () => {
     vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(3)], total: 1, offset: 0, limit: 50 } as any);
     render(<SiteAuditPage params={{ id: "7" }} />);
-    expect(await screen.findByText(/Run an audit with/)).toBeInTheDocument();
+    expect(await screen.findByText(/Not rendered/)).toBeInTheDocument();
     expect(Platform.auditRendering).toHaveBeenCalledWith(3);
+  });
+
+  it("shows accessibility for the selected audit", async () => {
+    vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(3)], total: 1, offset: 0, limit: 50 } as any);
+    render(<SiteAuditPage params={{ id: "7" }} />);
+    expect(await screen.findByText(/Not scanned/)).toBeInTheDocument();
+    expect(Platform.auditAccessibility).toHaveBeenCalledWith(3);
   });
 
   it("links each audit to its full report", async () => {

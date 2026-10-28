@@ -14,6 +14,8 @@ class RenderResult:
     status: Optional[int] = None
     render_ms: Optional[float] = None
     error: Optional[str] = None
+    axe: Optional[Dict[str, Any]] = None       # raw axe-core results, when asked for
+    axe_error: Optional[str] = None
 
 
 @dataclass
@@ -36,4 +38,5 @@ class Renderer(Protocol):
     name: str
 
     def render(self, urls: List[str],
-               on_progress: Optional[Callable[[int, int, str], None]] = None) -> List[RenderResult]: ...
+               on_progress: Optional[Callable[[int, int, str], None]] = None,
+               run_axe: bool = False) -> List[RenderResult]: ...

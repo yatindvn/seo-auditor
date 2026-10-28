@@ -100,6 +100,17 @@ RECOMMENDATION_TEXT = {
 }
 
 
+A11Y_RECOMMENDATION = ("Fix this accessibility problem: the Accessibility section on the Site Audit "
+                       "tab lists the affected elements and links to how to fix it.")
+
+
+def recommendation_text(code: str):
+    """Per-code advice; axe rule codes (A11Y_*) share one pointer to their details."""
+    if code in RECOMMENDATION_TEXT:
+        return RECOMMENDATION_TEXT[code]
+    return A11Y_RECOMMENDATION if code.startswith("A11Y_") else None
+
+
 def generate_recommendations(all_page_issues: Dict[str, List[Dict]], site_wide_findings: Dict) -> List[Dict]:
     code_pages = {}
     code_severity = {}
@@ -124,12 +135,12 @@ def generate_recommendations(all_page_issues: Dict[str, List[Dict]], site_wide_f
             "severity": severity,
             "affected_pages": affected,
             "example_urls": sorted(pages)[:5],
-            "recommendation": RECOMMENDATION_TEXT.get(code, f"Review and resolve: {code}"),
+            "recommendation": recommendation_text(code) or f"Review and resolve: {code}",
             "priority_score": priority_score,
             "impact": impact,
             "estimated_effort": effort,
             "description": f"Detected {affected} instances of {code} across audited pages.",
-            "suggested_resolution": RECOMMENDATION_TEXT.get(code, "Review implementation and apply standard web practices."),
+            "suggested_resolution": recommendation_text(code) or "Review implementation and apply standard web practices.",
         })
 
     if site_wide_findings.get("orphan_count", 0) > 0:

@@ -191,3 +191,34 @@ export interface RenderComparison {
 }
 
 export interface AuditRendering { audit_id: number; status: RenderStatus; reason: string | null; items: RenderComparison[] }
+
+// Accessibility (backend Phase 5.3, axe-core).
+export type A11yImpact = "critical" | "serious" | "moderate" | "minor";
+export type A11yStatus = "scanned" | "disabled" | "unavailable";
+
+export interface A11yViolation {
+  id: string;
+  impact: A11yImpact;
+  help: string;
+  help_url: string | null;
+  wcag: string[];
+  nodes_count: number;
+  targets: string[];
+}
+
+export interface A11yResult {
+  url: string;
+  status: "scanned" | "failed";
+  error: string | null;
+  score: number | null;
+  counts: Record<A11yImpact, number>;
+  violations: A11yViolation[];
+}
+
+export interface AuditAccessibility {
+  audit_id: number;
+  status: A11yStatus;
+  reason: string | null;
+  axe_version: string | null;
+  items: A11yResult[];
+}

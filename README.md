@@ -284,3 +284,49 @@ Expected: `rendered`, then one line per page. This site is server-rendered,
 so the change lists are empty. Then start the backend (same `SESSION_DIR`) and
 the frontend, open the project's **Site Audit** tab, and scroll to
 "JavaScript rendering".
+
+---
+
+## Accessibility audit (Phase 5.3)
+
+Off by default. When an audit asks for it, the same important pages that
+JavaScript rendering uses (up to `RENDER_MAX_PAGES`, default 20) are scanned
+with **axe-core 4.14.0** against WCAG 2.2 A and AA, in the same browser load
+when both are on. Each page gets a score (100 minus 10/7/3/1 per failed rule,
+by impact) and a list of failed rules, with the affected elements and a link
+to how to fix each one.
+
+- **Turn it on:**
+  - tick **Accessibility audit (slower)** under *Advanced Overrides*
+  - send `"accessibility": true` to `POST /api/audit`
+  - pass `--a11y` to the CLI
+  - for a project's scheduled audits, set `{"accessibility": true}` in its `audit_options`
+- **Issues:** `A11Y_*`. Critical and serious problems are listed as warnings,
+  the rest as info. They lower the Accessibility category score in full, but
+  the overall health score counts them like info, so accessibility nudges it
+  without dominating it. On books.toscrape.com the score is 32.6 with the scan
+  and 35.8 without.
+- **Where it shows:** the "Accessibility" section on the Site Audit tab
+  (expand a row) and in the report.
+- **Needs the same browser as rendering:** `python -m playwright install
+  chromium` locally, or `WITH_BROWSER=true` on the server. axe-core is
+  vendored and hash-verified, so there's no extra install (see
+  `apps/backend/app/accessibility/vendor/README.md`).
+- Automated checks find about a third of accessibility problems, so this is
+  not a full WCAG audit.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_axe_vendor.py tests/test_a11y_scoring.py tests/test_browser_pass.py \
+  tests/test_a11y_storage.py tests/test_a11y_pipeline.py tests/test_a11y_api.py -q
+export SESSION_DIR=/tmp/seo-a11y
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links --a11y --json \
+  | python -c "import sys,json; d=json.load(sys.stdin); print(d['accessibility_status'], d['axe_version']); [print(r['url'], r['score'], r['counts'], [v['id'] for v in r['violations']]) for r in d['accessibility']]"
+```
+
+Expected: `scanned 4.14.0`, then one line per page with a score and the
+failed rule ids. Then start the backend (same `SESSION_DIR`) and the
+frontend, open the project's **Site Audit** tab, and scroll to
+"Accessibility".

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { VitalsTable } from "@/components/platform/vitals-table";
 import { RenderingTable } from "@/components/platform/rendering-table";
+import { AccessibilityTable } from "@/components/platform/accessibility-table";
 import {
   Globe, AlertTriangle, AlertCircle, Link2, Copy, ArrowLeft, Clock,
   CheckCircle2, Wifi, Info, Download, LayoutDashboard, Search as SearchIcon, EyeOff, MoveUp, MoveDown, Columns, Activity
@@ -84,6 +85,7 @@ const DEFAULT_LAYOUT = [
   { id: "redirects", width: "full", visible: true },
   { id: "performance", width: "full", visible: true },
   { id: "rendering", width: "full", visible: true },
+  { id: "accessibility", width: "full", visible: true },
   { id: "security", width: "full", visible: true },
   { id: "duplicates", width: "full", visible: true },
   { id: "pages-table", width: "full", visible: true },
@@ -277,6 +279,10 @@ export default function DashboardPage() {
     "rendering": auditData.render_status ? (
       <Card><CardHeader className="pb-3"><CardTitle className="text-base">JavaScript rendering</CardTitle></CardHeader>
         <CardContent><RenderingTable rows={auditData.rendering ?? []} status={auditData.render_status} reason={auditData.render_unavailable_reason ?? null} /></CardContent></Card>
+    ) : null,
+    "accessibility": auditData.accessibility_status ? (
+      <Card><CardHeader className="pb-3"><CardTitle className="text-base">Accessibility</CardTitle></CardHeader>
+        <CardContent><AccessibilityTable rows={auditData.accessibility ?? []} status={auditData.accessibility_status} reason={auditData.accessibility_unavailable_reason ?? null} /></CardContent></Card>
     ) : null,
     "security": <SecurityAccessibilityPanel pages={pages} />,
     "duplicates": <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4"/>Duplicate Content Analysis</CardTitle></CardHeader><CardContent><DuplicatesPanel duplicates={duplicates} /></CardContent></Card>,

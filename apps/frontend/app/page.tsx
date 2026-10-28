@@ -88,6 +88,7 @@ export default function LandingPage() {
   const [ignoreRobots, setIgnoreRobots] = useState(false);
   const [recheckAll, setRecheckAll] = useState(false);
   const [renderJs, setRenderJs] = useState(false);
+  const [accessibility, setAccessibility] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
   const [rankRows, setRankRows] = useState<RankTargetRow[]>([{ url: "", keywords: "" }]);
@@ -163,6 +164,7 @@ export default function LandingPage() {
         ignore_robots: ignoreRobots,
         fresh: recheckAll,
         render_js: renderJs,
+        accessibility,
         ...(rankTargets.length > 0 && {
           rank_targets: rankTargets,
           enable_rank_check: true,
@@ -368,6 +370,21 @@ export default function LandingPage() {
                   <div>
                     <p className="text-sm font-semibold">Render JavaScript (slower)</p>
                     <p className="text-xs text-muted-foreground">Open the most important pages in a real browser and report what JavaScript changes</p>
+                  </div>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/50 bg-muted/20 p-3 hover:bg-muted/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={accessibility}
+                    onChange={(e) => setAccessibility(e.target.checked)}
+                    className="h-4 w-4 rounded border-input bg-background text-primary focus:ring-primary"
+                    disabled={isLoading}
+                    aria-label="Accessibility audit"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">Accessibility audit (slower)</p>
+                    <p className="text-xs text-muted-foreground">Check the most important pages against WCAG 2.2 A/AA with axe-core in a real browser</p>
                   </div>
                 </label>
 

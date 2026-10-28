@@ -84,3 +84,15 @@ def test_render_js_flag_reaches_the_audit_pipeline():
     with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
         cli._run_audit(args)
     assert build.call_args.kwargs["render_js"] is False
+
+
+def test_a11y_flag_reaches_the_audit_pipeline():
+    from unittest.mock import patch
+
+    from app import cli
+
+    for argv, expected in ((["https://example.com/", "--a11y"], True), (["https://example.com/"], False)):
+        args = cli.build_parser().parse_args(argv)
+        with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
+            cli._run_audit(args)
+        assert build.call_args.kwargs["accessibility"] is expected

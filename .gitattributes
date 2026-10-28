@@ -9,3 +9,5 @@ Dockerfile      text eol=lf
 Caddyfile       text eol=lf
 *.yml           text eol=lf
 *.yaml          text eol=lf
+# Vendored third-party files are kept byte-for-byte (their hashes are verified).
+apps/backend/app/accessibility/vendor/** -text

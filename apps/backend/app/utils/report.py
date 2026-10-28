@@ -79,7 +79,11 @@ def compute_health_score(all_page_issues: Dict[str, List[Dict]], total_pages: in
     counts = Counter()
     for issues in all_page_issues.values():
         for iss in issues:
-            total_deduction += sev_weight.get(iss["severity"], 1)
+            # axe-core findings (Phase 5.3) nudge the overall score rather than
+            # dominate it: counted like info here, in full in the Accessibility
+            # category, and still shown as warnings.
+            weight_as = "info" if iss.get("source") == "axe" else iss["severity"]
+            total_deduction += sev_weight.get(weight_as, 1)
             counts[iss["severity"]] += 1
 
     avg_deduction_per_page = total_deduction / total_pages
