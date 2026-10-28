@@ -65,6 +65,10 @@ def a11y_issues(result: A11yResult) -> List[Dict[str, str]]:
             continue
         n = v["nodes_count"]
         severity = "warning" if v["impact"] in ("critical", "serious") else "info"
-        out.append(issue(severity, "A11Y_" + v["id"].upper().replace("-", "_"),
-                         f"{v['help']} ({n} element{'' if n == 1 else 's'}, {v['impact']})"))
+        found = issue(severity, "A11Y_" + v["id"].upper().replace("-", "_"),
+                      f"{v['help']} ({n} element{'' if n == 1 else 's'}, {v['impact']})")
+        # The overall health score counts axe findings like info (see
+        # report.compute_health_score); they stay warnings everywhere else.
+        found["source"] = "axe"
+        out.append(found)
     return out

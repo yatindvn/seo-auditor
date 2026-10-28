@@ -51,7 +51,8 @@ def test_issues_are_damped_and_skip_rules_raw_checks_cover():
     issues = {i["code"]: i for i in a11y_issues(summarize("u", RAW))}
     assert "A11Y_IMAGE_ALT" not in issues
     assert issues["A11Y_COLOR_CONTRAST"] == {"severity": "warning", "code": "A11Y_COLOR_CONTRAST",
-                                             "message": "Help for color-contrast (12 elements, serious)"}
+                                             "message": "Help for color-contrast (12 elements, serious)",
+                                             "source": "axe"}
     assert issues["A11Y_ARIA_ALLOWED_ATTR"]["severity"] == "warning"
     assert issues["A11Y_REGION"]["severity"] == "info"
     assert issues["A11Y_REGION"]["message"] == "Help for region (1 element, moderate)"
@@ -74,3 +75,18 @@ def test_accessibility_codes_get_a_real_recommendation():
     assert rec["recommendation"].startswith("Fix this accessibility problem")
     assert ai_suggestions.recommendation_text("MISSING_TITLE") == ai_suggestions.RECOMMENDATION_TEXT["MISSING_TITLE"]
     assert ai_suggestions.recommendation_text("SOMETHING_ELSE") is None
+
+
+def test_axe_findings_nudge_the_health_score_rather_than_dominate_it():
+    """They stay warnings, and the Accessibility category feels them in full,
+    but the overall score counts them like info -- the owner's call."""
+    from app.utils.report import compute_health_score
+
+    axe = {"severity": "warning", "code": "A11Y_COLOR_CONTRAST", "message": "m", "source": "axe"}
+    info = {"severity": "info", "code": "A11Y_COLOR_CONTRAST", "message": "m"}
+    raw = {"severity": "warning", "code": "A11Y_IMG_NO_ALT_ATTR", "message": "m"}
+    with_axe = compute_health_score({"u": [axe]}, 1)
+    assert with_axe["score"] == compute_health_score({"u": [info]}, 1)["score"]
+    assert with_axe["warning_issues"] == 1
+    assert with_axe["categories"]["accessibility"] < compute_health_score({"u": [info]}, 1)["categories"]["accessibility"]
+    assert compute_health_score({"u": [raw]}, 1)["score"] < with_axe["score"]

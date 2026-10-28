@@ -301,9 +301,11 @@ to how to fix each one.
   - send `"accessibility": true` to `POST /api/audit`
   - pass `--a11y` to the CLI
   - for a project's scheduled audits, set `{"accessibility": true}` in its `audit_options`
-- **Issues:** `A11Y_*`. Critical and serious problems are warnings, the rest
-  are info, so accessibility nudges the SEO health score without dominating
-  it.
+- **Issues:** `A11Y_*`. Critical and serious problems are listed as warnings,
+  the rest as info. They lower the Accessibility category score in full, but
+  the overall health score counts them like info, so accessibility nudges it
+  without dominating it. On books.toscrape.com the score is 32.6 with the scan
+  and 35.8 without.
 - **Where it shows:** the "Accessibility" section on the Site Audit tab
   (expand a row) and in the report.
 - **Needs the same browser as rendering:** `python -m playwright install

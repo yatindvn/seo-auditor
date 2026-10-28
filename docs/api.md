@@ -459,6 +459,9 @@ about a third of accessibility problems, so this is not a full WCAG audit.
 - `image-alt`, `label` and `html-has-lang` are stored in the scan but not
   raised as issues, because the raw HTML checks already report them on every
   page
+- they carry `"source": "axe"`. The overall health score counts them like
+  info issues, the Accessibility category score counts them in full, and they
+  are still listed as warnings
 
 ### `GET /api/audits/{id}/accessibility`
 
