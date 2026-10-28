@@ -10,6 +10,7 @@ export const TABS = [
   { suffix: "/audits", label: "Site Audit" },
   { suffix: "/ranks", label: "Rank Tracker" },
   { suffix: "/gap", label: "Content Gap" },
+  { suffix: "/rules", label: "Custom Rules" },
 ];
 
 export function activeSuffix(pathname: string, projectId: number): string {

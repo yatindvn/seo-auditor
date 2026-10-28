@@ -9,6 +9,7 @@ import { DeltaBadge } from "@/components/platform/delta-badge";
 import { PageHeader } from "@/components/platform/page-header";
 import { RenderingTable } from "@/components/platform/rendering-table";
 import { AccessibilityTable } from "@/components/platform/accessibility-table";
+import { RulesSummary } from "@/components/platform/rules-summary";
 import { VitalsTable } from "@/components/platform/vitals-table";
 import { useApi } from "@/lib/use-api";
 import { Platform } from "@/services/platform";
@@ -31,6 +32,7 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
   const vitals = useApi(selected !== null ? () => Platform.auditVitals(selected) : null, [selected]);
   const rendering = useApi(selected !== null ? () => Platform.auditRendering(selected) : null, [selected]);
   const accessibility = useApi(selected !== null ? () => Platform.auditAccessibility(selected) : null, [selected]);
+  const customRules = useApi(selected !== null ? () => Platform.auditCustomRules(selected) : null, [selected]);
 
   return (
     <div className="space-y-6">
@@ -82,6 +84,10 @@ export default function SiteAuditPage({ params }: { params: { id: string } }) {
             <section className="rounded-[18px] border bg-card p-5">
               <h2 className="mb-3 font-semibold tracking-tight">Accessibility</h2>
               <AsyncState state={accessibility}>{(a) => <AccessibilityTable rows={a.items} status={a.status} reason={a.reason} />}</AsyncState>
+            </section>
+            <section className="rounded-[18px] border bg-card p-5">
+              <h2 className="mb-3 font-semibold tracking-tight">Custom rules</h2>
+              <AsyncState state={customRules}>{(c) => <RulesSummary items={c.items} />}</AsyncState>
             </section>
 
             {items.length < 2 ? (
