@@ -62,3 +62,12 @@ def isolated_database(tmp_path, monkeypatch, _migrated_template):
     db_engine.mark_migrated(url)
     yield url
     db_engine.dispose_all()
+
+
+@pytest.fixture(autouse=True)
+def no_live_web_vitals(monkeypatch):
+    """A developer's .env may hold a PSI key or LIGHTHOUSE_ENABLED=true. Tests
+    must never reach Google or launch Chrome, so both are off unless a test
+    turns them on."""
+    monkeypatch.setattr(app_config, "PSI_API_KEY", "")
+    monkeypatch.setattr(app_config, "LIGHTHOUSE_ENABLED", False)

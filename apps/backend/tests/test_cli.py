@@ -54,3 +54,19 @@ def test_the_duplicate_engine_directory_is_gone():
     assert not (BACKEND_ROOT / "seo_auditor").exists(), (
         "the duplicate engine is back; app/ is the single source"
     )
+
+
+def test_psi_flags_reach_the_audit_pipeline():
+    """--psi-key still selects PSI; --psi-max-pages bounds how many pages are
+    measured (the CLI used to measure every page)."""
+    from unittest.mock import patch
+
+    from app import cli
+
+    args = cli.build_parser().parse_args(
+        ["https://example.com/", "--psi-key", "k", "--psi-max-pages", "7"])
+    with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
+        cli._run_audit(args)
+    kwargs = build.call_args.kwargs
+    assert kwargs["psi_key"] == "k" and kwargs["vitals_max_pages"] == 7
+

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Audit, AuditIssue, AuditPage, Keyword, RankCheck, utcnow
+from app.db.models import Audit, AuditIssue, AuditPage, Keyword, RankCheck, WebVital, utcnow
 from app.db.projects import get_or_create_project
 from app.services.summary_fields import SUMMARY_FIELDS
 
@@ -59,6 +59,19 @@ def _record_rankings(session: Session, project_id: int, audit_id: int, pages: Li
             ))
 
 
+_VITALS_COLUMNS = ("url", "strategy", "source", "data_kind", "rating", "performance_score",
+                   "lcp_ms", "inp_ms", "cls", "fcp_ms", "ttfb_ms", "tbt_ms", "error")
+
+
+def _record_vitals(session: Session, audit_id: int, rows: List[Dict[str, Any]]) -> None:
+    if rows:
+        now = utcnow()
+        session.execute(insert(WebVital), [
+            {**{c: row.get(c) for c in _VITALS_COLUMNS}, "audit_id": audit_id, "measured_at": now}
+            for row in rows
+        ])
+
+
 def record_audit(
     factory: sessionmaker,
     session_db,
@@ -92,4 +105,5 @@ def record_audit(
 
         audit.page_count = page_count
         _record_rankings(session, project.id, audit.id, result.get("pages") or [])
+        _record_vitals(session, audit.id, result.get("web_vitals") or [])
         return audit.id, project.id

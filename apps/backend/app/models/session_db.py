@@ -115,6 +115,20 @@ class SessionDB:
             if issue_values:
                 self._conn.executemany("INSERT INTO issues VALUES (?,?,?,?)", issue_values)
 
+    def add_issues(self, url: str, issues: List[Dict[str, Any]]) -> None:
+        """Add issues found after a page's row was written: Core Web Vitals
+        are measured once the crawl is over."""
+        if not issues:
+            return
+        with self._conn:
+            self._conn.executemany(
+                "INSERT INTO issues VALUES (?,?,?,?)",
+                [(url, i["severity"], i["code"], i["message"]) for i in issues],
+            )
+            self._conn.execute(
+                "UPDATE pages SET issue_count = issue_count + ? WHERE url = ?", (len(issues), url)
+            )
+
     def add_links(self, edges: List[Tuple[str, str, bool]]) -> None:
         with self._conn:
             self._conn.executemany(

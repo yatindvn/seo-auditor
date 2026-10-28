@@ -131,3 +131,45 @@ export interface GapResult {
   rows: GapRow[];
   total_gaps: number;
 }
+
+// Core Web Vitals (backend Phase 5.1).
+export type VitalsRating = "good" | "needs_improvement" | "poor";
+export type VitalsStatus = "measured" | "not_configured" | "disabled";
+export type VitalsMetric = "lcp_ms" | "inp_ms" | "cls" | "tbt_ms";
+
+export interface VitalsRow {
+  url: string;
+  strategy: string;
+  source: "psi" | "lighthouse" | "not_measured";
+  data_kind: "field" | "lab" | null;
+  rating: VitalsRating | null;
+  performance_score: number | null;
+  lcp_ms: number | null;
+  inp_ms: number | null;
+  cls: number | null;
+  fcp_ms: number | null;
+  ttfb_ms: number | null;
+  tbt_ms: number | null;
+  error: string | null;
+  measured_at?: string | null;
+  metric_ratings: Record<VitalsMetric, VitalsRating | null>;
+}
+
+export interface AuditVitals { audit_id: number; status: VitalsStatus; items: VitalsRow[] }
+
+export interface VitalsTrendPoint {
+  audit_id: number;
+  finished_at: string;
+  url: string;
+  source: VitalsRow["source"];
+  data_kind: VitalsRow["data_kind"];
+  performance_score: number | null;
+  lcp_ms: number | null;
+  inp_ms: number | null;
+  cls: number | null;
+  tbt_ms: number | null;
+  rating: VitalsRating | null;
+  metric_ratings: VitalsRow["metric_ratings"];
+}
+
+export interface VitalsTrend { url: string | null; points: VitalsTrendPoint[] }

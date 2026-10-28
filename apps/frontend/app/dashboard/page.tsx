@@ -16,6 +16,7 @@ import { PageExplorerDrawer } from "@/components/page-explorer-drawer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
+import { VitalsTable } from "@/components/platform/vitals-table";
 import {
   Globe, AlertTriangle, AlertCircle, Link2, Copy, ArrowLeft, Clock,
   CheckCircle2, Wifi, Info, Download, LayoutDashboard, Search as SearchIcon, EyeOff, MoveUp, MoveDown, Columns, Activity
@@ -260,7 +261,15 @@ export default function DashboardPage() {
     "keywords": <Card><CardContent className="pt-6"><KeywordPanel pages={pages} rankTargets={auditData?.rank_targets} /></CardContent></Card>,
     "links": <LinkAnalysisPanel pages={pages} es={es} />,
     "redirects": <RedirectAnalysisPanel pages={pages} es={es} />,
-    "performance": <PerformancePanel pages={pages} />,
+    "performance": (
+      <div className="space-y-4">
+        {auditData.web_vitals_status && (
+          <Card><CardHeader className="pb-3"><CardTitle className="text-base">Core Web Vitals</CardTitle></CardHeader>
+            <CardContent><VitalsTable rows={auditData.web_vitals ?? []} status={auditData.web_vitals_status} /></CardContent></Card>
+        )}
+        <PerformancePanel pages={pages} />
+      </div>
+    ),
     "security": <SecurityAccessibilityPanel pages={pages} />,
     "duplicates": <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4"/>Duplicate Content Analysis</CardTitle></CardHeader><CardContent><DuplicatesPanel duplicates={duplicates} /></CardContent></Card>,
     "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages{skippedUrls > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{skippedUrls} duplicate URLs skipped</span>}{unchangedPages > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{unchangedPages} pages unchanged since the last audit</span>}</CardTitle></CardHeader><CardContent><PagesTable sessionId={activeSessionId!} /></CardContent></Card>,

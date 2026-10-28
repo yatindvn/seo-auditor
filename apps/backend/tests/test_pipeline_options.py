@@ -64,25 +64,26 @@ def test_psi_is_never_called_without_a_key():
     must not be reached at all -- the same discipline the CSE rank checker has."""
     crawler = SpyCrawler()
 
-    with patch.object(audit_service.performance, "fetch_psi_metrics") as mock_psi:
+    with patch("app.vitals.psi.requests.get") as mock_get:
         result = _run(crawler)
 
-    mock_psi.assert_not_called()
+    mock_get.assert_not_called()
     assert result["psi_metrics"] == {}
+    assert result["web_vitals_status"] == "not_configured"
 
 
 def test_psi_runs_for_successful_pages_when_a_key_is_given():
-    crawler = SpyCrawler()
+    from app.vitals.model import VitalsResult
+    from app.vitals.psi import PsiProvider
 
-    with patch.object(
-        audit_service.performance, "fetch_psi_metrics", return_value={"lcp": 1.2}
-    ) as mock_psi:
+    crawler = SpyCrawler()
+    measured = VitalsResult(url="https://example.com/", strategy="desktop", source="psi",
+                            data_kind="lab", lcp_ms=1200)
+    with patch.object(PsiProvider, "measure", return_value=measured) as mock_measure:
         result = _run(crawler, psi_key="test-key", psi_strategy="desktop")
 
-    mock_psi.assert_called_once_with(
-        "https://example.com/", "test-key", strategy="desktop",
-    )
-    assert result["psi_metrics"]["https://example.com/"] == {"lcp": 1.2}
+    mock_measure.assert_called_once_with("https://example.com/", "desktop")
+    assert result["psi_metrics"]["https://example.com/"]["lcp_ms"] == 1200
 
 
 # --- Duplicate-detection mode ----------------------------------------------

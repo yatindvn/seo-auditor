@@ -17,10 +17,18 @@ const kw = (id: number, position: number, change: number) => ({
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.spyOn(Platform, "vitalsTrend").mockResolvedValue({ url: null, points: [] });
   vi.spyOn(Platform, "listKeywords").mockResolvedValue({ items: [kw(1, 4, -5), kw(2, 10, 2)] } as any);
 });
 
 describe("Project overview", () => {
+  it("has a Core Web Vitals card", async () => {
+    vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(1, 72)], total: 1, offset: 0, limit: 50 } as any);
+    render(<OverviewPage params={{ id: "7" }} />);
+    expect(await screen.findByText("Core Web Vitals")).toBeInTheDocument();
+    expect(Platform.vitalsTrend).toHaveBeenCalledWith(7);
+  });
+
   it("shows KPIs with the health change and the diff", async () => {
     vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(2, 75), audit(1, 72)], total: 2, offset: 0, limit: 50 } as any);
     const diff = vi.spyOn(Platform, "auditDiff").mockResolvedValue({

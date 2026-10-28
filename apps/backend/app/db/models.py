@@ -188,3 +188,24 @@ class ProviderCache(Base):
     request_hash: Mapped[str] = mapped_column(String(64))
     response_json: Mapped[Any] = mapped_column(JSON)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WebVital(Base):
+    """One page's Core Web Vitals in one audit (Phase 5.1)."""
+    __tablename__ = "web_vitals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    strategy: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(16))
+    data_kind: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    rating: Mapped[Optional[str]] = mapped_column(String(24), nullable=True)
+    performance_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lcp_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    inp_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    cls: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    fcp_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    ttfb_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    tbt_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -351,3 +351,47 @@ domain does not rank it in the **top 100**.
 
 Columns: `keyword, search_volume, difficulty, opportunity, best_competitor_position`,
 then `<competitor> position` and `<competitor> url` per competitor.
+
+---
+
+## Core Web Vitals
+
+Each audit measures the start URL plus the top pages by internal PageRank (up
+to `PSI_MAX_PAGES`, mobile). It uses PageSpeed Insights when `PSI_API_KEY` is
+set, and local Lighthouse when `LIGHTHOUSE_ENABLED=true`. Page-level field data
+(real Chrome users) is used for the rating when Google has it, otherwise lab
+data. Lab data has no INP, so TBT stands in for it. Poor values add
+`CWV_*_POOR` warnings, and values that need improvement add
+`CWV_*_NEEDS_IMPROVEMENT` info issues, so they count in the health score.
+
+The audit result (and `GET /api/audit/latest`) carries:
+- `web_vitals`: one object per measured page
+- `web_vitals_status`: `measured`, `not_configured` or `disabled`
+- `psi_metrics`: PSI-measured pages only, for older readers
+
+`POST /api/audit` accepts `"enable_web_vitals": false` to skip measuring.
+
+### `GET /api/audits/{id}/vitals`
+
+```json
+{"audit_id": 12, "status": "measured", "items": [{"url": "https://a.com/", "strategy": "mobile",
+ "source": "psi", "data_kind": "field", "performance_score": 71, "lcp_ms": 2300, "inp_ms": 180,
+ "cls": 0.05, "fcp_ms": 1200, "ttfb_ms": 600, "tbt_ms": 350, "rating": "good", "error": null,
+ "measured_at": "2026-10-25T18:00:00+00:00",
+ "metric_ratings": {"lcp_ms": "good", "inp_ms": "good", "cls": "good", "tbt_ms": "needs_improvement"}}]}
+```
+
+A page that couldn't be measured has `source: "not_measured"` and the reason
+in `error`, e.g. `"psi: daily cap of 50 psi calls reached"`.
+
+### `GET /api/projects/{id}/vitals/trend?limit=30`
+
+The homepage per audit, oldest first. Audits whose homepage wasn't measured
+are skipped.
+
+```json
+{"url": "https://a.com/", "points": [{"audit_id": 12, "finished_at": "2026-10-25T18:00:00+00:00",
+ "url": "https://a.com/", "source": "psi", "data_kind": "lab", "performance_score": 71,
+ "lcp_ms": 4800, "inp_ms": null, "cls": 0.05, "tbt_ms": 350, "rating": "poor",
+ "metric_ratings": {"lcp_ms": "poor", "inp_ms": null, "cls": "good", "tbt_ms": "needs_improvement"}}]}
+```

@@ -6,6 +6,7 @@ import { AsyncState, EmptyState } from "@/components/platform/async-state";
 import { DeltaBadge } from "@/components/platform/delta-badge";
 import { HealthTrendChart } from "@/components/platform/health-trend-chart";
 import { KpiTile } from "@/components/platform/kpi-tile";
+import { VitalsCard } from "@/components/platform/vitals-card";
 import { averagePosition, biggestMoves } from "@/lib/platform-charts";
 import { useApi } from "@/lib/use-api";
 import { Platform } from "@/services/platform";
@@ -45,6 +46,8 @@ export default function OverviewPage({ params }: { params: { id: string } }) {
             <h2 className="mb-4 font-semibold tracking-tight">Health over time</h2>
             <HealthTrendChart audits={items} />
           </section>
+
+          <VitalsCard projectId={projectId} />
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-[18px] border bg-card p-5">

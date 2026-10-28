@@ -80,11 +80,13 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
     def event_callback(event_type: str, payload: dict):
         if event_type == "page_crawled":
             asyncio.run_coroutine_threadsafe(ws_manager.emit_page_crawled(payload, session_id), loop)
-        elif event_type in ("link_progress", "redirect", "broken_link", "timeout"):
+        elif event_type in ("link_progress", "redirect", "broken_link", "timeout", "web_vitals"):
             msg = f"Found {event_type}"
             if event_type == "redirect": msg = f"Redirected {payload['url']} -> {payload['to']}"
             elif event_type == "broken_link": msg = f"Broken Link {payload['url']} (Status {payload['status']})"
             elif event_type == "timeout": msg = f"Timeout accessing {payload['url']}"
+            elif event_type == "web_vitals":
+                msg = f"Measuring Core Web Vitals ({payload['done']}/{payload['total']})"
             elif event_type == "link_progress":
                 msg = (f"{payload['internal_total']:,} internal links found "
                        f"({payload['external_total']:,} external)")
@@ -115,6 +117,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                 target_keywords=params.target_keywords,
                 rank_targets=params.rank_targets,
                 fresh=params.fresh or False,
+                enable_web_vitals=params.enable_web_vitals is not False,
                 event_callback=event_callback,
                 progress_callback=lambda count, total, current_url: asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast("crawl:progress", {

@@ -1,4 +1,4 @@
-import type { AuditListItem, RankCheckView, TrackedKeyword } from "@seo-auditor/shared";
+import type { AuditListItem, RankCheckView, TrackedKeyword, VitalsMetric, VitalsTrendPoint } from "@seo-auditor/shared";
 
 // Categorical slots in fixed order, validated (dataviz validate_palette.js)
 // against the card surfaces: white (light) and #050b1c (dark). Slot 1 is
@@ -45,4 +45,20 @@ export function biggestMoves(keywords: TrackedKeyword[], n: number): TrackedKeyw
     .filter((k) => k.change != null && k.change !== 0)
     .sort((a, b) => Math.abs(b.change!) - Math.abs(a.change!))
     .slice(0, n);
+}
+
+/** One Core Web Vitals value in its own unit; "—" when missing. */
+export function formatVitalsMetric(metric: VitalsMetric, value: number | null | undefined): string {
+  if (value == null) return "—";
+  if (metric === "cls") return value.toFixed(2);
+  if (metric === "lcp_ms") return `${(value / 1000).toFixed(1)} s`;
+  return `${Math.round(value)} ms`;
+}
+
+/** The homepage's performance score per audit. A missing score is a gap, not 0. */
+export function vitalsScoreTrend(points: VitalsTrendPoint[]) {
+  return points.map((p) => ({
+    label: new Date(p.finished_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    score: p.performance_score,
+  }));
 }

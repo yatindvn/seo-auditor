@@ -36,6 +36,12 @@
 | `RANK_DEPTH` | Results requested per tracked keyword (DataForSEO max 200; Google CSE returns at most 10) | `100` |
 | `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO API credentials | `""` |
 | `DATAFORSEO_LABS_DAILY_CAP` | Hard daily cap on DataForSEO keyword-data calls (search volume, difficulty, ranked keywords). Cache hits are free and not counted | `20` |
+| `PSI_API_KEY` | Google PageSpeed Insights key for Core Web Vitals. Empty = PSI not used | `""` |
+| `PSI_DAILY_CAP` | Hard daily cap on PSI calls | `50` |
+| `PSI_MAX_PAGES` | Pages measured per audit (start URL + top pages by internal PageRank) | `5` |
+| `LIGHTHOUSE_ENABLED` | Local Lighthouse fallback (needs Node, Chrome, `npm i -g lighthouse@12`) | `false` |
+| `CHROME_PATH` | Chrome binary for Lighthouse; auto-detected when empty | `""` |
+| `LIGHTHOUSE_CLI` | Path to Lighthouse's `cli/index.js`; found via `npm root -g` when empty | `""` |
 | `GOOGLE_CSE_DAILY_QUOTA` | Daily cap on Google CSE calls, now counted in the database and shared by audits and rank tracking | `100` |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook for rank alerts | `""` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP server for email alerts (STARTTLS) | `""` / `587` |

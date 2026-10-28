@@ -39,6 +39,9 @@ class AuditRequestParams(BaseModel):
     # Ignore the page cache and analyse every page afresh (results are still
     # written back to it).
     fresh: Optional[bool] = False
+    # Core Web Vitals for the top pages, when a source is configured
+    # (PSI_API_KEY or LIGHTHOUSE_ENABLED). False skips them for this audit.
+    enable_web_vitals: Optional[bool] = True
 
 
 class HealthScore(BaseModel):

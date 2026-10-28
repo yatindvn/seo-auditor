@@ -1,3 +1,5 @@
+import type { VitalsRow, VitalsStatus } from "./platform";
+
 export interface Recommendation {
   code: string;
   severity: "critical" | "warning" | "info";
@@ -215,6 +217,8 @@ export interface AuditResponse {
   audit_id?: number | null;
   project_id?: number | null;
   persisted?: boolean;
+  web_vitals?: VitalsRow[];
+  web_vitals_status?: VitalsStatus;
 }
 
 export interface AuditRequestParams {
@@ -229,6 +233,7 @@ export interface AuditRequestParams {
   rank_targets?: RankTarget[];
   target_keywords?: string[];
   fresh?: boolean;
+  enable_web_vitals?: boolean;
 }
 
 export interface CrawlPage {

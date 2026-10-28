@@ -25,7 +25,10 @@ const diff = {
            added_count: 1, removed_count: 0, status_changed_count: 1 },
 };
 
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  vi.spyOn(Platform, "auditVitals").mockResolvedValue({ audit_id: 3, status: "not_configured", items: [] });
+});
 
 describe("Site Audit page", () => {
   it("compares the newest audit with the previous by default", async () => {
@@ -61,6 +64,13 @@ describe("Site Audit page", () => {
     const labels = Array.from((screen.getByLabelText(/^compare audit/i) as HTMLSelectElement).options).map((o) => o.text);
     expect(labels[0]).toMatch(/^#3 · /);
     expect(labels[1]).toMatch(/^#2 · /);
+  });
+
+  it("shows Core Web Vitals for the selected audit", async () => {
+    vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(3)], total: 1, offset: 0, limit: 50 } as any);
+    render(<SiteAuditPage params={{ id: "7" }} />);
+    expect(await screen.findByText(/PSI_API_KEY/)).toBeInTheDocument();
+    expect(Platform.auditVitals).toHaveBeenCalledWith(3);
   });
 
   it("links each audit to its full report", async () => {
