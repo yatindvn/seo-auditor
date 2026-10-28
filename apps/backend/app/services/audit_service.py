@@ -22,7 +22,7 @@ from app.services import page_pipeline
 from app.analysis.sampling import select_pages
 from app.rendering.compare import rendering_issues
 from app.rendering.playwright_renderer import PlaywrightRenderer, renderer_available
-from app.rendering.runner import render_and_compare
+from app.rendering.runner import run_browser_pass
 from app.vitals import runner as vitals_runner
 from app.vitals.model import vitals_issues
 from app.vitals.providers import build_vitals_provider
@@ -516,11 +516,11 @@ def _build_audit_result(
                     event_callback("rendering", {"done": done, "total": total, "url": page_url})
 
             try:
-                render_results = render_and_compare(
+                render_results, _ = run_browser_pass(
                     active, start_page, site_wide.get("top_pages_by_importance") or [],
                     crawler.results, analyses,
                     config.RENDER_MAX_PAGES if render_max_pages is None else render_max_pages,
-                    on_progress=_render_progress)
+                    render_js=True, accessibility=False, on_progress=_render_progress)
                 render_status = "rendered"
             except Exception as exc:
                 logger.error("JavaScript rendering failed: %s", exc, exc_info=exc)

@@ -21,7 +21,7 @@ class FakeRenderer:
     def __init__(self, html=JS_HTML, error=None, raises=None):
         self.calls, self.html, self.error, self.raises = [], html, error, raises
 
-    def render(self, urls, on_progress=None):
+    def render(self, urls, on_progress=None, run_axe=False):
         self.calls.append(list(urls))
         if self.raises:
             raise self.raises
