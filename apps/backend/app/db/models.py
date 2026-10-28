@@ -241,3 +241,18 @@ class AccessibilityScan(Base):
     moderate: Mapped[int] = mapped_column(Integer, default=0)
     minor: Mapped[int] = mapped_column(Integer, default=0)
     violations_json: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, default=list)
+
+
+class CustomRule(Base):
+    """A user-defined check, evaluated on every page of the project's audits (Phase 5.4)."""
+    __tablename__ = "custom_rules"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    severity: Mapped[str] = mapped_column(String(16))
+    message: Mapped[str] = mapped_column(String(200), default="")
+    url_pattern: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    check_json: Mapped[Dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
