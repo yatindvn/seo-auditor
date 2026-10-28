@@ -285,7 +285,8 @@ def analyze_html(payload: PagePayload) -> HtmlAnalysis:
     rule_issues, rules_checked = rules_engine.evaluate(payload.custom_rules, rules_engine.PageFacts(
         url=page_url, meta=meta, text=text, html=payload.html or "", soup=soup), "html")
     issues += rule_issues
-    meta["custom_rules_checked"] = rules_checked
+    if payload.custom_rules:
+        meta["custom_rules_checked"] = rules_checked
 
     return HtmlAnalysis(
         issues=issues,
@@ -330,8 +331,10 @@ def analyze_response(payload: PagePayload, html_part: HtmlAnalysis) -> PageAnaly
         url=payload.url, status=payload.status_code, response_time_ms=payload.response_time_ms), "response")
     issues += response_issues
 
-    meta = {**html_part.meta, "performance": weight, "security_headers": security_headers,
-            "custom_rules_checked": [*html_part.meta.get("custom_rules_checked", []), *response_checked]}
+    meta = {**html_part.meta, "performance": weight, "security_headers": security_headers}
+    # Only with rules, so an audit without any keeps byte-identical output.
+    if payload.custom_rules:
+        meta["custom_rules_checked"] = [*html_part.meta.get("custom_rules_checked", []), *response_checked]
 
     return PageAnalysis(
         url=payload.url,
