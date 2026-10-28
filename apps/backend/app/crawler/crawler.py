@@ -19,6 +19,7 @@ import concurrent.futures
 import hashlib
 import heapq
 import itertools
+import re
 import threading
 import time
 import urllib.parse as up
@@ -38,6 +39,23 @@ DEFAULT_HEADERS = {
 }
 
 REDIRECT_CODES = {301, 302, 303, 307, 308}
+
+
+_META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?([A-Za-z0-9_.:-]+)""", re.IGNORECASE)
+
+
+def decode_html(resp) -> str:
+    """The page's text, decoded the way a browser would.
+
+    requests assumes ISO-8859-1 for any text/* response without a charset
+    (RFC 2616), which garbles UTF-8 pages served without one. Without a header
+    charset, a <meta charset> in the first 2 KB decides; failing that, UTF-8.
+    An unknown codec name falls back to UTF-8 inside requests itself."""
+    content_type = (resp.headers.get("Content-Type") or "").lower()
+    if "charset=" not in content_type:
+        declared = _META_CHARSET.search(resp.content[:2048])
+        resp.encoding = declared.group(1).decode("ascii") if declared else "utf-8"
+    return resp.text
 
 
 # Query params that only identify where a click came from. They never change
@@ -368,8 +386,7 @@ class Crawler:
                 content_type = current_resp.headers.get("Content-Type", "")
                 html = ""
                 if current_resp.status_code == 200 and "text/html" in content_type:
-                    current_resp.encoding = current_resp.encoding or "utf-8"
-                    html = current_resp.text
+                    html = decode_html(current_resp)
 
                 body_hash = (
                     hashlib.sha256(html.encode("utf-8", errors="ignore")).hexdigest() if html else None
