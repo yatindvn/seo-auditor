@@ -19,6 +19,7 @@ from app.websocket.ws_manager import ws_manager
 from app.config import config
 from app.seo import rank_checker, keyword_suggestions
 from app.services import page_pipeline
+from app.analysis.sampling import select_pages
 from app.vitals import runner as vitals_runner
 from app.vitals.model import vitals_issues
 from app.vitals.providers import build_vitals_provider
@@ -471,7 +472,7 @@ def _build_audit_result(
     web_vitals_status = "disabled" if not enable_web_vitals else ("measured" if provider else "not_configured")
     vitals_results = []
     if provider is not None:
-        vitals_pages = vitals_runner.select_vitals_pages(
+        vitals_pages = select_pages(
             getattr(crawler, "start_url", None) or url,
             site_wide.get("top_pages_by_importance") or [],
             crawler.results,
