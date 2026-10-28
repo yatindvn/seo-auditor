@@ -222,3 +222,45 @@ export interface AuditAccessibility {
   axe_version: string | null;
   items: A11yResult[];
 }
+
+// Custom rules (backend Phase 5.4).
+export type RuleSeverity = "critical" | "warning" | "info";
+export type RuleCheck =
+  | { type: "field"; field: string; op: string; value?: string | number | null }
+  | { type: "text"; scope: "visible" | "html"; op: "contains" | "not_contains"; value: string; case_sensitive?: boolean }
+  | { type: "selector"; selector: string; op: string; value?: number | null };
+
+export interface NewRule {
+  name: string;
+  enabled?: boolean;
+  severity: RuleSeverity;
+  message: string;
+  url_pattern: string | null;
+  check: RuleCheck;
+}
+
+export interface CustomRule extends Required<Omit<NewRule, "enabled">> {
+  id: number;
+  project_id: number;
+  enabled: boolean;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RuleTestResult {
+  applies: boolean;
+  passed: boolean | null;
+  observed: string | number | boolean | null;
+  issue: { severity: string; code: string; message: string } | null;
+}
+
+export interface RuleSummary {
+  rule_id: number;
+  name: string;
+  severity: RuleSeverity;
+  description: string;
+  pages_checked: number;
+  pages_failed: number;
+  example_urls: string[];
+}
