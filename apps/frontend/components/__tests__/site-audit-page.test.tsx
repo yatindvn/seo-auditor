@@ -31,6 +31,7 @@ beforeEach(() => {
   vi.spyOn(Platform, "auditRendering").mockResolvedValue({ audit_id: 3, status: "disabled", reason: null, items: [] });
   vi.spyOn(Platform, "auditAccessibility").mockResolvedValue({ audit_id: 3, status: "disabled", reason: null, axe_version: null, items: [] });
   vi.spyOn(Platform, "auditCustomRules").mockResolvedValue({ audit_id: 3, items: [] });
+  vi.spyOn(Platform, "auditGsc").mockResolvedValue({ audit_id: 3, status: "not_configured", property: null, dry_run: false, inspections: [], pages: [], not_crawled: [] });
 });
 
 describe("Site Audit page", () => {
@@ -95,6 +96,13 @@ describe("Site Audit page", () => {
     render(<SiteAuditPage params={{ id: "7" }} />);
     expect(await screen.findByText(/No custom rules ran/)).toBeInTheDocument();
     expect(Platform.auditCustomRules).toHaveBeenCalledWith(3);
+  });
+
+  it("shows Search Console for the selected audit", async () => {
+    vi.spyOn(Platform, "listAudits").mockResolvedValue({ items: [audit(3)], total: 1, offset: 0, limit: 50 } as any);
+    render(<SiteAuditPage params={{ id: "7" }} />);
+    expect(await screen.findByText(/Search Console isn't connected/)).toBeInTheDocument();
+    expect(Platform.auditGsc).toHaveBeenCalledWith(3);
   });
 
   it("links each audit to its full report", async () => {

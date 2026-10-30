@@ -226,6 +226,7 @@ export interface AuditResponse {
   accessibility_status?: A11yStatus;
   accessibility_unavailable_reason?: string | null;
   axe_version?: string | null;
+  gsc_status?: string | null;
 }
 
 export interface AuditRequestParams {
