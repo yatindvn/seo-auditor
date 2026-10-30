@@ -54,6 +54,17 @@ describe("SiteArchitectureGraph", () => {
     });
   });
 
+  it("scales the drawing to the card width, so phones see the whole graph", async () => {
+    vi.spyOn(ApiService, "getArchitecture").mockResolvedValue(CLUSTERED);
+    render(<SiteArchitectureGraph />);
+    const node = (await screen.findAllByTestId("graph-node"))[0];
+    const svg = node.closest("svg")!;
+    expect(svg.getAttribute("viewBox")).toBe("10 -5 480 240");   // framed to the three drawn nodes
+    expect(svg.getAttribute("preserveAspectRatio")).toBe("xMidYMid meet");
+    // Hover-only zoom controls are unreachable on touch screens.
+    expect(screen.getByRole("button", { name: "Zoom in" }).parentElement!.className).toContain("opacity-100 md:opacity-0");
+  });
+
   it("shows how many pages a section stands for", async () => {
     vi.spyOn(ApiService, "getArchitecture").mockResolvedValue(CLUSTERED);
 

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAudit } from "@/lib/audit-context";
 import { ApiService } from "@/services/api";
+import { nodePosition, viewBoxFor } from "@/lib/graph-layout";
 import { formatNumber } from "@/lib/utils";
 import { GitFork, Network, Search, Filter, ZoomIn, ZoomOut, Maximize, ArrowLeft, AlertTriangle } from "lucide-react";
 
@@ -249,14 +250,14 @@ export function SiteArchitectureGraph() {
         ) : viewMode === "graph" ? (
           <>
             {/* Controls Overlay */}
-            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => setScale(s => Math.min(5, s * 1.2))} className="bg-card border border-border p-2 rounded hover:bg-muted">
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+              <button onClick={() => setScale(s => Math.min(5, s * 1.2))} aria-label="Zoom in" className="bg-card border border-border p-2 rounded hover:bg-muted">
                 <ZoomIn className="h-4 w-4" />
               </button>
-              <button onClick={() => setScale(s => Math.max(0.1, s / 1.2))} className="bg-card border border-border p-2 rounded hover:bg-muted">
+              <button onClick={() => setScale(s => Math.max(0.1, s / 1.2))} aria-label="Zoom out" className="bg-card border border-border p-2 rounded hover:bg-muted">
                 <ZoomOut className="h-4 w-4" />
               </button>
-              <button onClick={resetZoom} className="bg-card border border-border p-2 rounded hover:bg-muted">
+              <button onClick={resetZoom} aria-label="Reset view" className="bg-card border border-border p-2 rounded hover:bg-muted">
                 <Maximize className="h-4 w-4" />
               </button>
             </div>
@@ -264,6 +265,10 @@ export function SiteArchitectureGraph() {
             {/* SVG Interactive Topology Canvas */}
             <svg
               className={`h-full w-full outline-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              // Framed to the drawn nodes, so the graph fills its card at any
+              // width, a phone included.
+              viewBox={viewBoxFor(filteredNodes.slice(0, 200).map((n) => nodes.indexOf(n)))}
+              preserveAspectRatio="xMidYMid meet"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -280,10 +285,8 @@ export function SiteArchitectureGraph() {
                   // Keep the same mock layout generation logic as before
                   const srcIdx = nodes.indexOf(srcNode);
                   const tgtIdx = nodes.indexOf(tgtNode);
-                  const x1 = 50 + (srcIdx * 140) % 800;
-                  const y1 = 50 + (srcIdx * 60) % 400;
-                  const x2 = 50 + (tgtIdx * 140) % 800;
-                  const y2 = 50 + (tgtIdx * 60) % 400;
+                  const { x: x1, y: y1 } = nodePosition(srcIdx);
+                  const { x: x2, y: y2 } = nodePosition(tgtIdx);
 
                   return (
                     <line
@@ -302,8 +305,7 @@ export function SiteArchitectureGraph() {
                 {/* Draw Nodes */}
                 {filteredNodes.slice(0, 200).map((node) => {
                   const nodeIdx = nodes.indexOf(node);
-                  const x = 50 + (nodeIdx * 140) % 800;
-                  const y = 50 + (nodeIdx * 60) % 400;
+                  const { x, y } = nodePosition(nodeIdx);
                   let fill = "#3b82f6"; // default blue
                   if (node.isBroken) fill = "#ef4444"; // red
                   else if (node.isOrphan) fill = "#a855f7"; // purple

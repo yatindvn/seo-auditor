@@ -75,7 +75,7 @@ export function IssueCenter() {
               className="group rounded-xl border border-border/60 bg-card/60 p-4 transition-all hover:border-primary/40 shadow-sm"
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
                   {issue.severity === "critical" ? (
                     <AlertCircle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
                   ) : issue.severity === "warning" ? (
@@ -83,9 +83,9 @@ export function IssueCenter() {
                   ) : (
                     <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
                   )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-foreground">{issue.code}</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="break-all font-mono text-xs font-bold text-foreground">{issue.code}</span>
                       <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                         {issue.affected_pages} page(s)
                       </span>
@@ -119,7 +119,7 @@ export function IssueCenter() {
                   <span className="font-semibold text-muted-foreground">Affected URLs Sample:</span>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {issue.example_urls.slice(0, 3).map((url, i) => (
-                      <span key={i} className="rounded bg-muted/60 px-2 py-0.5 font-mono text-muted-foreground">
+                      <span key={i} className="break-all rounded bg-muted/60 px-2 py-0.5 font-mono text-muted-foreground">
                         {url}
                       </span>
                     ))}
