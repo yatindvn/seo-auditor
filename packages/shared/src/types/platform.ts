@@ -18,6 +18,8 @@ export interface ProjectSummary {
   latest_audit: { id: number; finished_at: string; health_score: number | null } | null;
   gsc_property?: string | null;
   last_gsc_sync_at?: string | null;
+  backlink_schedule?: "weekly" | null;
+  last_backlink_refresh_at?: string | null;
 }
 
 export interface PageList<T> {
@@ -292,3 +294,20 @@ export interface AuditGsc {
   pages: { url: string; clicks: number; impressions: number; ctr: number; position: number; inspection_verdict: string | null }[];
   not_crawled: { url: string; clicks: number; impressions: number }[];
 }
+
+// Backlinks (backend Phase 6, DataForSEO).
+export interface BacklinkTotals { taken_at: string; authority: number | null; backlinks: number; referring_domains: number; broken_backlinks: number; dry_run: boolean }
+export interface BacklinkOverview {
+  dry_run_provider: boolean; schedule: "weekly" | null; last_refresh_at: string | null;
+  latest: BacklinkTotals | null; previous: BacklinkTotals | null;
+  history: { date: string; authority: number | null; backlinks: number; referring_domains: number; source: "snapshot" | "history" }[];
+}
+export interface RefDomainRow { domain: string; rank: number | null; backlinks: number; first_seen: string | null }
+export interface BacklinkRow {
+  url_from: string; url_to: string; anchor: string; domain_from_rank: number | null; dofollow: boolean;
+  first_seen: string | null; last_seen: string | null; target_status: number | null; crawled_status?: number | null;
+}
+export type BacklinkKind = "new" | "lost" | "broken";
+export interface BacklinkRefresh { status: "refreshed" | "capped" | "error"; snapshot_id?: number; dry_run: boolean; history_months?: number; message?: string }
+export interface LinkGapRow { domain: string; rank: number | null; linked_count: number; backlinks_by_competitor: Record<string, number> }
+export interface LinkGapResult { my_domain: string; competitors: string[]; dry_run: boolean; rows: LinkGapRow[] }

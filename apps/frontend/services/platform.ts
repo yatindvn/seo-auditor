@@ -3,6 +3,7 @@ import type {
   ProjectSummary, RankCheckView, RankPreview, TrackedKeyword, AlertSettings, AuditVitals, VitalsTrend, AuditRendering, AuditAccessibility,
   CustomRule, NewRule, RuleTestResult, RuleSummary,
   AuditGsc, GscList, GscOverview, GscSites, GscSort, GscSyncResult,
+  BacklinkKind, BacklinkOverview, BacklinkRefresh, BacklinkRow, LinkGapResult, RefDomainRow,
 } from "@seo-auditor/shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -48,7 +49,7 @@ export interface NewKeyword { phrase: string; country?: string; device?: "deskto
 
 export const Platform = {
   listProjects: () => request<{ items: ProjectSummary[] }>("/projects"),
-  updateProject: (id: number, body: Partial<{ name: string; rank_schedule: "daily" | null; alert_settings: AlertSettings; gsc_property: string }>) =>
+  updateProject: (id: number, body: Partial<{ name: string; rank_schedule: "daily" | null; alert_settings: AlertSettings; gsc_property: string; backlink_schedule: "weekly" | null }>) =>
     request<ProjectSummary>(`/projects/${id}`, patch(body)),
   listAudits: (id: number, limit = 50, offset = 0) =>
     request<PageList<AuditListItem>>(`/projects/${id}/audits?limit=${limit}&offset=${offset}`),
@@ -71,6 +72,11 @@ export const Platform = {
   gscQueries: (id: number, sort: GscSort = "clicks", offset = 0) => request<GscList>(`/projects/${id}/gsc/queries?sort=${sort}&offset=${offset}&limit=50`),
   gscSync: (id: number) => request<GscSyncResult>(`/projects/${id}/gsc/sync`, post()),
   auditGsc: (auditId: number) => request<AuditGsc>(`/audits/${auditId}/gsc`),
+  backlinksOverview: (id: number) => request<BacklinkOverview>(`/projects/${id}/backlinks`),
+  refDomains: (id: number, offset = 0) => request<{ total: number; items: RefDomainRow[] }>(`/projects/${id}/backlinks/referring-domains?limit=50&offset=${offset}`),
+  backlinkLinks: (id: number, kind: BacklinkKind, offset = 0) => request<{ total: number; items: BacklinkRow[] }>(`/projects/${id}/backlinks/links?kind=${kind}&limit=50&offset=${offset}`),
+  refreshBacklinks: (id: number) => request<BacklinkRefresh>(`/projects/${id}/backlinks/refresh`, post()),
+  backlinkGap: (id: number, competitors?: string[]) => request<LinkGapResult>(`/projects/${id}/backlinks/gap`, post(competitors ? { competitors } : {})),
   vitalsTrend: (id: number, limit = 30) => request<VitalsTrend>(`/projects/${id}/vitals/trend?limit=${limit}`),
 
   listKeywords: (id: number) => request<{ items: TrackedKeyword[] }>(`/projects/${id}/keywords`),
