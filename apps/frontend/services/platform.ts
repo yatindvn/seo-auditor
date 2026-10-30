@@ -2,6 +2,7 @@ import type {
   AuditDiff, AuditListItem, CompetitorDomain, ExploreResult, GapResult, PageList,
   ProjectSummary, RankCheckView, RankPreview, TrackedKeyword, AlertSettings, AuditVitals, VitalsTrend, AuditRendering, AuditAccessibility,
   CustomRule, NewRule, RuleTestResult, RuleSummary,
+  AuditGsc, GscList, GscOverview, GscSites, GscSort, GscSyncResult,
 } from "@seo-auditor/shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -47,7 +48,7 @@ export interface NewKeyword { phrase: string; country?: string; device?: "deskto
 
 export const Platform = {
   listProjects: () => request<{ items: ProjectSummary[] }>("/projects"),
-  updateProject: (id: number, body: Partial<{ name: string; rank_schedule: "daily" | null; alert_settings: AlertSettings }>) =>
+  updateProject: (id: number, body: Partial<{ name: string; rank_schedule: "daily" | null; alert_settings: AlertSettings; gsc_property: string }>) =>
     request<ProjectSummary>(`/projects/${id}`, patch(body)),
   listAudits: (id: number, limit = 50, offset = 0) =>
     request<PageList<AuditListItem>>(`/projects/${id}/audits?limit=${limit}&offset=${offset}`),
@@ -64,6 +65,12 @@ export const Platform = {
   testRule: (id: number, url: string, rule: NewRule) =>
     request<RuleTestResult>(`/projects/${id}/rules/test`, post({ url, rule })),
   auditCustomRules: (auditId: number) => request<{ audit_id: number; items: RuleSummary[] }>(`/audits/${auditId}/custom-rules`),
+  gscSites: () => request<GscSites>("/gsc/sites"),
+  gscOverview: (id: number) => request<GscOverview>(`/projects/${id}/gsc`),
+  gscPages: (id: number, sort: GscSort = "clicks", offset = 0) => request<GscList>(`/projects/${id}/gsc/pages?sort=${sort}&offset=${offset}&limit=50`),
+  gscQueries: (id: number, sort: GscSort = "clicks", offset = 0) => request<GscList>(`/projects/${id}/gsc/queries?sort=${sort}&offset=${offset}&limit=50`),
+  gscSync: (id: number) => request<GscSyncResult>(`/projects/${id}/gsc/sync`, post()),
+  auditGsc: (auditId: number) => request<AuditGsc>(`/audits/${auditId}/gsc`),
   vitalsTrend: (id: number, limit = 30) => request<VitalsTrend>(`/projects/${id}/vitals/trend?limit=${limit}`),
 
   listKeywords: (id: number) => request<{ items: TrackedKeyword[] }>(`/projects/${id}/keywords`),

@@ -71,3 +71,5 @@ def no_live_web_vitals(monkeypatch):
     turns them on."""
     monkeypatch.setattr(app_config, "PSI_API_KEY", "")
     monkeypatch.setattr(app_config, "LIGHTHOUSE_ENABLED", False)
+    monkeypatch.setattr(app_config, "GSC_SERVICE_ACCOUNT_FILE", "")
+    monkeypatch.setattr(app_config, "GSC_DRY_RUN", False)

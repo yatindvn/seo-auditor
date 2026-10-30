@@ -41,6 +41,8 @@ class Project(Base):
     rank_schedule: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     last_rank_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     alert_settings_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    gsc_property: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    last_gsc_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     audits = relationship("Audit", back_populates="project")
 
@@ -256,3 +258,64 @@ class CustomRule(Base):
     check_json: Mapped[Dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class GscDaily(Base):
+    """One day of a project's Search Console totals (Phase 5.5), kept past
+    Google's 16-month window."""
+    __tablename__ = "gsc_daily"
+    __table_args__ = (UniqueConstraint("project_id", "date", name="uq_gsc_daily_project_date"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    date: Mapped[date] = mapped_column(Date)
+    clicks: Mapped[float] = mapped_column(Float)
+    impressions: Mapped[float] = mapped_column(Float)
+    ctr: Mapped[float] = mapped_column(Float)
+    position: Mapped[float] = mapped_column(Float)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class GscPage(Base):
+    """The latest 28-day Search Console numbers per page (replaced on each sync)."""
+    __tablename__ = "gsc_pages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    clicks: Mapped[float] = mapped_column(Float)
+    impressions: Mapped[float] = mapped_column(Float)
+    ctr: Mapped[float] = mapped_column(Float)
+    position: Mapped[float] = mapped_column(Float)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class GscQuery(Base):
+    """The latest 28-day Search Console numbers per query (replaced on each sync)."""
+    __tablename__ = "gsc_queries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    query: Mapped[str] = mapped_column(Text)
+    clicks: Mapped[float] = mapped_column(Float)
+    impressions: Mapped[float] = mapped_column(Float)
+    ctr: Mapped[float] = mapped_column(Float)
+    position: Mapped[float] = mapped_column(Float)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class GscInspection(Base):
+    """One page's URL Inspection result in one audit."""
+    __tablename__ = "gsc_inspections"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audit_id: Mapped[int] = mapped_column(ForeignKey("audits.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(Text)
+    verdict: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    coverage_state: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    indexing_state: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    robots_state: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    fetch_state: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    google_canonical: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    user_canonical: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_crawl: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)

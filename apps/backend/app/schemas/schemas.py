@@ -48,6 +48,9 @@ class AuditRequestParams(BaseModel):
     # Scan the sampled pages with axe-core (WCAG 2.2 A/AA) in the same browser
     # pass as render_js (Phase 5.3). Off by default.
     accessibility: Optional[bool] = False
+    # Inspect important pages with Search Console's URL Inspection when it's
+    # configured for the site (Phase 5.5). On by default; false skips it.
+    enable_gsc: Optional[bool] = True
 
 
 class HealthScore(BaseModel):

@@ -24,6 +24,7 @@ IMPACT_WEIGHTS = {
     "CWV_CLS_NEEDS_IMPROVEMENT": 3, "CWV_TBT_NEEDS_IMPROVEMENT": 2,
     "JS_CONTENT_DEPENDENT": 6, "JS_ROBOTS_CHANGED": 8, "JS_CANONICAL_CHANGED": 7, "JS_TITLE_CHANGED": 5,
     "JS_META_DESCRIPTION_CHANGED": 2, "JS_H1_CHANGED": 2, "JS_ONLY_LINKS": 3,
+    "GSC_NOT_INDEXED": 8, "GSC_CANONICAL_MISMATCH": 4,
 }
 
 RECOMMENDATION_TEXT = {
@@ -83,6 +84,8 @@ RECOMMENDATION_TEXT = {
     "JS_META_DESCRIPTION_CHANGED": "Render the meta description on the server.",
     "JS_H1_CHANGED": "Render the main heading on the server.",
     "JS_ONLY_LINKS": "Use plain <a href> links in the server HTML so crawlers can discover these pages without JavaScript.",
+    "GSC_NOT_INDEXED": "Google isn't indexing this page: check its content quality, internal links and canonical, then request indexing in Search Console.",
+    "GSC_CANONICAL_MISMATCH": "Google picked a different canonical: make the canonical, internal links and sitemap agree on one URL.",
     "LARGE_DOM": "Reduce DOM complexity/size to improve rendering performance.",
     "RENDER_BLOCKING_CSS": "Defer or inline critical CSS to reduce render-blocking resources.",
     "RENDER_BLOCKING_JS": "Add async/defer to non-critical scripts.",

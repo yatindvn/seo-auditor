@@ -29,6 +29,7 @@ REQUIREMENTS = BACKEND_ROOT / "requirements.txt"
 DISTRIBUTION_NAMES = {
     "bs4": "beautifulsoup4",
     "dotenv": "python-dotenv",
+    "google": "google-auth",
 }
 
 # Packages that live in this repository, not on PyPI.

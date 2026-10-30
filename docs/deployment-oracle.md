@@ -196,3 +196,17 @@ WITH_BROWSER=true docker compose -f deploy/oracle/docker-compose.yml --env-file 
 The image grows by a few hundred MB. Rendering is one page at a time, using
 about 150 MB of memory while a page renders, and 20 pages per audit by default
 (`RENDER_MAX_PAGES`).
+
+## Google Search Console (optional)
+
+Put the service account's JSON key next to the compose file, e.g.
+`deploy/oracle/secrets/gsc.json` (keep it out of git), and mount it read-only:
+
+```yaml
+    volumes:
+      - ./secrets/gsc.json:/run/secrets/gsc.json:ro
+```
+
+Then set `GSC_SERVICE_ACCOUNT_FILE=/run/secrets/gsc.json` in `deploy/oracle/.env`
+and rebuild. Add the service account's email as a user on each Search Console
+property. The project's **Search Console** tab shows the email.

@@ -19,6 +19,7 @@ import { formatNumber } from "@/lib/utils";
 import { VitalsTable } from "@/components/platform/vitals-table";
 import { RenderingTable } from "@/components/platform/rendering-table";
 import { AccessibilityTable } from "@/components/platform/accessibility-table";
+import { GscReportPanel } from "@/components/platform/gsc-report-panel";
 import {
   Globe, AlertTriangle, AlertCircle, Link2, Copy, ArrowLeft, Clock,
   CheckCircle2, Wifi, Info, Download, LayoutDashboard, Search as SearchIcon, EyeOff, MoveUp, MoveDown, Columns, Activity
@@ -86,6 +87,7 @@ const DEFAULT_LAYOUT = [
   { id: "performance", width: "full", visible: true },
   { id: "rendering", width: "full", visible: true },
   { id: "accessibility", width: "full", visible: true },
+  { id: "search-console", width: "full", visible: true },
   { id: "security", width: "full", visible: true },
   { id: "duplicates", width: "full", visible: true },
   { id: "pages-table", width: "full", visible: true },
@@ -284,6 +286,7 @@ export default function DashboardPage() {
       <Card><CardHeader className="pb-3"><CardTitle className="text-base">Accessibility</CardTitle></CardHeader>
         <CardContent><AccessibilityTable rows={auditData.accessibility ?? []} status={auditData.accessibility_status} reason={auditData.accessibility_unavailable_reason ?? null} /></CardContent></Card>
     ) : null,
+    "search-console": auditData.gsc_status && auditData.audit_id ? <GscReportPanel auditId={auditData.audit_id} /> : null,
     "security": <SecurityAccessibilityPanel pages={pages} />,
     "duplicates": <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Copy className="h-4 w-4"/>Duplicate Content Analysis</CardTitle></CardHeader><CardContent><DuplicatesPanel duplicates={duplicates} /></CardContent></Card>,
     "pages-table": <Card><CardHeader className="pb-3"><CardTitle className="text-base">All Crawled Pages{skippedUrls > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{skippedUrls} duplicate URLs skipped</span>}{unchangedPages > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{unchangedPages} pages unchanged since the last audit</span>}</CardTitle></CardHeader><CardContent><PagesTable sessionId={activeSessionId!} /></CardContent></Card>,

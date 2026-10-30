@@ -372,3 +372,43 @@ python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-lin
 Expected: the test prints `"passed": true` with `"observed": 20` (prices on
 the homepage), and the second audit's summary shows "Long enough" failing on
 most pages. Then open the project's **Custom Rules** tab.
+
+---
+
+## Google Search Console (Phase 5.5)
+
+Brings Google's own view of the site into each project: clicks, impressions,
+CTR and positions (trend, top pages, top queries), plus whether Google
+indexes your most important pages.
+
+- **Setup (about 5 minutes):**
+  1. In Google Cloud, create a service account and enable the "Google Search Console API".
+  2. Download a JSON key and set `GSC_SERVICE_ACCOUNT_FILE` to its path.
+  3. Add the service account's email as a user on the site's Search Console property.
+- **Where it shows:**
+  - the **Search Console** tab: KPIs with changes vs the previous 28 days, clicks and impressions charts, top pages and queries, Sync now, property picker
+  - the **Site Audit** tab and the report: index status of the inspected pages, crawled pages by clicks, and pages Google shows that your crawl didn't reach
+- **Issues:**
+  - `GSC_NOT_INDEXED` (warning) when Google doesn't index an important page you didn't `noindex`
+  - `GSC_CANONICAL_MISMATCH` (info)
+- **Syncs daily** (scheduler), and history is kept beyond Google's 16 months.
+- **Read-only, capped** (`GSC_DAILY_CAP`, `GSC_INSPECT_DAILY_CAP`).
+  `GSC_DRY_RUN=true` shows made-up data without Google.
+
+### How to verify (no Google account needed)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_gsc_provider.py tests/test_gsc_storage.py tests/test_gsc_sync.py tests/test_gsc_audit.py tests/test_gsc_api.py -q
+export SESSION_DIR=/tmp/seo-gsc GSC_DRY_RUN=true
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links --json \
+  | python -c "import sys,json; d=json.load(sys.stdin); print(d['gsc_status'], d['gsc_property'], [(i['url'], i['verdict']) for i in d['gsc_inspections']][:3])"
+python -m uvicorn app.main:app --port 5000 &
+curl -s -X POST localhost:5000/api/projects/1/gsc/sync
+curl -s localhost:5000/api/projects/1/gsc | python -c "import sys,json; d=json.load(sys.stdin); print(d['dry_run'], d['kpis'])"
+```
+
+Expected: `inspected sc-domain:books.toscrape.com` with a few verdicts, then
+a sync with `"status": "synced"` and `"dry_run": true`, then KPIs. Open the
+project's **Search Console** tab. A "Preview data" banner shows while dry run
+is on.

@@ -16,6 +16,8 @@ export interface ProjectSummary {
   alert_settings: AlertSettings;
   audit_count: number;
   latest_audit: { id: number; finished_at: string; health_score: number | null } | null;
+  gsc_property?: string | null;
+  last_gsc_sync_at?: string | null;
 }
 
 export interface PageList<T> {
@@ -263,4 +265,30 @@ export interface RuleSummary {
   pages_checked: number;
   pages_failed: number;
   example_urls: string[];
+}
+
+// Google Search Console (backend Phase 5.5).
+export interface GscKpis { clicks: number; impressions: number; ctr: number | null; position: number | null }
+export interface GscDailyPoint { date: string; clicks: number; impressions: number; ctr: number; position: number }
+export interface GscOverview {
+  configured: boolean; dry_run: boolean; client_email: string | null; property: string | null;
+  last_sync_at: string | null; kpis: GscKpis | null; previous_kpis: GscKpis | null; daily: GscDailyPoint[];
+}
+export interface GscRow { key: string; clicks: number; impressions: number; ctr: number; position: number }
+export interface GscList { total: number; items: GscRow[] }
+export type GscSort = "clicks" | "impressions" | "ctr" | "position";
+export interface GscSyncResult {
+  status: "synced" | "no_access" | "error"; property: string | null; message?: string; client_email?: string | null;
+  days?: number; pages?: number; queries?: number; dry_run: boolean;
+}
+export interface GscSites { configured: boolean; dry_run: boolean; client_email: string | null; sites: { site_url: string; permission: string }[] }
+export interface GscInspectionRow {
+  url: string; verdict: string | null; coverage_state: string | null; indexing_state: string | null; robots_state: string | null;
+  fetch_state: string | null; google_canonical: string | null; user_canonical: string | null; last_crawl: string | null; error: string | null;
+}
+export interface AuditGsc {
+  audit_id: number; status: "inspected" | "disabled" | "not_configured" | "no_property" | "error";
+  property: string | null; dry_run: boolean; inspections: GscInspectionRow[];
+  pages: { url: string; clicks: number; impressions: number; ctr: number; position: number; inspection_verdict: string | null }[];
+  not_crawled: { url: string; clicks: number; impressions: number }[];
 }

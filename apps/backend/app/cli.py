@@ -74,6 +74,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Render the top pages in headless Chromium and compare with the raw HTML")
     p.add_argument("--a11y", dest="accessibility", action="store_true",
                    help="Scan the top pages with axe-core (WCAG 2.2 A/AA) in headless Chromium")
+    p.add_argument("--no-gsc", dest="enable_gsc", action="store_false",
+                   help="Skip Search Console URL inspection")
     p.add_argument("--no-keyword-analysis", dest="enable_keyword_analysis", action="store_false", default=True,
                    help="Skip on-page keyword extraction")
     p.add_argument("--enable-keyword-suggestions", action="store_true", default=False,
@@ -116,6 +118,7 @@ def _run_audit(args, progress_callback=None) -> dict:
         vitals_max_pages=args.psi_max_pages,
         render_js=args.render_js,
         accessibility=args.accessibility,
+        enable_gsc=args.enable_gsc,
         fresh=args.fresh,
     )
 

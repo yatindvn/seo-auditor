@@ -123,6 +123,7 @@ async def execute_audit(params: AuditRequestParams, background_tasks: Background
                 enable_web_vitals=params.enable_web_vitals is not False,
                 render_js=bool(params.render_js),
                 accessibility=bool(params.accessibility),
+                enable_gsc=params.enable_gsc is not False,
                 event_callback=event_callback,
                 progress_callback=lambda count, total, current_url: asyncio.run_coroutine_threadsafe(
                     ws_manager.broadcast("crawl:progress", {

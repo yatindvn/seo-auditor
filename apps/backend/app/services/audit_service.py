@@ -22,6 +22,7 @@ from app.services import page_pipeline
 from app.accessibility.axe import AXE_VERSION, axe_available
 from app.accessibility.scoring import a11y_issues
 from app.analysis.sampling import select_pages
+from app.gsc.inspect import gsc_issues, inspect_for_audit
 from app.rules import store as rules_store
 from app.rules.engine import rules_digest, summarize as summarize_rules
 from app.rendering.compare import rendering_issues
@@ -123,6 +124,7 @@ def run_full_audit(
     enable_web_vitals: bool = True,
     render_js: bool = False,
     accessibility: bool = False,
+    enable_gsc: bool = True,
 ) -> Dict[str, Any]:
     crawler = Crawler(
         start_url=url,
@@ -143,7 +145,7 @@ def run_full_audit(
             enable_competitor_gap, target_keywords, rank_targets=rank_targets,
             session_id=session_id, fresh=fresh, trigger=trigger,
             enable_web_vitals=enable_web_vitals, render_js=render_js,
-            accessibility=accessibility,
+            accessibility=accessibility, enable_gsc=enable_gsc,
         )
     finally:
         unregister_crawler(session_id)
@@ -173,6 +175,8 @@ def _build_audit_result(
     renderer=None,
     render_max_pages: Optional[int] = None,
     accessibility: bool = False,
+    enable_gsc: bool = True,
+    gsc_provider=None,
 ) -> Dict[str, Any]:
     # Monotonic, not time.time(): this is a duration, and monotonic cannot be
     # skewed by an NTP correction or a manual clock change mid-audit.
@@ -553,6 +557,25 @@ def _build_audit_result(
                 all_page_issues.setdefault(page_url, []).extend(found)
                 db.add_issues(page_url, found)
 
+    # Search Console: is Google indexing the pages that matter? Only with a
+    # configured provider and a property; never fatal.
+    gsc_status, gsc_property, gsc_dry_run, gsc_results = "disabled", None, False, []
+    if enable_gsc:
+        try:
+            gsc_status, gsc_property, gsc_dry_run, gsc_results = inspect_for_audit(
+                url, start_page, site_wide.get("top_pages_by_importance") or [], crawler.results,
+                config.GSC_INSPECT_MAX_PAGES, provider=gsc_provider)
+        except Exception as exc:
+            logger.error("Search Console inspection failed: %s", exc, exc_info=exc)
+            gsc_status = "error"
+        for insp in gsc_results:
+            page = crawler.results.get(insp.url)
+            headers = {k.lower(): v for k, v in ((getattr(page, "headers", None) or {}).items())}
+            found = gsc_issues(insp, (page_meta.get(insp.url) or {}).get("meta_robots"), headers.get("x-robots-tag"))
+            if found:
+                all_page_issues.setdefault(insp.url, []).extend(found)
+                db.add_issues(insp.url, found)
+
     rules_summary = summarize_rules(
         custom_rules,
         {u: (a.meta or {}).get("custom_rules_checked", []) for u, a in analyses.items() if a is not None and not a.failed},
@@ -650,6 +673,10 @@ def _build_audit_result(
         "accessibility_unavailable_reason": a11y_reason,
         "axe_version": AXE_VERSION if a11y_status == "scanned" else None,
         "custom_rules": rules_summary,
+        "gsc_inspections": [i.to_dict() for i in gsc_results],
+        "gsc_status": gsc_status,
+        "gsc_property": gsc_property,
+        "gsc_dry_run": gsc_dry_run,
         # Kept for readers of the pre-5.1 JSON: PSI-measured pages only.
         "psi_metrics": {r.url: {k: v for k, v in r.to_dict().items() if k != "url"}
                         for r in vitals_results if r.source == "psi" and not r.error},
