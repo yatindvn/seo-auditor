@@ -48,10 +48,10 @@ export default function SearchConsolePage({ params }: { params: { id: string } }
           <section className="space-y-2 rounded-[18px] border bg-card p-5 text-sm">
             <h2 className="font-semibold tracking-tight">Connect Search Console</h2>
             <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
-              <li>In Google Cloud, create a service account and enable the "Google Search Console API".</li>
+              <li>In Google Cloud, create a service account and enable the &ldquo;Google Search Console API&rdquo;.</li>
               <li>Create a JSON key for it and put the file on the backend server.</li>
-              <li>Set <code className="rounded bg-muted px-1">GSC_SERVICE_ACCOUNT_FILE</code> to that file's path and restart the backend.</li>
-              <li>In Search Console → Settings → Users and permissions, add the service account's email as a user.</li>
+              <li>Set <code className="rounded bg-muted px-1">GSC_SERVICE_ACCOUNT_FILE</code> to that file&rsquo;s path and restart the backend.</li>
+              <li>In Search Console → Settings → Users and permissions, add the service account&rsquo;s email as a user.</li>
             </ol>
           </section>
         ) : (
