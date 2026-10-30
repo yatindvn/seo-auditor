@@ -154,6 +154,39 @@ def run_due_gsc_syncs(now: Optional[datetime] = None, provider=None) -> List[int
     return synced
 
 
+def run_due_backlink_refreshes(now: Optional[datetime] = None, provider=None) -> List[int]:
+    """Weekly backlink snapshots for projects that opted in. Never on a dry-run
+    provider: made-up history must not pile up on a schedule."""
+    from app.backlinks.provider import get_backlink_provider
+    from app.backlinks.snapshot import refresh_project
+
+    provider = provider if provider is not None else get_backlink_provider()
+    if provider.dry_run:
+        logger.warning("Scheduled backlink refreshes skipped: DataForSEO is not live")
+        return []
+    now = now or utcnow()
+    factory = get_session_factory()
+    with factory() as session:
+        due = [(p.id, p.last_backlink_refresh_at) for p in session.scalars(
+            select(Project).where(Project.backlink_schedule == "weekly")).all()
+            if p.last_backlink_refresh_at is None or now - as_utc(p.last_backlink_refresh_at) >= timedelta(days=7)]
+    refreshed: List[int] = []
+    for project_id, previous in due:
+        with factory() as session:
+            if not claim(session, project_id, previous, now, column=Project.last_backlink_refresh_at):
+                continue
+        try:
+            result = refresh_project(project_id, provider, today=now.date())
+            if result["status"] == "refreshed":
+                refreshed.append(project_id)
+            else:
+                logger.warning("Backlink refresh of project %s: %s %s", project_id, result["status"],
+                               result.get("message", ""))
+        except Exception as exc:
+            logger.error("Backlink refresh of project %s failed: %s", project_id, exc, exc_info=exc)
+    return refreshed
+
+
 def start_scheduler():
     from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -163,6 +196,8 @@ def start_scheduler():
     scheduler.add_job(run_due_rank_checks, "interval", minutes=15, id="run_due_rank_checks",
                       max_instances=1, coalesce=True)
     scheduler.add_job(run_due_gsc_syncs, "interval", minutes=60, id="run_due_gsc_syncs",
+                      max_instances=1, coalesce=True)
+    scheduler.add_job(run_due_backlink_refreshes, "interval", hours=6, id="run_due_backlink_refreshes",
                       max_instances=1, coalesce=True)
     scheduler.start()
     return scheduler
