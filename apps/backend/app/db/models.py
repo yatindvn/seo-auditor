@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
     JSON, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text,
-    UniqueConstraint, true,
+    UniqueConstraint, false, true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -43,6 +43,8 @@ class Project(Base):
     alert_settings_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     gsc_property: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     last_gsc_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    backlink_schedule: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    last_backlink_refresh_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     audits = relationship("Audit", back_populates="project")
 
@@ -141,6 +143,13 @@ class BacklinkSnapshot(Base):
     taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     provider: Mapped[str] = mapped_column(String(32))
     metrics_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    authority: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    backlinks: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    referring_domains: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    broken_backlinks: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    source: Mapped[str] = mapped_column(String(16), default="snapshot", server_default="snapshot")
+    period: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class AiVisibilityRun(Base):
@@ -319,3 +328,30 @@ class GscInspection(Base):
     last_crawl: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class BacklinkRefDomain(Base):
+    """A top referring domain in one backlink snapshot (Phase 6)."""
+    __tablename__ = "backlink_ref_domains"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("backlink_snapshots.id", ondelete="CASCADE"), index=True)
+    domain: Mapped[str] = mapped_column(String(255))
+    rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    backlinks: Mapped[int] = mapped_column(Integer, default=0)
+    first_seen: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+
+
+class BacklinkLink(Base):
+    """A new, lost or broken backlink in one snapshot."""
+    __tablename__ = "backlink_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("backlink_snapshots.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(8))
+    url_from: Mapped[str] = mapped_column(Text)
+    url_to: Mapped[str] = mapped_column(Text)
+    anchor: Mapped[str] = mapped_column(Text, default="")
+    domain_from_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    dofollow: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_seen: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    last_seen: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    target_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
