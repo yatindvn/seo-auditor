@@ -76,6 +76,8 @@ from app.api.gsc import router as gsc_router  # noqa: E402
 app.include_router(gsc_router, prefix="/api")
 from app.api.backlinks import router as backlinks_router  # noqa: E402
 app.include_router(backlinks_router, prefix="/api")
+from app.api.ai_visibility import router as ai_visibility_router  # noqa: E402
+app.include_router(ai_visibility_router, prefix="/api")
 
 from app.api.cron import router as cron_router  # noqa: E402
 app.include_router(cron_router, prefix="/api")
