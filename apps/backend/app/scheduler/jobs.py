@@ -68,6 +68,7 @@ def run_due_audits(now: Optional[datetime] = None, runner=None) -> List[str]:
                 ignore_robots=bool(options.get("ignore_robots", False)),
                 render_js=bool(options.get("render_js", False)),
                 accessibility=bool(options.get("accessibility", False)),
+                enable_gsc=bool(options.get("enable_gsc", True)),
                 trigger="scheduled",
             )
             started.append(session_id)

@@ -96,3 +96,14 @@ def test_a11y_flag_reaches_the_audit_pipeline():
         with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
             cli._run_audit(args)
         assert build.call_args.kwargs["accessibility"] is expected
+
+
+def test_no_gsc_flag():
+    from unittest.mock import patch
+
+    from app import cli
+
+    for argv, expected in ((["https://example.com/", "--no-gsc"], False), (["https://example.com/"], True)):
+        with patch.object(cli.audit_service, "_build_audit_result", return_value={}) as build:
+            cli._run_audit(cli.build_parser().parse_args(argv))
+        assert build.call_args.kwargs["enable_gsc"] is expected

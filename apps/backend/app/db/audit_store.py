@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import AccessibilityScan, Audit, AuditIssue, AuditPage, Keyword, RankCheck, RenderedPage, WebVital, utcnow
+from app.db.models import AccessibilityScan, Audit, GscInspection, AuditIssue, AuditPage, Keyword, RankCheck, RenderedPage, WebVital, utcnow
 from app.db.projects import get_or_create_project
 from app.services.summary_fields import SUMMARY_FIELDS
 
@@ -93,6 +93,16 @@ def _record_accessibility(session: Session, audit_id: int, rows: List[Dict[str, 
         } for r in rows])
 
 
+_GSC_COLUMNS = ("url", "verdict", "coverage_state", "indexing_state", "robots_state", "fetch_state",
+                "google_canonical", "user_canonical", "last_crawl", "error")
+
+
+def _record_gsc(session: Session, audit_id: int, rows: List[Dict[str, Any]], dry_run: bool) -> None:
+    if rows:
+        session.execute(insert(GscInspection), [
+            {**{c: r.get(c) for c in _GSC_COLUMNS}, "audit_id": audit_id, "dry_run": dry_run} for r in rows])
+
+
 def record_audit(
     factory: sessionmaker,
     session_db,
@@ -129,4 +139,5 @@ def record_audit(
         _record_vitals(session, audit.id, result.get("web_vitals") or [])
         _record_rendering(session, audit.id, result.get("rendering") or [])
         _record_accessibility(session, audit.id, result.get("accessibility") or [])
+        _record_gsc(session, audit.id, result.get("gsc_inspections") or [], bool(result.get("gsc_dry_run")))
         return audit.id, project.id
