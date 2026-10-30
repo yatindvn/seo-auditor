@@ -36,6 +36,7 @@ class ProjectUpdate(BaseModel):
     alert_settings: Optional[Dict[str, Any]] = None
     gsc_property: Optional[str] = None
     backlink_schedule: Optional[Literal["weekly"]] = None
+    ai_schedule: Optional[Literal["weekly"]] = None
 
 
 def _factory():
@@ -68,6 +69,8 @@ def _project_json(session, project: Project) -> Dict[str, Any]:
         "gsc_property": project.gsc_property,
         "backlink_schedule": project.backlink_schedule,
         "last_backlink_refresh_at": as_utc(project.last_backlink_refresh_at).isoformat() if project.last_backlink_refresh_at else None,
+        "ai_schedule": project.ai_schedule,
+        "last_ai_run_at": as_utc(project.last_ai_run_at).isoformat() if project.last_ai_run_at else None,
         "last_gsc_sync_at": as_utc(project.last_gsc_sync_at).isoformat() if project.last_gsc_sync_at else None,
         "latest_audit": None if latest is None else {
             "id": latest.id, "finished_at": as_utc(latest.finished_at).isoformat(),
@@ -117,6 +120,8 @@ def update_project(project_id: int, body: ProjectUpdate):
             project.alert_settings_json = fields["alert_settings"]
         if "backlink_schedule" in fields:
             project.backlink_schedule = fields["backlink_schedule"]
+        if "ai_schedule" in fields:
+            project.ai_schedule = fields["ai_schedule"]
         if "gsc_property" in fields:
             project.gsc_property = (fields["gsc_property"] or "").strip() or None
         session.flush()
