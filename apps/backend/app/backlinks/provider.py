@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -21,6 +21,12 @@ REFERRING_DOMAINS = "/v3/backlinks/referring_domains/live"
 BACKLINKS = "/v3/backlinks/backlinks/live"
 HISTORY = "/v3/backlinks/history/live"
 INTERSECTION = "/v3/backlinks/domain_intersection/live"
+BULK_BACKLINKS = "/v3/backlinks/bulk_backlinks/live"
+BULK_REFERRING_DOMAINS = "/v3/backlinks/bulk_referring_domains/live"
+
+
+def _url_key(url: str) -> str:
+    return (url or "").strip().rstrip("/").lower()
 
 
 @dataclass(frozen=True)
@@ -158,6 +164,16 @@ class DataForSeoBacklinks:
                 rows.append(GapDomain(domain, rank, linked))
         return rows
 
+    def bulk_metrics(self, urls: List[str]) -> Dict[str, Tuple[Optional[int], Optional[int]]]:
+        """Backlinks and referring domains for many URLs: two requests in all."""
+        if not urls:
+            return {}
+        task = {"targets": list(urls)}
+        links = {_url_key(i.get("target")): _int(i.get("backlinks")) for i in _items(self._result(BULK_BACKLINKS, task))}
+        domains = {_url_key(i.get("target")): _int(i.get("referring_domains"))
+                   for i in _items(self._result(BULK_REFERRING_DOMAINS, task))}
+        return {u: (links.get(_url_key(u)), domains.get(_url_key(u))) for u in urls}
+
 
 def _seed(*parts: str) -> int:
     return int(hashlib.sha256("|".join(parts).encode()).hexdigest()[:8], 16)
@@ -205,6 +221,14 @@ class DryRunBacklinks:
             if linked:
                 rows.append(GapDomain(f"outreach{n}.example.org", 850 - n * 20, linked))
         return rows
+
+    def bulk_metrics(self, urls: List[str]) -> Dict[str, Tuple[Optional[int], Optional[int]]]:
+        out = {}
+        for u in urls:
+            s = _seed(u)
+            domains = 3 + s % 300
+            out[u] = (domains * (2 + s % 9), domains)
+        return out
 
 
 def get_backlink_provider(cfg=config):

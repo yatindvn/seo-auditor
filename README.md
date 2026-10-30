@@ -489,3 +489,34 @@ curl -s localhost:5000/api/projects/1/ai-visibility | python -c "import sys,json
 ```
 
 Then open the project's **AI Visibility** tab.
+
+---
+
+## Content Explorer (Phase 7.2)
+
+**Content Explorer** in the top nav: enter a topic and see what the top 10
+Google results look like.
+- **Pages:** word count, H1 and heading outline, schema types, links,
+  readability and issue count. These come from the same checks as a site
+  audit.
+- **Backlinks:** referring domains and backlinks per URL.
+- **Summary:** median length, the most used schema types and the most common
+  H2 words.
+
+You can export a search as CSV. A search is cached for 7 days (free), and
+**Refresh** fetches it again (about $0.05-0.08). Without a live SERP provider
+everything is made-up preview data, with a banner.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_backlinks_bulk.py tests/test_content_pages.py tests/test_content_explore.py tests/test_content_api.py -q
+export SESSION_DIR=/tmp/seo-content       # SERP not live = dry run
+python -m uvicorn app.main:app --port 5000 &
+curl -s -X POST -H 'Content-Type: application/json' -d '{"topic":"rare books"}' localhost:5000/api/content-explorer | python -c "import sys,json; d=json.load(sys.stdin); print(d['dry_run'], d['summary'])"
+curl -s localhost:5000/api/content-explorer/recent
+curl -s localhost:5000/api/content-explorer/1/csv | head -3
+```
+
+Then open **Content Explorer** in the frontend and search for a topic.

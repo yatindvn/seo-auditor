@@ -401,3 +401,14 @@ class AiRun(Base):
     dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
     calls: Mapped[int] = mapped_column(Integer, default=0)
     errors: Mapped[int] = mapped_column(Integer, default=0)
+
+class ContentSearch(Base):
+    """A Content Explorer search (Phase 7.2), reused for 7 days when live."""
+    __tablename__ = "content_searches"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    topic: Mapped[str] = mapped_column(String(80), index=True)
+    country: Mapped[str] = mapped_column(String(2))
+    language: Mapped[str] = mapped_column(String(2))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+    result_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)

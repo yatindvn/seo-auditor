@@ -4,20 +4,9 @@ import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AiOverview } from "@seo-auditor/shared";
 
+import { ChartFrame as Frame } from "@/components/platform/chart-frame";
 import { pct } from "@/lib/ai-visibility";
 import { SERIES_LIGHT } from "@/lib/platform-charts";
-
-function Frame({ title, asTable, onToggle, children }: { title: string; asTable: boolean; onToggle: () => void; children: React.ReactNode }) {
-  return (
-    <section className="min-w-0 rounded-[18px] border bg-card p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold tracking-tight">{title}</h2>
-        <button type="button" onClick={onToggle} className="rounded-full border px-3 py-1 text-xs active:scale-95">{asTable ? "Show as chart" : "Show as table"}</button>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export function MentionTrend({ trend }: { trend: AiOverview["trend"] }) {
   const [asTable, setAsTable] = useState(false);
