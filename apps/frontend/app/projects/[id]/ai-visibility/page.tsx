@@ -62,7 +62,8 @@ export default function AiVisibilityPage({ params }: { params: { id: string } })
                 <button type="button" onClick={runNow} disabled={busy} className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground active:scale-95 disabled:opacity-50">
                   {busy ? "Running…" : "Run now"}
                 </button>
-                <span className="text-xs text-muted-foreground">{estimate(enabledPrompts, configured.length)}: {enabledPrompts} prompts × {configured.length} models × ~$0.03</span>
+                <span className="text-xs text-muted-foreground">{o.dry_run ? `Dry run: no cost (${enabledPrompts} prompts × ${configured.length} models)`
+                  : `${estimate(enabledPrompts, configured.length)}: ${enabledPrompts} prompts × ${configured.length} models × ~$0.03`}</span>
                 <div className="flex flex-wrap gap-2">
                   {o.providers.map((pr) => (
                     <span key={pr.name} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">

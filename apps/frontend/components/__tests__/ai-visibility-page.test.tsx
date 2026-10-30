@@ -51,6 +51,7 @@ describe("AI Visibility tab", () => {
     render(<AiVisibilityPage params={{ id: "7" }} />);
     expect(await screen.findByText(/No runs yet/)).toBeInTheDocument();
     expect(screen.getAllByRole("note").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Dry run: no cost/)).toBeInTheDocument();
   });
 
   it("runs now with a cost estimate, and toggles weekly", async () => {
