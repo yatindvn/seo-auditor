@@ -710,4 +710,4 @@ A search has:
 
 The outline is the first 30 H2/H3 headings. `schema_types` comes from valid
 JSON-LD, including `@graph`. `issues` counts errors and warnings.
-`common_h2_terms` counts each word once per page.
+`common_h2_terms` leaves out the topic's own words and counts each word once per page.

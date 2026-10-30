@@ -40,13 +40,19 @@ def _median(values: List[Optional[float]]) -> Optional[int]:
     return round(statistics.median(present)) if present else None
 
 
-def summarize(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _stem(word: str) -> str:
+    return word[:-1] if word.endswith("s") and len(word) > 3 else word
+
+
+def summarize(rows: List[Dict[str, Any]], topic: str = "") -> Dict[str, Any]:
+    """H2 terms leave out the topic's own words: every result uses those."""
+    topic_stems = {_stem(w) for w in re.findall(r"[a-z]+", topic.lower())}
     fetched = [r for r in rows if r.get("word_count") is not None]
     schema = Counter(t for r in fetched for t in set(r.get("schema_types") or []))
     terms: Counter = Counter()
     for r in fetched:
         words = {w for h in r.get("outline") or [] if h.get("level") == 2
-                 for w in re.findall(r"[a-z]{3,}", (h.get("text") or "").lower()) if w not in STOP_WORDS}
+                 for w in re.findall(r"[a-z]{3,}", (h.get("text") or "").lower()) if w not in STOP_WORDS and _stem(w) not in topic_stems}
         terms.update(words)
     return {"median_words": _median([r["word_count"] for r in fetched]),
             "median_referring_domains": _median([r.get("referring_domains") for r in rows]),
@@ -100,7 +106,7 @@ def explore(topic: str, country: str = "US", language: str = "en", refresh: bool
     dry = not live_serp or bool(getattr(backlinks, "dry_run", False))
     with factory.begin() as session:
         row = ContentSearch(topic=topic, country=country, language=language, created_at=now, dry_run=dry,
-                            result_json={"summary": summarize(rows), "results": rows, "notes": notes})
+                            result_json={"summary": summarize(rows, topic), "results": rows, "notes": notes})
         session.add(row)
         session.flush()
         return _json(row, cached=False)

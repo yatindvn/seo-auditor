@@ -76,7 +76,7 @@ def test_live_search_is_analysed_saved_and_cached():
     first = explore("Rare Books", serp=serp, backlinks=Links(), fetch=fetch, now=NOW)
     assert first["cached"] is False and first["dry_run"] is False and len(first["results"]) == 10
     assert first["results"][0]["h1"] == "https://s1.com/p" and first["results"][2]["referring_domains"] == 30
-    assert first["summary"]["median_words"] > 300 and {"term": "rare", "count": 10} in first["summary"]["common_h2_terms"]
+    assert first["summary"]["median_words"] > 300 and {"term": "first", "count": 10} in first["summary"]["common_h2_terms"]
     again = explore("rare books", serp=serp, backlinks=Links(), fetch=fetch, now=NOW + timedelta(days=6))
     assert again["cached"] is True and again["id"] == first["id"] and serp.calls == 1
     fresh = explore("rare books", refresh=True, serp=serp, backlinks=Links(), fetch=fetch, now=NOW + timedelta(days=6))
@@ -102,3 +102,10 @@ def test_serp_failures_save_nothing_and_backlink_failures_only_note():
     r = explore("rare books", serp=LiveSerp(), backlinks=Links(ProviderSkipped("daily cap of 0")), fetch=fetch, now=NOW)
     assert r["notes"] == ["Backlinks skipped: daily cap of 0"] and r["results"][0]["word_count"] > 0
     assert r["results"][0]["backlinks"] is None
+
+
+def test_h2_terms_leave_out_the_topic_words():
+    rows = [{"word_count": 100, "schema_types": [], "referring_domains": None,
+             "outline": [{"level": 2, "text": "Rare book prices"}, {"level": 2, "text": "Buying rare books"}]}]
+    terms = [t["term"] for t in summarize(rows, topic="rare books")["common_h2_terms"]]
+    assert terms == ["buying", "prices"]
