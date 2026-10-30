@@ -34,6 +34,7 @@ class ProjectUpdate(BaseModel):
     audit_options: Optional[Dict[str, Any]] = None
     rank_schedule: Optional[Literal["daily"]] = None
     alert_settings: Optional[Dict[str, Any]] = None
+    gsc_property: Optional[str] = None
 
 
 def _factory():
@@ -63,6 +64,8 @@ def _project_json(session, project: Project) -> Dict[str, Any]:
         "audit_schedule": project.audit_schedule, "audit_options": project.audit_options_json,
         "rank_schedule": project.rank_schedule, "alert_settings": project.alert_settings_json or {},
         "audit_count": count,
+        "gsc_property": project.gsc_property,
+        "last_gsc_sync_at": as_utc(project.last_gsc_sync_at).isoformat() if project.last_gsc_sync_at else None,
         "latest_audit": None if latest is None else {
             "id": latest.id, "finished_at": as_utc(latest.finished_at).isoformat(),
             "health_score": latest.health_score,
@@ -109,6 +112,8 @@ def update_project(project_id: int, body: ProjectUpdate):
             project.rank_schedule = fields["rank_schedule"]
         if fields.get("alert_settings") is not None:
             project.alert_settings_json = fields["alert_settings"]
+        if "gsc_property" in fields:
+            project.gsc_property = (fields["gsc_property"] or "").strip() or None
         session.flush()
         return _project_json(session, project)
 
