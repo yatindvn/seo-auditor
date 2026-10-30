@@ -57,6 +57,9 @@ DATAFORSEO_PASSWORD = os.getenv("DATAFORSEO_PASSWORD", "")
 # ranked keywords). Separate from SERP_DAILY_CAP: these endpoints price
 # differently. Cache hits cost nothing and are not counted.
 DATAFORSEO_LABS_DAILY_CAP = int(os.getenv("DATAFORSEO_LABS_DAILY_CAP", "20"))
+# Hard daily cap on DataForSEO Backlinks API requests (Phase 6). About $0.024
+# a request plus $0.000036 a row; a snapshot is 5 requests (~$0.25).
+DATAFORSEO_BACKLINKS_DAILY_CAP = int(os.getenv("DATAFORSEO_BACKLINKS_DAILY_CAP", "20"))
 
 # --- Rank alerts -------------------------------------------------------------
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
