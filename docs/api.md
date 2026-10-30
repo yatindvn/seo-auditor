@@ -699,7 +699,7 @@ A new search costs about $0.05-0.08 in total.
 | Method | Path | Returns |
 | --- | --- | --- |
 | POST | `/api/content-explorer` | `{topic, country="US", language="en", refresh=false}` -> a search. 422 for a bad topic (2-80 chars) or code, 429 at the SERP cap, 502 for SERP errors; nothing is saved on errors |
-| GET | `/api/content-explorer/recent` | `{items: [{id, topic, country, language, created_at, dry_run}]}` (last 10) |
+| GET | `/api/content-explorer/recent` | `{items: [{id, topic, country, language, created_at, dry_run}]}`: the last 10 topics, each once (its newest search) |
 | GET | `/api/content-explorer/{id}` | A saved search (`cached: true`), 404 if missing |
 | GET | `/api/content-explorer/{id}/csv` | One row per result; dry-run files start with `# DRY RUN — made-up data` |
 

@@ -121,6 +121,13 @@ def get_search(search_id: int, factory=None) -> Optional[Dict[str, Any]]:
 def recent(limit: int = 10, factory=None) -> List[Dict[str, Any]]:
     with (factory or get_session_factory())() as session:
         rows = session.scalars(select(ContentSearch).order_by(desc(ContentSearch.created_at), desc(ContentSearch.id))
-                               .limit(limit)).all()
-        return [{"id": r.id, "topic": r.topic, "country": r.country, "language": r.language,
-                 "created_at": as_utc(r.created_at).isoformat(), "dry_run": r.dry_run} for r in rows]
+                               .limit(limit * 10)).all()
+        seen, out = set(), []
+        for r in rows:                       # each topic once: its newest search
+            key = (r.topic, r.country, r.language)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"id": r.id, "topic": r.topic, "country": r.country, "language": r.language,
+                        "created_at": as_utc(r.created_at).isoformat(), "dry_run": r.dry_run})
+        return out[:limit]

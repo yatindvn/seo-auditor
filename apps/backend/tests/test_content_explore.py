@@ -90,7 +90,7 @@ def test_dry_run_is_saved_but_never_served_from_cache():
     b = explore("rare books", serp=DryRunProvider(), backlinks=Links(), now=NOW)
     assert a["dry_run"] and b["dry_run"] and not b["cached"] and a["id"] != b["id"]
     assert get_search(a["id"])["cached"] is True and get_search(9999) is None
-    assert [r["id"] for r in recent()] == [b["id"], a["id"]]
+    assert [r["id"] for r in recent()] == [b["id"]]
 
 
 def test_serp_failures_save_nothing_and_backlink_failures_only_note():
@@ -109,3 +109,10 @@ def test_h2_terms_leave_out_the_topic_words():
              "outline": [{"level": 2, "text": "Rare book prices"}, {"level": 2, "text": "Buying rare books"}]}]
     terms = [t["term"] for t in summarize(rows, topic="rare books")["common_h2_terms"]]
     assert terms == ["buying", "prices"]
+
+
+def test_recent_lists_each_topic_once():
+    first = explore("rare books", serp=DryRunProvider(), backlinks=Links(), now=NOW)
+    other = explore("first editions", serp=DryRunProvider(), backlinks=Links(), now=NOW + timedelta(minutes=1))
+    latest = explore("rare books", serp=DryRunProvider(), backlinks=Links(), now=NOW + timedelta(minutes=2))
+    assert [r["id"] for r in recent()] == [latest["id"], other["id"]] and first["id"] not in [r["id"] for r in recent()]
