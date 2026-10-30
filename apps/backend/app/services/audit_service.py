@@ -22,6 +22,8 @@ from app.services import page_pipeline
 from app.accessibility.axe import AXE_VERSION, axe_available
 from app.accessibility.scoring import a11y_issues
 from app.analysis.sampling import select_pages
+from app.backlinks.audit import backlink_issues, broken_backlink_targets
+from app.db.projects import project_domain
 from app.gsc.inspect import gsc_issues, inspect_for_audit
 from app.rules import store as rules_store
 from app.rules.engine import rules_digest, summarize as summarize_rules
@@ -575,6 +577,15 @@ def _build_audit_result(
             if found:
                 all_page_issues.setdefault(insp.url, []).extend(found)
                 db.add_issues(insp.url, found)
+
+    # Broken pages that still have backlinks, from the project's latest backlink
+    # snapshot -- no API call here, and nothing without a snapshot.
+    try:
+        for page_url, found in backlink_issues(broken_backlink_targets(project_domain(url)), crawler.results).items():
+            all_page_issues.setdefault(page_url, []).extend(found)
+            db.add_issues(page_url, found)
+    except Exception as exc:
+        logger.error("Broken-backlink check failed: %s", exc, exc_info=exc)
 
     rules_summary = summarize_rules(
         custom_rules,

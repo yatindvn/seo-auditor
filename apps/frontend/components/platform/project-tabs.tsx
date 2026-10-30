@@ -10,6 +10,7 @@ export const TABS = [
   { suffix: "/audits", label: "Site Audit" },
   { suffix: "/ranks", label: "Rank Tracker" },
   { suffix: "/gap", label: "Content Gap" },
+  { suffix: "/backlinks", label: "Backlinks" },
   { suffix: "/search-console", label: "Search Console" },
   { suffix: "/rules", label: "Custom Rules" },
 ];
