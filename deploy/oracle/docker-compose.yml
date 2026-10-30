@@ -93,7 +93,10 @@ services:
     environment:
       POSTGRES_USER: seo
       POSTGRES_DB: seo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      # Not ${VAR:?}: compose checks that even with the profile off, which
+      # stopped the default SQLite deploy. Postgres itself refuses to start
+      # without a password, so a missing one still fails loudly.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
