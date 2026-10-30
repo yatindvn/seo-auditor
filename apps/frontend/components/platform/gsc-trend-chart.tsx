@@ -11,7 +11,7 @@ export function GscTrendChart({ title, data, dataKey }: {
 }) {
   const [asTable, setAsTable] = useState(false);
   return (
-    <section className="rounded-[18px] border bg-card p-5">
+    <section className="min-w-0 rounded-[18px] border bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold tracking-tight">{title}</h2>
         <button type="button" onClick={() => setAsTable((v) => !v)} className="rounded-full border px-3 py-1 text-xs active:scale-95">

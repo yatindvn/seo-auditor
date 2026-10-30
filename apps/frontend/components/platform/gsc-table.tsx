@@ -19,7 +19,7 @@ export function GscTable({ projectId, kind }: { projectId: number; kind: "pages"
   const fetcher = kind === "pages" ? Platform.gscPages : Platform.gscQueries;
   const state = useApi(() => fetcher(projectId, sort, offset), [projectId, kind, sort, offset]);
   return (
-    <section className="rounded-[18px] border bg-card p-5">
+    <section className="min-w-0 rounded-[18px] border bg-card p-5">
       <h2 className="mb-3 font-semibold tracking-tight">{kind === "pages" ? "Top pages" : "Top queries"} <span className="text-xs font-normal text-muted-foreground">(28 days)</span></h2>
       <AsyncState state={state} isEmpty={(d) => d.items.length === 0} emptyTitle="No data yet" emptyText="Run a sync to load Search Console data.">
         {(d) => (
