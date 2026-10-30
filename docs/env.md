@@ -36,6 +36,7 @@
 | `RANK_DEPTH` | Results requested per tracked keyword (DataForSEO max 200; Google CSE returns at most 10) | `100` |
 | `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO API credentials | `""` |
 | `DATAFORSEO_LABS_DAILY_CAP` | Hard daily cap on DataForSEO keyword-data calls (search volume, difficulty, ranked keywords). Cache hits are free and not counted | `20` |
+| `DATAFORSEO_BACKLINKS_DAILY_CAP` | Hard daily cap on DataForSEO Backlinks API requests (a snapshot is 5 requests, about $0.25) | `20` |
 | `PSI_API_KEY` | Google PageSpeed Insights key for Core Web Vitals. Empty = PSI not used | `""` |
 | `PSI_DAILY_CAP` | Hard daily cap on PSI calls | `50` |
 | `PSI_MAX_PAGES` | Pages measured per audit (start URL + top pages by internal PageRank) | `5` |

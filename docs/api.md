@@ -572,3 +572,47 @@ clicks / impressions, and position is impression-weighted:
 - `pages`: crawled pages with their clicks, sorted by clicks
 - `not_crawled`: pages with impressions that the crawl didn't reach (often a
   sign they aren't linked internally)
+
+---
+
+## Backlinks
+
+Data from DataForSEO's Backlinks API: pay-as-you-go, about $0.024 per request
+plus $0.000036 per row. It's live only with `SERP_PROVIDER=dataforseo`, the
+credentials set and `SERP_DRY_RUN=false`; otherwise it's made-up preview data.
+Every request counts against `DATAFORSEO_BACKLINKS_DAILY_CAP`. Your DataForSEO
+account may need the Backlinks API activated; an error such as `40104` says so.
+
+**A snapshot** (`POST /api/projects/{id}/backlinks/refresh`, about $0.25) fetches:
+- the summary (authority, backlinks, referring domains, broken backlinks)
+- the top 100 referring domains
+- the top 100 new links, lost links (last 30 days) and broken backlinks
+
+A project's first snapshot also stores 12 months of DataForSEO history.
+**Authority is DataForSEO's rank (0-1000)**, not a Google metric.
+Weekly refreshes are **opt-in per project**
+(`PATCH /api/projects/{id} {"backlink_schedule": "weekly"}`) and never run on
+dry-run data.
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| GET | `/api/projects/{id}/backlinks` | `{dry_run_provider, schedule, last_refresh_at, latest, previous, history}` |
+| GET | `/api/projects/{id}/backlinks/referring-domains?limit&offset` | `{total, items: [{domain, rank, backlinks, first_seen}]}` |
+| GET | `/api/projects/{id}/backlinks/links?kind=new,lost,broken&limit&offset` | `{total, items: [{url_from, url_to, anchor, domain_from_rank, dofollow, first_seen, last_seen, target_status, crawled_status?}]}` |
+| POST | `/api/projects/{id}/backlinks/refresh` | `{status: refreshed / capped / error, snapshot_id?, dry_run, history_months?, message?}` |
+| POST | `/api/projects/{id}/backlinks/gap` | `{competitors?}` -> `{my_domain, competitors, dry_run, rows: [{domain, rank, linked_count, backlinks_by_competitor}]}`; 400 unless 1-5 competitors, 429 at the cap, 502 for DataForSEO errors |
+
+```json
+{"latest": {"taken_at": "2026-10-30T10:00:00+00:00", "authority": 412, "backlinks": 18230,
+            "referring_domains": 640, "broken_backlinks": 3, "dry_run": false},
+ "history": [{"date": "2026-09-01", "authority": 400, "backlinks": 18000, "referring_domains": 600, "source": "history"}]}
+```
+
+**The link gap** lists domains that link to the chosen competitors (default:
+the project's Rank Tracker competitors) but not to you. It's sorted by how
+many competitors each one links to, runs only on request (about
+$0.05-0.10), and isn't stored.
+
+**Audits:** a crawled page with status >= 400 that is the target of broken
+backlinks in the latest snapshot gets `BACKLINK_TO_BROKEN_PAGE` (warning).
+There's no API call during audits.

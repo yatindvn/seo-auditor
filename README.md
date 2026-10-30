@@ -412,3 +412,39 @@ Expected: `inspected sc-domain:books.toscrape.com` with a few verdicts, then
 a sync with `"status": "synced"` and `"dry_run": true`, then KPIs. Open the
 project's **Search Console** tab. A "Preview data" banner shows while dry run
 is on.
+
+---
+
+## Backlinks (Phase 6)
+
+A **Backlinks** tab per project, with data from DataForSEO:
+- authority (DataForSEO's rank, 0-1000, labelled as theirs), referring
+  domains, backlinks and broken backlinks, with the change since the last
+  snapshot
+- growth charts (12 months of history from the first snapshot)
+- top referring domains, plus new, lost and broken links
+- a **link gap**: domains linking to your competitors but not to you
+
+- **Refreshing:** press **Refresh now** (about $0.25), or switch on **Weekly
+  refresh** for the project (off by default). A hard daily cap applies
+  (`DATAFORSEO_BACKLINKS_DAILY_CAP`, default 20 requests).
+- **Audits:** a broken page that still has backlinks gets
+  `BACKLINK_TO_BROKEN_PAGE`, so you know to redirect it.
+- **Dry run:** without live DataForSEO everything is made-up preview data,
+  with a banner, and the weekly job never runs.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_backlinks_provider.py tests/test_backlinks_storage.py tests/test_backlinks_snapshot.py tests/test_backlinks_gap_audit.py tests/test_backlinks_api.py -q
+export SESSION_DIR=/tmp/seo-backlinks          # DataForSEO not configured = dry run
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links   # creates project 1
+python -m uvicorn app.main:app --port 5000 &
+curl -s -X POST localhost:5000/api/projects/1/backlinks/refresh
+curl -s localhost:5000/api/projects/1/backlinks | python -c "import sys,json; d=json.load(sys.stdin); print(d['dry_run_provider'], d['latest'])"
+curl -s -X POST -H 'Content-Type: application/json' -d '{"domain":"amazon.com"}' localhost:5000/api/projects/1/competitors
+curl -s -X POST -H 'Content-Type: application/json' -d '{}' localhost:5000/api/projects/1/backlinks/gap | python -c "import sys,json; print(json.load(sys.stdin)['rows'][:2])"
+```
+
+Then open the project's **Backlinks** tab.
