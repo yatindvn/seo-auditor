@@ -44,6 +44,11 @@
 | `LIGHTHOUSE_CLI` | Path to Lighthouse's `cli/index.js`; found via `npm root -g` when empty | `""` |
 | `RENDER_MAX_PAGES` | Pages rendered in headless Chromium per audit when `render_js` is on | `20` |
 | `RENDER_TIMEOUT_MS` | Per-page navigation timeout for rendering | `20000` |
+| `GSC_SERVICE_ACCOUNT_FILE` | Path to a Google service account's JSON key for Search Console (read-only). Empty = not used | `""` |
+| `GSC_DRY_RUN` | `true` = made-up Search Console data, to try the UI without Google | `false` |
+| `GSC_DAILY_CAP` | Hard daily cap on Search Console analytics calls | `100` |
+| `GSC_INSPECT_DAILY_CAP` | Hard daily cap on URL Inspection calls | `200` |
+| `GSC_INSPECT_MAX_PAGES` | Pages inspected per audit | `20` |
 | `GOOGLE_CSE_DAILY_QUOTA` | Daily cap on Google CSE calls, now counted in the database and shared by audits and rank tracking | `100` |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook for rank alerts | `""` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP server for email alerts (STARTTLS) | `""` / `587` |

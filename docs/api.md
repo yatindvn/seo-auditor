@@ -520,3 +520,55 @@ POST /api/projects/1/rules/test
 
 → {"applies": true, "passed": false, "observed": "Shop", "issue": {"severity": "warning", "code": "CUSTOM_0", "message": "Brand: Title contains '| Brand'", ...}}
 ```
+
+---
+
+## Google Search Console
+
+**Setup:**
+1. In Google Cloud, create a service account and enable the "Google Search Console API".
+2. Create a JSON key for it and point `GSC_SERVICE_ACCOUNT_FILE` at the file.
+3. In Search Console -> Settings -> Users and permissions, add the service
+   account's email as a user on each property.
+
+`GSC_DRY_RUN=true` uses made-up data instead (rows are marked `dry_run`).
+
+**Sync:** daily per project via the scheduler, or `POST
+/api/projects/{id}/gsc/sync`. Data ends two days ago (Search Console's lag):
+- daily totals for 90 days, kept and upserted, so history outlives Google's 16 months
+- the top 1,000 pages and queries for 28 days, replaced each sync
+
+The property is matched automatically (`sc-domain:<domain>` first), or set
+with `PATCH /api/projects/{id} {"gsc_property": "..."}`.
+
+**Audits:** when Search Console is set up for the site, up to
+`GSC_INSPECT_MAX_PAGES` important pages are inspected with URL Inspection
+(`enable_gsc: false` or `--no-gsc` skips it). Issues:
+- `GSC_NOT_INDEXED` (warning): Google's verdict is FAIL or NEUTRAL, unless the
+  page is deliberately `noindex`
+- `GSC_CANONICAL_MISMATCH` (info): Google chose a different canonical
+
+The result carries `gsc_status` (`inspected`, `disabled`, `not_configured`,
+`no_property` or `error`), `gsc_property`, `gsc_dry_run` and `gsc_inspections`.
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| GET | `/api/gsc/sites` | `{configured, dry_run, client_email, sites}`; 502 with Google's message on error |
+| GET | `/api/projects/{id}/gsc` | `{configured, dry_run, client_email, property, last_sync_at, kpis, previous_kpis, daily}` |
+| GET | `/api/projects/{id}/gsc/pages?sort=clicks,impressions,ctr,position&limit&offset` | `{total, items: [{key, clicks, impressions, ctr, position}]}` |
+| GET | `/api/projects/{id}/gsc/queries?...` | same shape |
+| POST | `/api/projects/{id}/gsc/sync` | `{status: synced / no_access / error, property, ...}`; 409 when not configured |
+| GET | `/api/audits/{id}/gsc` | `{status, property, dry_run, inspections, pages, not_crawled}` |
+
+KPIs cover the last 28 days of daily data vs the 28 before. CTR is
+clicks / impressions, and position is impression-weighted:
+
+```json
+{"kpis": {"clicks": 560, "impressions": 2800, "ctr": 0.2, "position": 5.0},
+ "previous_kpis": {"clicks": 280, "impressions": 2800, "ctr": 0.1, "position": 10.0}}
+```
+
+`/api/audits/{id}/gsc` joins the latest page data to the crawl:
+- `pages`: crawled pages with their clicks, sorted by clicks
+- `not_crawled`: pages with impressions that the crawl didn't reach (often a
+  sign they aren't linked internally)
