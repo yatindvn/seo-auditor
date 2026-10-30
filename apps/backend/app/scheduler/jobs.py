@@ -122,6 +122,37 @@ def run_due_rank_checks(now: Optional[datetime] = None, runner=None, provider=No
     return checked
 
 
+def run_due_gsc_syncs(now: Optional[datetime] = None, provider=None) -> List[int]:
+    """Daily Search Console sync for every project. Only when a provider is
+    configured; a failure on one project doesn't stop the others."""
+    from app.gsc.provider import build_gsc_provider
+    from app.gsc.sync import sync_project
+
+    provider = provider if provider is not None else build_gsc_provider()
+    if provider is None:
+        return []
+    now = now or utcnow()
+    factory = get_session_factory()
+    with factory() as session:
+        due = [(p.id, p.last_gsc_sync_at) for p in session.scalars(select(Project)).all()
+               if p.last_gsc_sync_at is None or now - as_utc(p.last_gsc_sync_at) >= timedelta(days=1)]
+    synced: List[int] = []
+    for project_id, previous in due:
+        with factory() as session:
+            if not claim(session, project_id, previous, now, column=Project.last_gsc_sync_at):
+                continue
+        try:
+            result = sync_project(project_id, provider, today=now.date())
+            if result["status"] == "synced":
+                synced.append(project_id)
+            else:
+                logger.warning("Search Console sync of project %s: %s %s", project_id, result["status"],
+                               result.get("message", ""))
+        except Exception as exc:
+            logger.error("Search Console sync of project %s failed: %s", project_id, exc, exc_info=exc)
+    return synced
+
+
 def start_scheduler():
     from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -129,6 +160,8 @@ def start_scheduler():
     scheduler.add_job(run_due_audits, "interval", minutes=15, id="run_due_audits",
                       max_instances=1, coalesce=True)
     scheduler.add_job(run_due_rank_checks, "interval", minutes=15, id="run_due_rank_checks",
+                      max_instances=1, coalesce=True)
+    scheduler.add_job(run_due_gsc_syncs, "interval", minutes=60, id="run_due_gsc_syncs",
                       max_instances=1, coalesce=True)
     scheduler.start()
     return scheduler
