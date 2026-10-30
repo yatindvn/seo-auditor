@@ -187,6 +187,35 @@ def run_due_backlink_refreshes(now: Optional[datetime] = None, provider=None) ->
     return refreshed
 
 
+def run_due_ai_visibility(now: Optional[datetime] = None, providers=None) -> List[int]:
+    """Weekly AI Visibility runs for projects that opted in. Never when every
+    model is a dry run: made-up answers must not pile up on a schedule."""
+    from app.ai_visibility.providers import configured_providers
+    from app.ai_visibility.run import run_project
+
+    providers = providers if providers is not None else configured_providers()
+    if not providers or all(p.dry_run for p in providers):
+        logger.warning("Scheduled AI Visibility runs skipped: no live AI provider")
+        return []
+    now = now or utcnow()
+    factory = get_session_factory()
+    with factory() as session:
+        due = [(p.id, p.last_ai_run_at) for p in session.scalars(select(Project).where(Project.ai_schedule == "weekly")).all()
+               if p.last_ai_run_at is None or now - as_utc(p.last_ai_run_at) >= timedelta(days=7)]
+    ran: List[int] = []
+    for project_id, previous in due:
+        with factory() as session:
+            if not claim(session, project_id, previous, now, column=Project.last_ai_run_at):
+                continue
+        try:
+            result = run_project(project_id, providers=providers, trigger="scheduled")
+            if result["status"] == "ran":
+                ran.append(project_id)
+        except Exception as exc:
+            logger.error("AI Visibility run of project %s failed: %s", project_id, exc, exc_info=exc)
+    return ran
+
+
 def start_scheduler():
     from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -198,6 +227,8 @@ def start_scheduler():
     scheduler.add_job(run_due_gsc_syncs, "interval", minutes=60, id="run_due_gsc_syncs",
                       max_instances=1, coalesce=True)
     scheduler.add_job(run_due_backlink_refreshes, "interval", hours=6, id="run_due_backlink_refreshes",
+                      max_instances=1, coalesce=True)
+    scheduler.add_job(run_due_ai_visibility, "interval", hours=6, id="run_due_ai_visibility",
                       max_instances=1, coalesce=True)
     scheduler.start()
     return scheduler

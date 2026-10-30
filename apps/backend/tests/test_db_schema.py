@@ -11,7 +11,7 @@ from app.db.projects import get_or_create_project, project_domain
 
 TABLES = {
     "projects", "audits", "audit_pages", "audit_issues", "keywords", "rank_checks",
-    "competitors", "backlink_snapshots", "ai_visibility_runs", "web_vitals", "render_comparisons", "accessibility_results", "custom_rules", "gsc_daily", "gsc_pages", "gsc_queries", "gsc_inspections", "backlink_ref_domains", "backlink_links",
+    "competitors", "backlink_snapshots", "ai_visibility_runs", "web_vitals", "render_comparisons", "accessibility_results", "custom_rules", "gsc_daily", "gsc_pages", "gsc_queries", "gsc_inspections", "backlink_ref_domains", "backlink_links", "ai_prompts", "ai_brand_terms", "ai_runs",
 }
 
 

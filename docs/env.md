@@ -50,6 +50,16 @@
 | `GSC_DAILY_CAP` | Hard daily cap on Search Console analytics calls | `100` |
 | `GSC_INSPECT_DAILY_CAP` | Hard daily cap on URL Inspection calls | `200` |
 | `GSC_INSPECT_MAX_PAGES` | Pages inspected per audit | `20` |
+| `ANTHROPIC_API_KEY` | Anthropic key for AI Visibility (Claude with web search). Empty = Claude not used | `""` |
+| `ANTHROPIC_MODEL` | Claude model asked | `claude-sonnet-5` |
+| `OPENAI_API_KEY` | OpenAI key for AI Visibility (Responses API with web search) | `""` |
+| `OPENAI_MODEL` | OpenAI model asked; required with the key (no default) | `""` |
+| `GEMINI_API_KEY` | Gemini API key for AI Visibility (Google Search grounding) | `""` |
+| `GEMINI_MODEL` | Gemini model asked; required with the key (no default) | `""` |
+| `ANTHROPIC_WEB_SEARCH_TOOL` | Claude web-search tool version | `web_search_20250305` |
+| `OPENAI_WEB_SEARCH_TOOL` | OpenAI web-search tool type | `web_search` |
+| `AI_VISIBILITY_DRY_RUN` | `true` = made-up answers even with keys set (also the behaviour with no keys) | `false` |
+| `AI_VISIBILITY_DAILY_CAP` | Hard daily cap on AI calls (one prompt x one model = one call) | `30` |
 | `GOOGLE_CSE_DAILY_QUOTA` | Daily cap on Google CSE calls, now counted in the database and shared by audits and rank tracking | `100` |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook for rank alerts | `""` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` | SMTP server for email alerts (STARTTLS) | `""` / `587` |

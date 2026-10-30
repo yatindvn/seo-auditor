@@ -45,6 +45,8 @@ class Project(Base):
     last_gsc_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     backlink_schedule: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     last_backlink_refresh_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ai_schedule: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    last_ai_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     audits = relationship("Audit", back_populates="project")
 
@@ -160,6 +162,17 @@ class AiVisibilityRun(Base):
     provider: Mapped[str] = mapped_column(String(32))
     prompt: Mapped[str] = mapped_column(Text)
     result_json: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    run_id: Mapped[Optional[int]] = mapped_column(ForeignKey("ai_runs.id", ondelete="CASCADE", name="fk_ai_visibility_runs_run_id"), nullable=True, index=True)
+    prompt_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    model: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    answer: Mapped[str] = mapped_column(Text, default="", server_default="")
+    mentioned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    brands_json: Mapped[Optional[List[str]]] = mapped_column(JSON, default=list, nullable=True)
+    cited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    citations_json: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, default=list, nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class ProviderUsage(Base):
@@ -355,3 +368,36 @@ class BacklinkLink(Base):
     first_seen: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     last_seen: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     target_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+
+class AiPrompt(Base):
+    """A question tracked for AI Visibility (Phase 7.1)."""
+    __tablename__ = "ai_prompts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AiBrandTerm(Base):
+    """A name or alias a brand (the project's or a competitor's) is matched by."""
+    __tablename__ = "ai_brand_terms"
+    __table_args__ = (UniqueConstraint("project_id", "owner", "term", name="uq_ai_brand_terms_owner_term"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    owner: Mapped[str] = mapped_column(String(255))
+    term: Mapped[str] = mapped_column(String(100))
+
+
+class AiRun(Base):
+    """One AI Visibility run: every enabled prompt asked of every model."""
+    __tablename__ = "ai_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    trigger: Mapped[str] = mapped_column(String(16))
+    dry_run: Mapped[bool] = mapped_column(Boolean, default=False)
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)

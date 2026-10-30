@@ -101,3 +101,17 @@ GOOGLE_CSE_CACHE_TTL_HOURS = int(os.getenv("GOOGLE_CSE_CACHE_TTL_HOURS", "24"))
 # to a wildcard *without* credentials rather than the invalid wildcard+credentials
 # pair. Set this in any deployment where the frontend is on another domain.
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
+# AI Visibility (Phase 7.1): prompts asked of AI models with their own web
+# search. Each provider runs only with its key (and, for OpenAI and Gemini, a
+# model you choose). No keys at all = made-up dry-run answers.
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+ANTHROPIC_WEB_SEARCH_TOOL = os.getenv("ANTHROPIC_WEB_SEARCH_TOOL", "web_search_20250305")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
+OPENAI_WEB_SEARCH_TOOL = os.getenv("OPENAI_WEB_SEARCH_TOOL", "web_search")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "")
+AI_VISIBILITY_DRY_RUN = os.getenv("AI_VISIBILITY_DRY_RUN", "").strip().lower() in ("1", "true", "yes")
+AI_VISIBILITY_DAILY_CAP = int(os.getenv("AI_VISIBILITY_DAILY_CAP", "30"))

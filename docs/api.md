@@ -616,3 +616,59 @@ $0.05-0.10), and isn't stored.
 **Audits:** a crawled page with status >= 400 that is the target of broken
 backlinks in the latest snapshot gets `BACKLINK_TO_BROKEN_PAGE` (warning).
 There's no API call during audits.
+
+---
+
+## AI Visibility
+
+Each enabled prompt is asked of every configured model, and each model uses
+its own web search:
+- **Claude:** Messages API with the `web_search` tool
+- **OpenAI:** Responses API with `web_search`
+- **Gemini:** `generateContent` with Google Search grounding
+
+That costs roughly $0.02-0.05 per prompt per model. Every call counts against
+`AI_VISIBILITY_DAILY_CAP`.
+
+- **Dry run:** with no keys at all, or with `AI_VISIBILITY_DRY_RUN=true`,
+  answers are made-up and stored as `dry_run`.
+- **Missing model:** OpenAI and Gemini need `OPENAI_MODEL` / `GEMINI_MODEL`.
+  Without one, that provider is skipped and the overview says what to set.
+- **Keys:** never logged or returned. An error reads like
+  `claude HTTP 401: <message>`.
+
+**How an answer is scored** (case-insensitive, whole words):
+- **Brands:** the project (its domain, its name and its aliases) and each Rank
+  Tracker competitor (its domain and aliases).
+- **Mentioned:** the answer names the project.
+- **Position:** the project's order among the tracked brands the answer
+  names (1 = named first).
+- **Cited:** a citation's domain is the project's domain or a subdomain.
+  Gemini cites through Google redirect links, so their domain comes from the
+  link title.
+- **Share of voice:** for each brand, the share of the latest run's answers
+  (excluding failed calls) that name it.
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| GET | `/api/projects/{id}/ai-visibility` | `{providers, dry_run, schedule, last_run_at, latest, previous, trend, share_of_voice, top_cited}` |
+| GET | `/api/projects/{id}/ai-visibility/prompts` | `{items: [{id, text, enabled}]}` |
+| POST | `/api/projects/{id}/ai-visibility/prompts` | `{text}` (1-300 chars) -> 201 prompt; 409 past 25 prompts |
+| PATCH | `/api/ai-prompts/{id}` | `{text?, enabled?}` -> prompt |
+| DELETE | `/api/ai-prompts/{id}` | 204 |
+| GET | `/api/projects/{id}/ai-visibility/brands` | `{self: {domain, terms}, competitors: [{domain, terms}]}` |
+| PUT | `/api/projects/{id}/ai-visibility/brands` | `{self?: [terms], competitors?: {domain: [terms]}}`; 1-100 chars, at most 10 per brand (422); unknown competitor 400 |
+| POST | `/api/projects/{id}/ai-visibility/run` | `{status: ran / no_prompts / not_configured, run_id?, calls?, errors?, dry_run?, mention_rate?}` |
+| GET | `/api/projects/{id}/ai-visibility/answers?run_id&provider&prompt_id&limit&offset` | `{run_id, total, items: [{prompt, provider, model, mentioned, position, brands, cited, citations, error, answer, highlights: [{start, end, owner}]}]}` |
+
+```json
+{"latest": {"run_id": 2, "mention_rate": 0.75, "avg_position": 1.33, "cited_rate": 0.75, "dry_run": false,
+            "by_provider": {"claude": {"mention_rate": 1.0, "avg_position": 1.0, "cited_rate": 1.0}}},
+ "share_of_voice": [{"owner": "books.toscrape.com", "is_self": true, "rate": 0.75},
+                    {"owner": "amazon.com", "is_self": false, "rate": 0.25}],
+ "top_cited": [{"domain": "books.toscrape.com", "count": 3, "is_self": true}]}
+```
+
+**Weekly runs** are opt-in per project
+(`PATCH /api/projects/{id} {"ai_schedule": "weekly"}`) and never run when
+every model is a dry run.

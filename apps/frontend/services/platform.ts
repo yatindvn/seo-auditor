@@ -4,6 +4,7 @@ import type {
   CustomRule, NewRule, RuleTestResult, RuleSummary,
   AuditGsc, GscList, GscOverview, GscSites, GscSort, GscSyncResult,
   BacklinkKind, BacklinkOverview, BacklinkRefresh, BacklinkRow, LinkGapResult, RefDomainRow,
+  AiAnswer, AiBrands, AiOverview, AiPrompt, AiRunResult,
 } from "@seo-auditor/shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -49,7 +50,7 @@ export interface NewKeyword { phrase: string; country?: string; device?: "deskto
 
 export const Platform = {
   listProjects: () => request<{ items: ProjectSummary[] }>("/projects"),
-  updateProject: (id: number, body: Partial<{ name: string; rank_schedule: "daily" | null; alert_settings: AlertSettings; gsc_property: string; backlink_schedule: "weekly" | null }>) =>
+  updateProject: (id: number, body: Partial<{ name: string; rank_schedule: "daily" | null; alert_settings: AlertSettings; gsc_property: string; backlink_schedule: "weekly" | null; ai_schedule: "weekly" | null }>) =>
     request<ProjectSummary>(`/projects/${id}`, patch(body)),
   listAudits: (id: number, limit = 50, offset = 0) =>
     request<PageList<AuditListItem>>(`/projects/${id}/audits?limit=${limit}&offset=${offset}`),
@@ -77,6 +78,17 @@ export const Platform = {
   backlinkLinks: (id: number, kind: BacklinkKind, offset = 0) => request<{ total: number; items: BacklinkRow[] }>(`/projects/${id}/backlinks/links?kind=${kind}&limit=50&offset=${offset}`),
   refreshBacklinks: (id: number) => request<BacklinkRefresh>(`/projects/${id}/backlinks/refresh`, post()),
   backlinkGap: (id: number, competitors?: string[]) => request<LinkGapResult>(`/projects/${id}/backlinks/gap`, post(competitors ? { competitors } : {})),
+  aiOverview: (id: number) => request<AiOverview>(`/projects/${id}/ai-visibility`),
+  aiPrompts: (id: number) => request<{ items: AiPrompt[] }>(`/projects/${id}/ai-visibility/prompts`),
+  addAiPrompt: (id: number, text: string) => request<AiPrompt>(`/projects/${id}/ai-visibility/prompts`, post({ text })),
+  updateAiPrompt: (promptId: number, body: { text?: string; enabled?: boolean }) => request<AiPrompt>(`/ai-prompts/${promptId}`, patch(body)),
+  deleteAiPrompt: (promptId: number) => request<void>(`/ai-prompts/${promptId}`, { method: "DELETE" }),
+  aiBrands: (id: number) => request<AiBrands>(`/projects/${id}/ai-visibility/brands`),
+  saveAiBrands: (id: number, body: { self?: string[]; competitors?: Record<string, string[]> }) =>
+    request<AiBrands>(`/projects/${id}/ai-visibility/brands`, { method: "PUT", body: JSON.stringify(body) }),
+  runAi: (id: number) => request<AiRunResult>(`/projects/${id}/ai-visibility/run`, post()),
+  aiAnswers: (id: number, runId?: number) => request<{ run_id: number | null; total: number; items: AiAnswer[] }>(
+    `/projects/${id}/ai-visibility/answers${runId != null ? `?run_id=${runId}` : ""}`),
   vitalsTrend: (id: number, limit = 30) => request<VitalsTrend>(`/projects/${id}/vitals/trend?limit=${limit}`),
 
   listKeywords: (id: number) => request<{ items: TrackedKeyword[] }>(`/projects/${id}/keywords`),

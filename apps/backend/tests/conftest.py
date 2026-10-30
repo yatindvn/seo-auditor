@@ -73,3 +73,7 @@ def no_live_web_vitals(monkeypatch):
     monkeypatch.setattr(app_config, "LIGHTHOUSE_ENABLED", False)
     monkeypatch.setattr(app_config, "GSC_SERVICE_ACCOUNT_FILE", "")
     monkeypatch.setattr(app_config, "GSC_DRY_RUN", False)
+
+    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setattr(app_config, name, "")
+    monkeypatch.setattr(app_config, "AI_VISIBILITY_DRY_RUN", False)

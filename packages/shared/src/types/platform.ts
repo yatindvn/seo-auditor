@@ -19,6 +19,8 @@ export interface ProjectSummary {
   gsc_property?: string | null;
   last_gsc_sync_at?: string | null;
   backlink_schedule?: "weekly" | null;
+  ai_schedule?: "weekly" | null;
+  last_ai_run_at?: string | null;
   last_backlink_refresh_at?: string | null;
 }
 
@@ -311,3 +313,25 @@ export type BacklinkKind = "new" | "lost" | "broken";
 export interface BacklinkRefresh { status: "refreshed" | "capped" | "error"; snapshot_id?: number; dry_run: boolean; history_months?: number; message?: string }
 export interface LinkGapRow { domain: string; rank: number | null; linked_count: number; backlinks_by_competitor: Record<string, number> }
 export interface LinkGapResult { my_domain: string; competitors: string[]; dry_run: boolean; rows: LinkGapRow[] }
+
+// AI Visibility (backend Phase 7.1).
+export interface AiProviderStatus { name: string; model: string | null; dry_run: boolean; configured: boolean; hint: string | null }
+export interface AiRates { mention_rate: number | null; avg_position: number | null; cited_rate: number | null }
+export interface AiRunSummary extends AiRates {
+  run_id: number; started_at: string; dry_run: boolean; calls: number; errors: number; by_provider: Record<string, AiRates>;
+}
+export interface AiOverview {
+  providers: AiProviderStatus[]; dry_run: boolean; schedule: "weekly" | null; last_run_at: string | null;
+  latest: AiRunSummary | null; previous: AiRunSummary | null;
+  trend: { run_id: number; started_at: string; mention_rate: number | null; by_provider: Record<string, number | null> }[];
+  share_of_voice: { owner: string; is_self: boolean; rate: number }[];
+  top_cited: { domain: string; count: number; is_self: boolean }[];
+}
+export interface AiPrompt { id: number; text: string; enabled: boolean }
+export interface AiBrands { self: { domain: string; terms: string[] }; competitors: { domain: string; terms: string[] }[] }
+export interface AiAnswer {
+  id: number; prompt: string; provider: string; model: string; mentioned: boolean; position: number | null; brands: string[];
+  cited: boolean; citations: { url: string; title: string }[]; error: string | null; answer: string;
+  highlights: { start: number; end: number; owner: string }[];
+}
+export interface AiRunResult { status: "ran" | "no_prompts" | "not_configured"; run_id?: number; calls?: number; errors?: number; dry_run?: boolean; mention_rate?: number | null }
