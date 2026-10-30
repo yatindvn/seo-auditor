@@ -46,8 +46,8 @@ export function RecommendationsList({ recommendations }: RecommendationsListProp
             onOpenChange={() => toggleItem(idx)}
             className="rounded-xl border border-border/70 bg-card p-4 transition-all hover:border-border hover:shadow-sm"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-1 items-start gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <div className="flex min-w-0 flex-1 basis-60 items-start gap-3">
                 <Badge
                   variant={
                     rec.severity === "critical"
@@ -60,12 +60,12 @@ export function RecommendationsList({ recommendations }: RecommendationsListProp
                 >
                   {severityInfo.label}
                 </Badge>
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <p className="text-sm font-medium leading-snug text-foreground">
                     {rec.recommendation}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Code: <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono">{rec.code}</code> &middot; Priority Score: {rec.priority_score}
+                    Code: <code className="break-all rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono">{rec.code}</code> &middot; Priority Score: {rec.priority_score}
                   </p>
                 </div>
               </div>
