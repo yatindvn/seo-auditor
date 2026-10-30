@@ -81,7 +81,7 @@ Rows are never deleted; the cache rule only skips old ones.
 | Method | Path | Notes |
 | --- | --- | --- |
 | POST | `/api/content-explorer` | Body `{topic, country="US", language="en", refresh=false}`. Returns the search. 422 for bad input, 429 at the SERP cap, 502 when the SERP provider fails |
-| GET | `/api/content-explorer/recent` | The last 10 searches: `[{id, topic, country, language, created_at, dry_run}]` |
+| GET | `/api/content-explorer/recent` | The last 10 searches: `{items: [{id, topic, country, language, created_at, dry_run}]}` |
 | GET | `/api/content-explorer/{id}` | A saved search (`cached: true`), or 404 |
 | GET | `/api/content-explorer/{id}/csv` | One row per result. A dry-run search starts with the same preview line Keywords Explorer's CSV uses |
 
