@@ -40,3 +40,7 @@ playwright>=1.48
 # Custom rules (Phase 5.4) compile CSS selectors when a rule is saved. Always
 # installed with beautifulsoup4, but imported directly, so declared directly.
 soupsieve>=2.5
+
+# Google Search Console (Phase 5.5): service-account auth for the read-only
+# Search Console API. Only used when GSC_SERVICE_ACCOUNT_FILE is set.
+google-auth>=2.20

@@ -82,6 +82,13 @@ LIGHTHOUSE_CLI = os.getenv("LIGHTHOUSE_CLI", "")
 # are rendered in headless Chromium and compared with their raw HTML.
 RENDER_MAX_PAGES = int(os.getenv("RENDER_MAX_PAGES", "20"))
 RENDER_TIMEOUT_MS = int(os.getenv("RENDER_TIMEOUT_MS", "20000"))
+# Google Search Console (Phase 5.5): a service account's JSON key, with its
+# email added as a user on each property. Free API, but quota'd, so capped.
+GSC_SERVICE_ACCOUNT_FILE = os.getenv("GSC_SERVICE_ACCOUNT_FILE", "")
+GSC_DRY_RUN = os.getenv("GSC_DRY_RUN", "").strip().lower() in ("1", "true", "yes")
+GSC_DAILY_CAP = int(os.getenv("GSC_DAILY_CAP", "100"))
+GSC_INSPECT_DAILY_CAP = int(os.getenv("GSC_INSPECT_DAILY_CAP", "200"))
+GSC_INSPECT_MAX_PAGES = int(os.getenv("GSC_INSPECT_MAX_PAGES", "20"))
 GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE = int(os.getenv("GOOGLE_CSE_MAX_KEYWORDS_PER_PAGE", "3"))
 GOOGLE_CSE_CACHE_TTL_HOURS = int(os.getenv("GOOGLE_CSE_CACHE_TTL_HOURS", "24"))
 
