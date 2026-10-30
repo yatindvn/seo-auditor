@@ -30,6 +30,10 @@ ENV LIGHTHOUSE_ENABLED=${WITH_BROWSER}
 
 # The FastAPI app.
 COPY app ./app
+# The central database is created by these migrations on first use
+# (app/db/engine.py); without them every project endpoint answers 503.
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 # Run as a non-root user. The crawler fetches arbitrary attacker-influenced URLs
 # and parses their HTML, so this process should hold no privileges it never needs.
