@@ -672,3 +672,42 @@ That costs roughly $0.02-0.05 per prompt per model. Every call counts against
 **Weekly runs** are opt-in per project
 (`PATCH /api/projects/{id} {"ai_schedule": "weekly"}`) and never run when
 every model is a dry run.
+
+---
+
+## Content Explorer
+
+For a topic, the top 10 organic results come from the configured SERP
+provider: one call against `SERP_DAILY_CAP`. Then:
+- **Pages:** each result is fetched once (15 s timeout, 4 at a time) and run
+  through the audit's own page analysis.
+- **Backlinks:** two DataForSEO bulk requests (`bulk_backlinks` and
+  `bulk_referring_domains`) count links for all 10 URLs, against
+  `DATAFORSEO_BACKLINKS_DAILY_CAP`.
+
+A new search costs about $0.05-0.08 in total.
+
+- **Cache:** a live search is reused for 7 days for the same topic, country
+  and language, which is free. `refresh: true` forces a new one. Dry-run
+  searches are saved and can be reopened, but are never reused as a cache hit.
+- **Dry run:** when the SERP provider isn't live, the results and their page
+  data are made up and nothing is fetched. Backlinks are made up when the
+  backlinks provider isn't live.
+- **Failures:** a page that can't be fetched keeps its SERP fields with
+  `error` (e.g. `HTTP 403`). A backlinks failure or cap only adds a note.
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| POST | `/api/content-explorer` | `{topic, country="US", language="en", refresh=false}` -> a search. 422 for a bad topic (2-80 chars) or code, 429 at the SERP cap, 502 for SERP errors; nothing is saved on errors |
+| GET | `/api/content-explorer/recent` | `{items: [{id, topic, country, language, created_at, dry_run}]}` (last 10) |
+| GET | `/api/content-explorer/{id}` | A saved search (`cached: true`), 404 if missing |
+| GET | `/api/content-explorer/{id}/csv` | One row per result; dry-run files start with `# DRY RUN — made-up data` |
+
+A search has:
+- `id`, `topic`, `country`, `language`, `created_at`, `cached`, `dry_run`, `notes`
+- `summary {median_words, median_referring_domains, schema_counts {type: results}, common_h2_terms [{term, count}]}`
+- `results[]`: `{position, url, domain, title, status, error, word_count, h1, outline [{level, text}], schema_types, images, internal_links, external_links, readability, issues, backlinks, referring_domains}`
+
+The outline is the first 30 H2/H3 headings. `schema_types` comes from valid
+JSON-LD, including `@graph`. `issues` counts errors and warnings.
+`common_h2_terms` counts each word once per page.
