@@ -335,3 +335,20 @@ export interface AiAnswer {
   highlights: { start: number; end: number; owner: string }[];
 }
 export interface AiRunResult { status: "ran" | "no_prompts" | "not_configured"; run_id?: number; calls?: number; errors?: number; dry_run?: boolean; mention_rate?: number | null }
+
+// Content Explorer (backend Phase 7.2).
+export interface ContentResult {
+  position: number; url: string; domain: string; title: string | null; status: number | null; error: string | null;
+  word_count: number | null; h1: string | null; outline: { level: number; text: string }[]; schema_types: string[];
+  images: number | null; internal_links: number | null; external_links: number | null; readability: number | null;
+  issues: number | null; backlinks: number | null; referring_domains: number | null;
+}
+export interface ContentSummary {
+  median_words: number | null; median_referring_domains: number | null;
+  schema_counts: Record<string, number>; common_h2_terms: { term: string; count: number }[];
+}
+export interface ContentSearchResult {
+  id: number; topic: string; country: string; language: string; created_at: string; cached: boolean; dry_run: boolean;
+  notes: string[]; summary: ContentSummary; results: ContentResult[];
+}
+export interface ContentRecent { id: number; topic: string; country: string; language: string; created_at: string; dry_run: boolean }

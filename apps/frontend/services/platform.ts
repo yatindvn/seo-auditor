@@ -5,6 +5,7 @@ import type {
   AuditGsc, GscList, GscOverview, GscSites, GscSort, GscSyncResult,
   BacklinkKind, BacklinkOverview, BacklinkRefresh, BacklinkRow, LinkGapResult, RefDomainRow,
   AiAnswer, AiBrands, AiOverview, AiPrompt, AiRunResult,
+  ContentRecent, ContentSearchResult,
 } from "@seo-auditor/shared";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -110,6 +111,11 @@ export const Platform = {
     request<ExploreResult>("/keywords/explore", post(body)),
   exploreCsvUrl: (seed: string, country = "US", language = "en") =>
     `${API_BASE_URL}/api/keywords/explore.csv?${new URLSearchParams({ seed, country, language })}`,
+  contentSearch: (body: { topic: string; country?: string; language?: string; refresh?: boolean }) =>
+    request<ContentSearchResult>("/content-explorer", post(body)),
+  contentRecent: () => request<{ items: ContentRecent[] }>("/content-explorer/recent"),
+  contentGet: (id: number) => request<ContentSearchResult>(`/content-explorer/${id}`),
+  contentCsvUrl: (id: number) => `${API_BASE_URL}/api/content-explorer/${id}/csv`,
   contentGap: (id: number, body: { competitors?: string[]; country?: string; language?: string; limit?: number }) =>
     request<GapResult>(`/projects/${id}/content-gap`, post(body)),
   contentGapCsvUrl: (id: number, competitors: string[], country = "US", language = "en", limit = 500) => {
