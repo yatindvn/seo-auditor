@@ -448,3 +448,44 @@ curl -s -X POST -H 'Content-Type: application/json' -d '{}' localhost:5000/api/p
 ```
 
 Then open the project's **Backlinks** tab.
+
+---
+
+## AI Visibility (Phase 7.1)
+
+An **AI Visibility** tab per project answers one question: when people ask AI
+assistants about your space, do they name you and cite your site? The tab
+covers:
+- **Prompts:** up to 25 questions, each with an on/off switch.
+- **Brand names:** your aliases and your competitors' aliases (competitors
+  come from the Rank Tracker). Matching is whole-word and ignores case.
+- **Models:** Claude, OpenAI and Gemini, each answering with its own web
+  search.
+- **Results:**
+  - mention rate, average position among the tracked brands, and cited rate,
+    each with the change since the last run
+  - a per-model trend and share of voice against competitors
+  - the most-cited domains
+  - every answer, with brand names highlighted and its sources
+
+- **Running:** press **Run now** (the page shows the estimated cost), or
+  switch on **Weekly** (off by default). A hard daily cap applies
+  (`AI_VISIBILITY_DAILY_CAP`, default 30 calls).
+- **Dry run:** without keys the answers are made up, a banner says so, and
+  the weekly job never runs.
+
+### How to verify (no money spent)
+
+```bash
+cd apps/backend
+python -m pytest tests/test_ai_providers.py tests/test_ai_detect.py tests/test_ai_storage.py tests/test_ai_run.py tests/test_ai_api.py -q
+export SESSION_DIR=/tmp/seo-ai          # no AI keys = dry run
+python -m app.cli https://books.toscrape.com/ --max-pages 10 --skip-external-links   # creates project 1
+python -m uvicorn app.main:app --port 5000 &
+curl -s -X POST -H 'Content-Type: application/json' -d '{"text":"best online bookstore for rare books"}' localhost:5000/api/projects/1/ai-visibility/prompts
+curl -s -X PUT -H 'Content-Type: application/json' -d '{"self":["Books to Scrape"]}' localhost:5000/api/projects/1/ai-visibility/brands
+curl -s -X POST localhost:5000/api/projects/1/ai-visibility/run
+curl -s localhost:5000/api/projects/1/ai-visibility | python -c "import sys,json; d=json.load(sys.stdin); print(d['dry_run'], d['latest'])"
+```
+
+Then open the project's **AI Visibility** tab.
