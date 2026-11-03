@@ -26,7 +26,11 @@ def html_weight(page) -> Dict:
     scripts = soup.find_all("script") if soup else []
     styles = soup.find_all("link", rel="stylesheet") if soup else []
     render_blocking_css = [s for s in styles if not s.get("media") or s.get("media") == "all"]
-    render_blocking_js = [s for s in scripts if s.get("src") and not (s.get("async") or s.get("defer"))]
+    # Boolean attributes: presence counts (a bare `async` parses to ""). Module
+    # scripts are deferred by default and modern browsers skip `nomodule` ones.
+    render_blocking_js = [s for s in scripts if s.get("src")
+                          and not any(s.has_attr(a) for a in ("async", "defer", "nomodule"))
+                          and (s.get("type") or "").lower() != "module"]
 
     return {
         "html_size_bytes": len(page.html.encode("utf-8")) if page.html else 0,
