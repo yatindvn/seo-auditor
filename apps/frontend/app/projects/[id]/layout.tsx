@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import React from "react";
 
 import { ProjectSwitcher } from "@/components/platform/project-switcher";
 import { ProjectTabs } from "@/components/platform/project-tabs";
+import { PRIVATE_PAGE } from "@/lib/seo";
+
+export const metadata: Metadata = PRIVATE_PAGE;
 
 export default function ProjectLayout({ children, params }: { children: React.ReactNode; params: { id: string } }) {
   const projectId = Number(params.id);
