@@ -209,10 +209,11 @@ export default function LandingPage() {
       <div className="w-full max-w-2xl rounded-3xl border border-border/60 bg-card/50 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Target URL</label>
+            <label htmlFor="target-url" className="text-sm font-semibold text-foreground">Target URL</label>
             <div className="relative">
               <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-muted-foreground" />
               <Input
+                id="target-url"
                 type="text"
                 placeholder="https://example.com"
                 className={`h-12 w-full rounded-xl bg-background pl-11 text-base shadow-inner ${urlError ? "border-rose-500 ring-rose-500/20" : ""}`}
@@ -463,6 +464,8 @@ export default function LandingPage() {
         </form>
       </div>
 
+      {/* Gives the feature cards (h3) a parent heading, so the outline does not jump from h1 to h3. */}
+      <h2 className="sr-only">What every audit covers</h2>
       <div className="mt-16 grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 px-4">
         {features.map((f, i) => (
           <div key={i} className="flex flex-col items-center text-center p-4">
