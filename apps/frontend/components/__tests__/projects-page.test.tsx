@@ -28,6 +28,13 @@ describe("Projects page", () => {
     expect(within(card).getByText(/3 audits/i)).toBeInTheDocument();
   });
 
+  it("names each card by what it shows, so voice users can say what they see (axe label-content-name-mismatch)", async () => {
+    vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [project()] });
+    render(<ProjectsPage />);
+    const card = await screen.findByRole("link", { name: /example\.com.*health.*72\.5.*3 audits/i });
+    expect(card).not.toHaveAttribute("aria-label");
+  });
+
   it("invites a first audit when there are none", async () => {
     vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [] });
     render(<ProjectsPage />);
