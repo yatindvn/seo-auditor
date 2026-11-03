@@ -96,6 +96,22 @@ RECOMMENDATION_TEXT = {
     "MISSING_HEADER_STRICT_TRANSPORT_SECURITY": "Add a Strict-Transport-Security header to enforce HTTPS.",
     "MISSING_HEADER_CONTENT_SECURITY_POLICY": "Add a Content-Security-Policy header to mitigate XSS risk.",
     "MISSING_HEADER_X_FRAME_OPTIONS": "Add an X-Frame-Options header to prevent clickjacking.",
+    "MISSING_HEADER_X_CONTENT_TYPE_OPTIONS": "Add X-Content-Type-Options: nosniff so browsers don't guess file types.",
+    "MISSING_HEADER_REFERRER_POLICY": "Add a Referrer-Policy header (e.g. strict-origin-when-cross-origin) to limit what URLs leak to other sites.",
+    "MISSING_OG_TYPE": "Add an og:type tag (e.g. website or article) so shared links are categorised correctly.",
+    "MISSING_OG_URL": "Add an og:url tag with the page's canonical URL so shares point to one address.",
+    "NO_RESPONSE": "The server sent no response; check it is up and not blocking crawlers.",
+    "AUDIT_ERROR": "This page could not be analysed; check the page loads and re-run the audit.",
+    "STATUS_410": "This page is gone (410); remove internal links to it, or redirect it if it has a replacement.",
+    "TEMP_REDIRECT": "Use a permanent (301/308) redirect if the move is permanent, so search engines pass the old URL's signals on.",
+    "EMPTY_HEADING": "Remove empty heading tags or give them text; screen readers announce them.",
+    "EMPTY_ANCHOR_TEXT": "Give every link visible text (or an aria-label) that says where it goes.",
+    "MISSING_NOOPENER": "Add rel=\"noopener\" to links with target=\"_blank\" so the new tab can't control this page.",
+    "LARGE_HTML": "Reduce the HTML size: move inline scripts/styles to files and trim repeated markup.",
+    "SMALL_FONT": "Use font sizes of at least 12px (16px for body text) so text stays readable on phones.",
+    "URL_TOO_LONG": "Shorten this URL: keep it readable and under about 100 characters.",
+    "PDF_LINKS_FOUND": "Check linked PDFs are indexable and accessible, or offer the content as a web page.",
+    "VIDEO_NO_POSTER": "Add a poster image to the <video> so something shows before it plays.",
     "DUPLICATE_HREFLANG": "Remove duplicate hreflang declarations.",
     "NO_X_DEFAULT": "Add an x-default hreflang for users outside targeted locales.",
     "URL_UPPERCASE": "Use lowercase URLs to avoid duplicate-content issues on case-sensitive servers.",
@@ -118,11 +134,13 @@ def recommendation_text(code: str):
 def generate_recommendations(all_page_issues: Dict[str, List[Dict]], site_wide_findings: Dict) -> List[Dict]:
     code_pages = {}
     code_severity = {}
+    code_message = {}
     for url, issues in all_page_issues.items():
         for iss in issues:
             code = iss["code"]
             code_pages.setdefault(code, set()).add(url)
             code_severity[code] = iss["severity"]
+            code_message.setdefault(code, iss.get("message"))
 
     recs = []
     for code, pages in code_pages.items():
@@ -139,12 +157,13 @@ def generate_recommendations(all_page_issues: Dict[str, List[Dict]], site_wide_f
             "severity": severity,
             "affected_pages": affected,
             "example_urls": sorted(pages)[:5],
-            "recommendation": recommendation_text(code) or f"Review and resolve: {code}",
+            # Unknown codes (custom rules) carry their own message: show that.
+            "recommendation": recommendation_text(code) or code_message.get(code) or code,
             "priority_score": priority_score,
             "impact": impact,
             "estimated_effort": effort,
             "description": f"Detected {affected} instances of {code} across audited pages.",
-            "suggested_resolution": recommendation_text(code) or "Review implementation and apply standard web practices.",
+            "suggested_resolution": recommendation_text(code) or code_message.get(code) or code,
         })
 
     if site_wide_findings.get("orphan_count", 0) > 0:

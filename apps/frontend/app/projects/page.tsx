@@ -22,7 +22,7 @@ export default function ProjectsPage() {
         {(data) => (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.items.map((p) => (
-              <Link key={p.id} href={`/projects/${p.id}`} aria-label={p.name}
+              <Link key={p.id} href={`/projects/${p.id}`}
                     className="group rounded-[18px] border bg-card p-5 transition-colors hover:border-primary/40">
                 <p className="truncate font-semibold tracking-tight group-hover:text-primary">{p.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{p.domain}</p>
