@@ -130,7 +130,10 @@ def record_audit(
         page_count = 0
         for batch in session_db.iter_pages(BATCH_SIZE):
             session.execute(insert(AuditPage), [{**row, "audit_id": audit.id} for row in batch])
-            page_count += len(batch)
+            # Rows that turned out to be another page (a copy, or a redirect onto
+            # one already claimed) are stored for the dashboard but were never
+            # analysed: they are not pages of this audit.
+            page_count += sum(1 for row in batch if not (row.get("duplicate_of") or row.get("alias_of")))
         for batch in session_db.iter_issues(BATCH_SIZE):
             session.execute(insert(AuditIssue), [{**row, "audit_id": audit.id} for row in batch])
 

@@ -101,3 +101,22 @@ def test_rank_results_become_keywords_and_rank_checks(tmp_path):
         assert ranked.ranking_url == "https://example.com/p0"
         assert ranked.provider == "google_cse" and ranked.status == "ranked"
         assert any(c.status == "skipped" and c.note == "quota reached" for c in checks)
+
+
+def test_page_count_leaves_out_skipped_duplicates_and_aliases(tmp_path):
+    # The crawler stores a URL that turned out to be another page (a byte-for-byte
+    # copy, or a redirect onto a page already claimed) so the dashboard can say it
+    # was skipped. It was never analysed, so it is not a page of the audit.
+    db = _session(tmp_path, pages=2)
+    db.add_pages([
+        {"url": "https://example.com/index.html", "final_url": "https://example.com/index.html", "status": 200,
+         "depth": 1, "duplicate_of": "https://example.com/p0", "issues": [], "meta": {}},
+        {"url": "https://example.com/old", "final_url": "https://example.com/p1", "status": 301,
+         "depth": 1, "alias_of": "https://example.com/p1", "issues": [], "meta": {}},
+    ])
+    factory = get_session_factory()
+    audit_id, _ = audit_store.record_audit(factory, db, _result(), session_id="s-dup",
+                                           start_url="https://example.com/")
+    with factory() as s:
+        assert s.get(Audit, audit_id).page_count == 2
+        assert s.scalar(select(func.count()).select_from(AuditPage)) == 4   # all rows still stored
