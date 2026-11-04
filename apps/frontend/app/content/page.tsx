@@ -1,10 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import dynamic from "next/dynamic";
 import type { ContentSearchResult } from "@seo-auditor/shared";
 
 import { EmptyState } from "@/components/platform/async-state";
-import { SchemaChart, WordsChart } from "@/components/platform/content-charts";
 import { ContentResults } from "@/components/platform/content-results";
 import { DryRunBanner } from "@/components/platform/dry-run-banner";
 import { KpiTile } from "@/components/platform/kpi-tile";
@@ -14,6 +14,14 @@ import { Input } from "@/components/ui/input";
 import { ago, num, topSchema } from "@/lib/content";
 import { useApi } from "@/lib/use-api";
 import { ApiError, Platform } from "@/services/platform";
+
+// The charts (Recharts) only show after a search, so they load then rather
+// than with the page. The placeholder keeps the layout from jumping.
+const chartPlaceholder = () => <div className="h-[19rem] rounded-[18px] border bg-card" aria-hidden />;
+const WordsChart = dynamic(() => import("@/components/platform/content-charts").then((m) => m.WordsChart),
+                           { ssr: false, loading: chartPlaceholder });
+const SchemaChart = dynamic(() => import("@/components/platform/content-charts").then((m) => m.SchemaChart),
+                            { ssr: false, loading: chartPlaceholder });
 
 export default function ContentPage() {
   const [topic, setTopic] = useState("");
