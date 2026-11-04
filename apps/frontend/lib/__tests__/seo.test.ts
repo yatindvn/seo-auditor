@@ -40,3 +40,19 @@ describe("SEO metadata", () => {
       expect(m.robots).toEqual({ index: false, follow: false });
     });
 });
+
+describe("structured data", () => {
+  it("describes the site and the app with schema.org types, and nothing unverifiable", async () => {
+    const { structuredData, jsonLd } = await import("@/lib/seo");
+    const data = structuredData() as { "@context": string; "@graph": Record<string, unknown>[] };
+    expect(data["@context"]).toBe("https://schema.org");
+    const byType = Object.fromEntries(data["@graph"].map((n) => [n["@type"], n]));
+    expect(byType.WebSite).toMatchObject({ "@id": `${SITE_URL}/#website`, url: `${SITE_URL}/`, name: "SEO Auditor" });
+    expect(byType.WebApplication).toMatchObject({ url: `${SITE_URL}/`, applicationCategory: "DeveloperApplication",
+                                                  isPartOf: { "@id": `${SITE_URL}/#website` } });
+    // No prices or ratings: we can't back them up.
+    expect(JSON.stringify(data)).not.toMatch(/offers|aggregateRating|price/);
+    // Serialised safely for a <script> tag.
+    expect(jsonLd({ x: "</script><b>" })).toBe('{"x":"\u003c/script>\u003cb>"}');
+  });
+});

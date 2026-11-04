@@ -26,3 +26,27 @@ export const PRIVATE_PAGE: Metadata = {
   alternates: { canonical: null },
   openGraph: { type: "website", siteName: SITE_NAME, images: [SHARE_IMAGE] },
 };
+
+export const SITE_DESCRIPTION =
+  "Crawl any website and get a complete technical, on-page, performance, accessibility, and security SEO audit with a prioritized health score.";
+
+/** JSON-LD for every page: the site and the app it hosts. Only facts we can
+ *  stand behind -- no prices or ratings. */
+export function structuredData(): Record<string, unknown> {
+  const home = `${SITE_URL}/`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "WebSite", "@id": `${SITE_URL}/#website`, url: home, name: SITE_NAME, description: SITE_DESCRIPTION, inLanguage: "en" },
+      { "@type": "WebApplication", "@id": `${SITE_URL}/#app`, url: home, name: SITE_NAME, description: SITE_DESCRIPTION,
+        applicationCategory: "DeveloperApplication", operatingSystem: "Any", browserRequirements: "Requires JavaScript",
+        isPartOf: { "@id": `${SITE_URL}/#website` } },
+    ],
+  };
+}
+
+/** JSON for a <script type="application/ld+json"> tag: `<` is escaped so the
+ *  content can never close the tag early. */
+export function jsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\u003c");
+}
