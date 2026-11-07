@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAudit } from "@/lib/audit-context";
+import { PageGuide } from "@/components/platform/page-guide";
+import { HOME_GUIDE } from "@/lib/page-guides";
 import { ApiService } from "@/services/api";
 import { buildRankTargets, countQueries, RankTargetRow } from "@/lib/rank-targets";
 import {
@@ -476,6 +478,10 @@ export default function LandingPage() {
             <p className="text-sm text-muted-foreground">{f.desc}</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-12 mb-16 w-full px-4">
+        <PageGuide {...HOME_GUIDE} />
       </div>
     </div>
   );

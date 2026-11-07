@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Metadata } from "next";
 
 import { metadata as root } from "@/app/layout";
-import { metadata as home } from "@/app/(home)/layout";
+import { metadata as home } from "@/app/(audit)/(home)/layout";
 import { metadata as projects } from "@/app/projects/layout";
 import { metadata as keywords } from "@/app/keywords/layout";
 import { metadata as content } from "@/app/content/layout";
-import { metadata as dashboard } from "@/app/dashboard/layout";
-import { metadata as liveCrawl } from "@/app/live-crawl/layout";
+import { metadata as dashboard } from "@/app/(audit)/dashboard/layout";
+import { metadata as liveCrawl } from "@/app/(audit)/live-crawl/layout";
 import { metadata as project } from "@/app/projects/[id]/layout";
 import { SHARE_IMAGE, SITE_URL } from "@/lib/seo";
 

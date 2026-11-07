@@ -21,7 +21,7 @@ beforeEach(() => vi.restoreAllMocks());
 describe("Projects page", () => {
   it("lists projects with health and audit count", async () => {
     vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [project()] });
-    render(<ProjectsPage />);
+    render(await ProjectsPage());
     const card = await screen.findByRole("link", { name: /example\.com/i });
     expect(card).toHaveAttribute("href", "/projects/7");
     expect(within(card).getByText("72.5")).toBeInTheDocument();
@@ -30,22 +30,37 @@ describe("Projects page", () => {
 
   it("names each card by what it shows, so voice users can say what they see (axe label-content-name-mismatch)", async () => {
     vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [project()] });
-    render(<ProjectsPage />);
+    render(await ProjectsPage());
     const card = await screen.findByRole("link", { name: /example\.com.*health.*72\.5.*3 audits/i });
     expect(card).not.toHaveAttribute("aria-label");
   });
 
   it("invites a first audit when there are none", async () => {
     vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [] });
-    render(<ProjectsPage />);
+    render(await ProjectsPage());
     expect(await screen.findByText(/no projects yet/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /run your first audit/i })).toHaveAttribute("href", "/");
   });
 
-  it("explains an outage", async () => {
+  it("explains an outage, with a way to retry", async () => {
     vi.spyOn(Platform, "listProjects").mockRejectedValue(new ApiError(503, "central database unavailable"));
-    render(<ProjectsPage />);
+    render(await ProjectsPage());
     expect(await screen.findByRole("alert")).toHaveTextContent(/unavailable right now/i);
+    expect(screen.getByRole("link", { name: /retry/i })).toHaveAttribute("href", "/projects");
+  });
+
+  it("renders the project links on the server, so crawlers see them without JavaScript", async () => {
+    vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [project(), project({ id: 8, name: "shop.com", domain: "shop.com" })] });
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(await ProjectsPage());
+    expect(html).toContain('href="/projects/7"');
+    expect(html).toContain('href="/projects/8"');
+  });
+
+  it("shows audit dates the same way for every visitor", async () => {
+    vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [project()] });
+    render(await ProjectsPage());
+    expect(await screen.findByText(/last 24 Oct 2026/)).toBeInTheDocument();
   });
 });
 
