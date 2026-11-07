@@ -6,6 +6,8 @@ import type { ExploreResult } from "@seo-auditor/shared";
 import { EmptyState } from "@/components/platform/async-state";
 import { DryRunBanner } from "@/components/platform/dry-run-banner";
 import { PageHeader } from "@/components/platform/page-header";
+import { PageGuide } from "@/components/platform/page-guide";
+import { KEYWORDS_GUIDE } from "@/lib/page-guides";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiError, Platform } from "@/services/platform";
@@ -108,6 +110,7 @@ export default function KeywordsPage() {
           {result.notes.length > 0 && <ul className="text-xs text-muted-foreground">{result.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
         </section>
       )}
+      <PageGuide {...KEYWORDS_GUIDE} />
     </main>
   );
 }

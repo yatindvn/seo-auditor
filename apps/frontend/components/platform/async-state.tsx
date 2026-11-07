@@ -1,21 +1,14 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UseApiResult } from "@/lib/use-api";
-import { ApiError } from "@/services/platform";
+import { ErrorState } from "@/components/platform/error-state";
+import { errorTitle } from "@/lib/api-errors";
 
-function errorTitle(error: Error): string {
-  if (error instanceof ApiError) {
-    if (error.status === 0) return "Can't reach the server";
-    if (error.status === 503) return "Project data is unavailable right now";
-    if (error.status === 404) return "Not found";
-  }
-  return "Something went wrong";
-}
 
 export function EmptyState({ title, text, action }: { title: string; text?: string; action?: React.ReactNode }) {
   return (
@@ -48,13 +41,8 @@ export function AsyncState<T>({ state, isEmpty, emptyTitle = "Nothing here yet",
   }
   if (state.error) {
     return (
-      <div role="alert" className="flex flex-col items-start gap-3 rounded-[18px] border border-rose-200 bg-rose-50/60 p-6 dark:border-rose-900 dark:bg-rose-950/30">
-        <div className="flex items-center gap-2 font-semibold tracking-tight text-rose-700 dark:text-rose-400">
-          <AlertTriangle className="h-4 w-4" aria-hidden /> {errorTitle(state.error)}
-        </div>
-        <p className="text-sm text-muted-foreground">{state.error.message}</p>
-        <Button variant="outline" size="sm" className="rounded-full active:scale-95" onClick={state.reload}>Retry</Button>
-      </div>
+      <ErrorState title={errorTitle(state.error)} message={state.error.message}
+                  action={<Button variant="outline" size="sm" className="rounded-full active:scale-95" onClick={state.reload}>Retry</Button>} />
     );
   }
   if (state.data === null) return null;

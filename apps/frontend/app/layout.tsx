@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { GlobalNav } from "@/components/platform/global-nav";
-import { AuditProvider } from "@/lib/audit-context";
 import { SHARE_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_URL, jsonLd, structuredData } from "@/lib/seo";
 
 // Site-wide share tags. No canonical here: it would resolve to the homepage for
@@ -23,10 +22,8 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData()) }} />
-        <AuditProvider>
-          <GlobalNav />
-          {children}
-        </AuditProvider>
+        <GlobalNav />
+        {children}
       </body>
     </html>
   );

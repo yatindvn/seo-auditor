@@ -9,6 +9,8 @@ import { ContentResults } from "@/components/platform/content-results";
 import { DryRunBanner } from "@/components/platform/dry-run-banner";
 import { KpiTile } from "@/components/platform/kpi-tile";
 import { PageHeader } from "@/components/platform/page-header";
+import { PageGuide } from "@/components/platform/page-guide";
+import { CONTENT_GUIDE } from "@/lib/page-guides";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ago, num, topSchema } from "@/lib/content";
@@ -104,6 +106,7 @@ export default function ContentPage() {
           )}
         </div>
       )}
+      <PageGuide {...CONTENT_GUIDE} />
     </main>
   );
 }
