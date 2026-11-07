@@ -36,6 +36,7 @@ class VitalsResult:
     tbt_ms: Optional[float] = None
     rating: Optional[str] = None
     error: Optional[str] = None
+    cpu_slowdown: Optional[float] = None   # Lighthouse's CPU throttle for this run (lab only)
 
     def to_dict(self) -> Dict[str, Any]:
         return {**asdict(self), "metric_ratings": metric_ratings(self)}

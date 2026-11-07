@@ -81,6 +81,10 @@ PSI_MAX_PAGES = int(os.getenv("PSI_MAX_PAGES", "5"))
 LIGHTHOUSE_ENABLED = os.getenv("LIGHTHOUSE_ENABLED", "").strip().lower() in ("1", "true", "yes")
 CHROME_PATH = os.getenv("CHROME_PATH", "")
 LIGHTHOUSE_CLI = os.getenv("LIGHTHOUSE_CLI", "")
+# Lighthouse slows the CPU to imitate a mid-tier phone; its default (4x) assumes
+# a fast desktop is running it. "auto" picks the slowdown from the host's measured
+# speed, as Lighthouse's throttling guide recommends; a number fixes it.
+LIGHTHOUSE_CPU_SLOWDOWN = os.getenv("LIGHTHOUSE_CPU_SLOWDOWN", "auto").strip().lower() or "auto"
 # JavaScript rendering (Phase 5.2): when an audit asks for it, this many pages
 # are rendered in headless Chromium and compared with their raw HTML.
 RENDER_MAX_PAGES = int(os.getenv("RENDER_MAX_PAGES", "20"))

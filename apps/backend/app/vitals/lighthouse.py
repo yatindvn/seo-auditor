@@ -9,15 +9,19 @@ in a crawled URL. Lighthouse must be installed once with
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
+from app.config import config
 from app.rendering.playwright_renderer import playwright_chromium
 from app.vitals.model import VitalsResult, rate
 from app.vitals.psi import parse_lab
+
+logger = logging.getLogger(__name__)
 
 
 def _chrome_candidates() -> List[str]:
@@ -72,6 +76,41 @@ def parse_lighthouse(url: str, strategy: str, lhr: Dict[str, Any]) -> VitalsResu
     return result
 
 
+DEFAULT_SLOWDOWN = 4.0
+_calibrated: Optional[float] = None      # this process's host, once measured
+
+
+def reset_calibration() -> None:
+    global _calibrated
+    _calibrated = None
+
+
+def recommended_slowdown(benchmark_index: Optional[float]) -> Optional[float]:
+    """The CPU slowdown that makes this host imitate a mid-tier phone, per
+    Lighthouse's docs/throttling.md device classes: 4x on a high-end desktop
+    (benchmark index 1500+), 2x on a low-end desktop or high-end phone (800+),
+    1x on anything slower (already phone-class)."""
+    if benchmark_index is None:
+        return None
+    if benchmark_index >= 1500:
+        return 4.0
+    if benchmark_index >= 800:
+        return 2.0
+    return 1.0
+
+
+def _fixed_slowdown() -> Optional[float]:
+    setting = config.LIGHTHOUSE_CPU_SLOWDOWN
+    if setting == "auto":
+        return None
+    try:
+        value = float(setting)
+    except ValueError:
+        logger.warning("LIGHTHOUSE_CPU_SLOWDOWN=%r is not a number or 'auto'; using auto", setting)
+        return None
+    return value if value > 0 else None
+
+
 class LighthouseProvider:
     name = "lighthouse"
 
@@ -81,21 +120,57 @@ class LighthouseProvider:
         self.node_path = node_path
         self.timeout = timeout
 
-    def command(self, url: str, strategy: str = "mobile") -> List[str]:
+    def command(self, url: str, strategy: str = "mobile", slowdown: Optional[float] = None) -> List[str]:
         cmd = [self.node_path, self.cli_path, url, "--output=json", "--output-path=stdout",
                "--only-categories=performance", "--quiet",
                "--chrome-flags=--headless=new --no-sandbox"]
         if strategy == "desktop":
             cmd.append("--preset=desktop")
+        if slowdown is not None:
+            cmd.append(f"--throttling.cpuSlowdownMultiplier={slowdown:g}")
         return cmd
 
     def measure(self, url: str, strategy: str = "mobile") -> VitalsResult:
-        def failed(message: str) -> VitalsResult:
-            return VitalsResult(url=url, strategy=strategy, source="lighthouse", error=message)
+        """One page. Mobile runs use a CPU slowdown suited to this host: fixed by
+        LIGHTHOUSE_CPU_SLOWDOWN, or calibrated from Lighthouse's own benchmark of
+        the host -- the first run that finds the slowdown wrong is re-measured
+        once, and later runs use the right one straight away."""
+        global _calibrated
+        if strategy != "mobile":
+            return self._run(url, strategy, None)[0]
+        fixed = _fixed_slowdown()
+        if fixed is not None:
+            result, _ = self._run(url, strategy, fixed)
+            if not result.error:
+                result.cpu_slowdown = fixed
+            return result
+        used = _calibrated
+        result, index = self._run(url, strategy, used)
+        if result.error:
+            return result
+        applied = used if used is not None else DEFAULT_SLOWDOWN
+        result.cpu_slowdown = applied
+        right = recommended_slowdown(index)
+        if right is None:
+            return result
+        _calibrated = right
+        if right == applied:
+            return result
+        logger.info("Lighthouse: host benchmark index %s, re-measuring %s at %gx CPU slowdown", index, url, right)
+        again, _ = self._run(url, strategy, right)
+        if again.error:
+            return result
+        again.cpu_slowdown = right
+        return again
+
+    def _run(self, url: str, strategy: str, slowdown: Optional[float]) -> Tuple[VitalsResult, Optional[float]]:
+        """One Lighthouse run: the result and the host's benchmark index."""
+        def failed(message: str) -> Tuple[VitalsResult, Optional[float]]:
+            return VitalsResult(url=url, strategy=strategy, source="lighthouse", error=message), None
 
         try:
             proc = subprocess.run(
-                self.command(url, strategy), capture_output=True, text=True, encoding="utf-8",
+                self.command(url, strategy, slowdown), capture_output=True, text=True, encoding="utf-8",
                 errors="replace", timeout=self.timeout, env={**os.environ, "CHROME_PATH": self.chrome_path},
             )
         except subprocess.TimeoutExpired:
@@ -108,4 +183,5 @@ class LighthouseProvider:
             lhr = json.loads(proc.stdout)
         except ValueError:
             return failed("Lighthouse returned no JSON")
-        return parse_lighthouse(url, strategy, lhr)
+        index = (lhr.get("environment") or {}).get("benchmarkIndex")
+        return parse_lighthouse(url, strategy, lhr), (float(index) if isinstance(index, (int, float)) else None)
