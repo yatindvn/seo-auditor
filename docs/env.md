@@ -43,6 +43,7 @@
 | `LIGHTHOUSE_ENABLED` | Local Lighthouse fallback (needs Node, Chrome, `npm i -g lighthouse@12`) | `false` |
 | `CHROME_PATH` | Chrome binary for Lighthouse; auto-detected when empty | `""` |
 | `LIGHTHOUSE_CLI` | Path to Lighthouse's `cli/index.js`; found via `npm root -g` when empty | `""` |
+| `LIGHTHOUSE_CPU_SLOWDOWN` | CPU slowdown for Lighthouse's mobile runs. `auto` picks it from the host's benchmark index (Lighthouse's device classes: 1500+ = 4x, 800+ = 2x, slower = 1x) so a slow server doesn't make every site look slow; the first run that finds it wrong is re-measured once. A number fixes it | `auto` |
 | `RENDER_MAX_PAGES` | Pages rendered in headless Chromium per audit when `render_js` is on | `20` |
 | `RENDER_TIMEOUT_MS` | Per-page navigation timeout for rendering | `20000` |
 | `GSC_SERVICE_ACCOUNT_FILE` | Path to a Google service account's JSON key for Search Console (read-only). Empty = not used | `""` |
