@@ -33,9 +33,12 @@ export function GlobalNav() {
           ))}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Link href="/" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground active:scale-95">
-            <Plus className="h-4 w-4" aria-hidden /> New audit
-          </Link>
+          {/* The homepage is the audit form, so the button would lead nowhere there. */}
+          {pathname !== "/" && (
+            <Link href="/" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground active:scale-95">
+              <Plus className="h-4 w-4" aria-hidden /> New audit
+            </Link>
+          )}
           <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-full md:hidden"
                   aria-label="Menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
             <Menu className="h-5 w-5" />
