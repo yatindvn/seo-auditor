@@ -9,9 +9,12 @@ import { PROJECTS_GUIDE } from "@/lib/page-guides";
 import { errorTitle } from "@/lib/api-errors";
 import { Platform } from "@/services/platform";
 
-// Rendered on the server for each request, so the project links are in the HTML
-// (crawlers see them without running JavaScript) and new audits show at once.
-export const dynamic = "force-dynamic";
+// Rendered on the server, so the project links are in the HTML (crawlers see
+// them without running JavaScript). Cached and refreshed in the background at
+// most once a minute: building it on every visit meant a backend round trip
+// before the first byte (flagged as a slow response). A newly audited site can
+// take up to a minute to appear here.
+export const revalidate = 60;
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
