@@ -57,6 +57,12 @@ describe("Projects page", () => {
     expect(html).toContain('href="/projects/8"');
   });
 
+  it("is cached and refreshed every minute, not built on every visit (fast response)", async () => {
+    const page = await import("@/app/projects/page");
+    expect(page.revalidate).toBe(60);
+    expect((page as Record<string, unknown>).dynamic).toBeUndefined();
+  });
+
   it("shows audit dates the same way for every visitor", async () => {
     vi.spyOn(Platform, "listProjects").mockResolvedValue({ items: [project()] });
     render(await ProjectsPage());
